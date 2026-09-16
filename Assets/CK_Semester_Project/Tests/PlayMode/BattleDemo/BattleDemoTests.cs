@@ -42,6 +42,42 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [Test]
+        public void DefenseProtectsAgainstBothMonstersAndInvestmentControlsAreLockedDuringPresentation()
+        {
+            _demo.CycleInvestment();
+            _demo.CycleInvestment();
+            Assert.That(_demo.Defend(), Is.True);
+            _demo.CycleInvestment();
+            Assert.That(_demo.MemoryInvestment, Is.EqualTo(2));
+            Assert.That(_demo.Defend(), Is.False);
+            Assert.That(_demo.Snapshot.Combatants[0].Memory, Is.EqualTo(22));
+            Assert.That(_demo.Snapshot.Combatants[0].RageEnergy, Is.EqualTo(40));
+            Assert.That(_demo.Snapshot.Combatants[0].IsDefending, Is.True);
+            for (int steps = 0; steps < 5; steps++)
+            {
+                Assert.That(_demo.Advance(), Is.True);
+            }
+            Assert.That(_demo.IsPlayerInput, Is.True);
+            Assert.That(_demo.Snapshot.Combatants[0].Hp, Is.EqualTo(126));
+            Assert.That(_demo.Snapshot.Combatants[0].IsDefending, Is.False);
+            _demo.RestartScenario(0);
+            Assert.That(_demo.MemoryInvestment, Is.Zero);
+        }
+
+        [Test]
+        public void InvestmentRecoveryAndBaseCostUseCommonExecutor()
+        {
+            _demo.CycleInvestment();
+            Assert.That(_demo.Attack(), Is.True);
+            Assert.That(_demo.Snapshot.Combatants[0].Memory, Is.EqualTo(26));
+            Assert.That(_demo.Snapshot.Combatants[1].Hp, Is.EqualTo(46));
+            _demo.RestartScenario(0);
+            _demo.SelectSkill("heavy");
+            Assert.That(_demo.Attack(), Is.True);
+            Assert.That(_demo.Snapshot.Combatants[0].Memory, Is.EqualTo(22));
+        }
+
+        [Test]
         public void DisruptionReordersRemainingEnemies()
         {
             Assert.That(_demo.SelectSkill("disrupt"), Is.True);

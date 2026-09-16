@@ -124,7 +124,7 @@ namespace CK.SemesterProject.Battle.Demo
                 Fill(new Rect(x + 16, 557, 312, 7), new Color(0.15f, 0.2f, 0.25f));
                 Fill(new Rect(x + 16, 557, 312f * unit.Hp / unit.Data.MaxHp, 7), accent);
                 Text(new Rect(x + 16, 572, 312, 22), unit.SkippedTurns > 0 ? "행동 불능 · " + unit.SkippedTurns + "회 남음"
-                    : unit.IsDead ? "행동 및 선택 대상에서 제외" : "메모리 기준 우선순위", 12, Muted);
+                    : unit.IsDead ? "행동 및 선택 대상에서 제외" : (unit.IsDefending ? "방어 중 · " : "") + "폭주 " + unit.RageEnergy, 12, Muted);
             }
             if (_controller.PendingResult != null && _controller.PresentationProgress >= 0.4f)
             {
@@ -144,7 +144,7 @@ namespace CK.SemesterProject.Battle.Demo
             Fill(new Rect(0, 621, 1440, 279), Ink);
             Text(new Rect(36, 636, 790, 34), "행동 선택", 21, Color.white);
             string[] ids = { "strike", "heavy", "disrupt" };
-            string[] labels = { "기본 공격\n고정 피해 24", "강타\n고정 피해 36", "메모리 교란\n피해 12 · 메모리 −8" };
+            string[] labels = { "기본 공격\n피해 24 · 메모리 회복 3", "강타\n피해 36 · 메모리 비용 2", "메모리 강탈\n피해 12 · 최대 8 강탈" };
             for (int i = 0; i < ids.Length; i++)
             {
                 if (Button(new Rect(36 + i * 254, 681, 242, 67), labels[i], _controller.SelectedSkillId == ids[i], _controller.IsPlayerInput))
@@ -175,8 +175,15 @@ namespace CK.SemesterProject.Battle.Demo
             {
                 _controller.Advance();
             }
-            Text(new Rect(424, 827, 392, 27), "자동 진행 OFF로 한 단계씩 확인", 14, Muted);
-            Text(new Rect(36, 871, 1340, 22), "검증용 모델·수치  /  메모리 교란은 순서 재계산 확인용 샘플  /  방어·치명타·최종 AI는 후속 단계", 13, Muted);
+            if (Button(new Rect(424, 818, 176, 39), "투자 MEM " + _controller.MemoryInvestment, false, _controller.IsPlayerInput))
+            {
+                _controller.CycleInvestment();
+            }
+            if (Button(new Rect(614, 818, 172, 39), "방어", false, _controller.IsPlayerInput))
+            {
+                _controller.Defend();
+            }
+            Text(new Rect(36, 871, 1340, 22), "데모 수치: 투자 0~3 → ×1 / 1.1 / 1.2 / 1.35 · 방어 투자당 폭주 −5 · 방어는 다음 자기 턴 시작까지", 13, Muted);
         }
 
         private void DrawHistory()

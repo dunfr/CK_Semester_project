@@ -23,6 +23,21 @@ namespace CK.SemesterProject.Battle.Demo
         public BattleActionResult PendingResult => _session.PendingResult;
         public IReadOnlyList<string> History => _history;
         public int Scenario => _scenario;
+        public int MemoryInvestment { get; private set; }
+
+        public void CycleInvestment()
+        {
+            if (IsPlayerInput)
+            {
+                MemoryInvestment = (MemoryInvestment + 1) % 4;
+            }
+        }
+
+        public bool Defend()
+        {
+            return IsPlayerInput && Submit(new BattleActionRequest(Snapshot.TurnId, Snapshot.CurrentActorId,
+                BattleActionKind.Defend, memoryInvestment: MemoryInvestment));
+        }
         public string SelectedSkillId => _skillId;
         public string SelectedTargetId => _targetId;
         public float PresentationProgress => Mathf.Clamp01(_phaseElapsed / _presentationSeconds);
@@ -56,9 +71,9 @@ namespace CK.SemesterProject.Battle.Demo
         public void RestartScenario(int scenario)
         {
             _scenario = Mathf.Clamp(scenario, 0, 2);
-            var strike = new SkillData("strike", "기본 공격", 24, BattleElement.Afterimage);
-            var heavy = new SkillData("heavy", "강타", 36, BattleElement.Imprint);
-            var disrupt = new SkillData("disrupt", "메모리 교란", 12, BattleElement.Oblivion);
+            var strike = new SkillData("strike", "기본 공격", 24, BattleElement.Afterimage, memoryRecovery: 3);
+            var heavy = new SkillData("heavy", "강타", 36, BattleElement.Imprint, memoryCost: 2);
+            var disrupt = new SkillData("disrupt", "메모리 교란", 12, BattleElement.Oblivion, memorySteal: 8);
             var enemyStrike = new SkillData("claw", "타격", 13);
             var player = new CombatantData("demo_player", "플레이어", BattleTeam.Player,
                 140, 40, 24, new[] { strike, heavy, disrupt });
@@ -67,15 +82,16 @@ namespace CK.SemesterProject.Battle.Demo
                 72, 40, enemyMemory, new[] { enemyStrike });
 
             // 동률 시드와 전투 수치는 데모 재현용이다. 밸런스 확정값이 아니다.
-            _session = new BattleSession(new BattleDemoResolver(), 17);
+            _session = new BattleSession(randomSeed: 17, rules: new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 }, 5));
             _history.Clear();
             _recordedActionId = 0;
+            MemoryInvestment = 0;
             _skillId = "strike";
             _targetId = "sentinel_a";
             LastError = BattleActionError.None;
             _session.Start(new[]
             {
-                new BattleParticipant("player", player, skippedTurns: _scenario == 2 ? 1 : 0),
+                new BattleParticipant("player", player, skippedTurns: _scenario == 2 ? 1 : 0, initialRageEnergy: 50),
                 new BattleParticipant("sentinel_a", enemy),
                 new BattleParticipant("sentinel_b", enemy, initialMemory: _scenario == 1 ? 24 : 14)
             });
@@ -115,7 +131,7 @@ namespace CK.SemesterProject.Battle.Demo
                 return false;
             }
             return Submit(new BattleActionRequest(Snapshot.TurnId, Snapshot.CurrentActorId,
-                BattleActionKind.Skill, _skillId, _targetId));
+                BattleActionKind.Skill, _skillId, _targetId, MemoryInvestment));
         }
 
         public bool Wait()
@@ -209,6 +225,10 @@ namespace CK.SemesterProject.Battle.Demo
             else if (result.Request.Kind == BattleActionKind.Wait)
             {
                 AddHistory(actor + " · 대기");
+            }
+            if (result.Request.Kind == BattleActionKind.Defend)
+            {
+                AddHistory(actor + " · 방어 / 받는 피해 50% 감소");
             }
             foreach (BattleStateChange change in result.Changes)
             {

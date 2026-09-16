@@ -202,7 +202,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void UnsupportedPrototypeFeaturesAreExplicitlyRejected()
         {
-            BattleSession session = Start();
+            BattleSession session = Start(new PrototypeActionResolver());
             Assert.That(session.TrySubmit(Request(session, BattleActionKind.Defend), out _, out BattleActionError error), Is.False);
             Assert.That(error, Is.EqualTo(BattleActionError.UnsupportedAction));
             Assert.That(session.TrySubmit(Request(session, BattleActionKind.Skill, "monster", 1), out _, out error), Is.False);

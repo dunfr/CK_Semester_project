@@ -61,6 +61,7 @@ namespace CK.SemesterProject.Battle
         UnknownSkill,
         InvalidTarget,
         InvalidMemoryInvestment,
-        UnsupportedAction
+        UnsupportedAction,
+        InsufficientMemory
     }
 }

@@ -7,13 +7,18 @@ namespace CK.SemesterProject.Battle
         public int HpDelta { get; }
         public int MemoryDelta { get; }
         public int? SkippedTurns { get; }
+        public bool? IsDefending { get; }
+        public int RageDelta { get; }
 
-        public BattleEffect(string targetId, int hpDelta = 0, int memoryDelta = 0, int? skippedTurns = null)
+        public BattleEffect(string targetId, int hpDelta = 0, int memoryDelta = 0, int? skippedTurns = null,
+            bool? isDefending = null, int rageDelta = 0)
         {
             TargetId = targetId;
             HpDelta = hpDelta;
             MemoryDelta = memoryDelta;
             SkippedTurns = skippedTurns;
+            IsDefending = isDefending;
+            RageDelta = rageDelta;
         }
     }
 }

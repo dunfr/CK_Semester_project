@@ -8,16 +8,21 @@ namespace CK.SemesterProject.Battle
         public int Hp { get; }
         public int Memory { get; }
         public int SkippedTurns { get; }
+        public bool IsDefending { get; }
+        public int RageEnergy { get; }
         public bool IsDead => Hp == 0;
         public bool CanAct => !IsDead && SkippedTurns == 0;
 
-        internal CombatantState(string instanceId, CombatantData data, int hp, int memory, int skippedTurns)
+        internal CombatantState(string instanceId, CombatantData data, int hp, int memory, int skippedTurns,
+            bool isDefending = false, int rageEnergy = 0)
         {
             InstanceId = instanceId;
             Data = data;
             Hp = hp;
             Memory = memory;
             SkippedTurns = skippedTurns;
+            IsDefending = !IsDead && isDefending;
+            RageEnergy = rageEnergy;
         }
     }
 }

@@ -9,9 +9,10 @@ namespace CK.SemesterProject.Battle
         public int InitialHp { get; }
         public int InitialMemory { get; }
         public int SkippedTurns { get; }
+        public int InitialRageEnergy { get; }
 
         public BattleParticipant(string instanceId, CombatantData data, int? initialHp = null,
-            int? initialMemory = null, int skippedTurns = 0)
+            int? initialMemory = null, int skippedTurns = 0, int initialRageEnergy = 0)
         {
             Data = data ?? throw new ArgumentNullException(nameof(data));
             if (string.IsNullOrWhiteSpace(instanceId))
@@ -21,12 +22,13 @@ namespace CK.SemesterProject.Battle
             InitialHp = initialHp ?? data.MaxHp;
             InitialMemory = initialMemory ?? data.InitialMemory;
             if (InitialHp < 0 || InitialHp > data.MaxHp || InitialMemory < 0
-                || InitialMemory > data.MaxMemory || skippedTurns < 0)
+                || InitialMemory > data.MaxMemory || skippedTurns < 0 || initialRageEnergy < 0 || initialRageEnergy > 100)
             {
                 throw new ArgumentOutOfRangeException(nameof(initialHp), "초기 전투 상태 범위가 잘못되었습니다.");
             }
             InstanceId = instanceId;
             SkippedTurns = skippedTurns;
+            InitialRageEnergy = initialRageEnergy;
         }
     }
 }

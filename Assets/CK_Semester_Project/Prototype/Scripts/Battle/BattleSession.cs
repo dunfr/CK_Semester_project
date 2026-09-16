@@ -7,6 +7,7 @@ namespace CK.SemesterProject.Battle
     public sealed class BattleSession
     {
         private readonly IBattleActionResolver _resolver;
+        private readonly BattleRules _rules;
         private readonly Random _random;
         private readonly Dictionary<string, CombatantState> _combatants = new Dictionary<string, CombatantState>();
         private readonly List<string> _roster = new List<string>();
@@ -21,9 +22,10 @@ namespace CK.SemesterProject.Battle
 
         public BattleActionResult PendingResult { get; private set; }
 
-        public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null)
+        public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null, BattleRules rules = null)
         {
-            _resolver = resolver ?? new PrototypeActionResolver();
+            _rules = (resolver as BattleActionResolver)?.Rules ?? rules ?? new BattleRules();
+            _resolver = resolver ?? new BattleActionResolver(_rules);
             _random = randomSeed.HasValue ? new Random(randomSeed.Value) : new Random();
         }
 
@@ -55,7 +57,7 @@ namespace CK.SemesterProject.Battle
             {
                 _roster.Add(participant.InstanceId);
                 _combatants.Add(participant.InstanceId, new CombatantState(participant.InstanceId,
-                    participant.Data, participant.InitialHp, participant.InitialMemory, participant.SkippedTurns));
+                    participant.Data, participant.InitialHp, participant.InitialMemory, participant.SkippedTurns, rageEnergy: participant.InitialRageEnergy));
             }
             _entryCondition = entryCondition;
             _outcome = EvaluateOutcome();
@@ -135,7 +137,7 @@ namespace CK.SemesterProject.Battle
             return true;
         }
 
-        private BattleActionError ValidateRequest(BattleActionRequest request)
+        public BattleActionError ValidateRequest(BattleActionRequest request)
         {
             if (_phase != BattlePhase.AwaitingAction)
             {
@@ -177,10 +179,18 @@ namespace CK.SemesterProject.Battle
             {
                 return BattleActionError.UnknownSkill;
             }
+            if (_resolver is BattleActionResolver && request.MemoryInvestment >= _rules.InvestmentMultipliers.Count)
+            {
+                return BattleActionError.InvalidMemoryInvestment;
+            }
             if (request.TargetId == null || !_combatants.TryGetValue(request.TargetId, out CombatantState target)
                 || !IsValidTarget(actor, target, skill))
             {
                 return BattleActionError.InvalidTarget;
+            }
+            if ((long)skill.MemoryCost + request.MemoryInvestment > actor.Memory)
+            {
+                return BattleActionError.InsufficientMemory;
             }
             return BattleActionError.None;
         }
@@ -224,7 +234,8 @@ namespace CK.SemesterProject.Battle
                 int hp = Clamp((long)before.Hp + effect.HpDelta, before.Data.MaxHp);
                 int memory = Clamp((long)before.Memory + effect.MemoryDelta, before.Data.MaxMemory);
                 int skippedTurns = hp == 0 ? 0 : effect.SkippedTurns ?? before.SkippedTurns;
-                var after = new CombatantState(before.InstanceId, before.Data, hp, memory, skippedTurns);
+                var after = new CombatantState(before.InstanceId, before.Data, hp, memory, skippedTurns,
+                    effect.IsDefending ?? before.IsDefending, Clamp((long)before.RageEnergy + effect.RageDelta, 100));
                 changes.Add(new BattleStateChange(before, after));
             }
             return changes;
@@ -272,13 +283,20 @@ namespace CK.SemesterProject.Battle
             _turnId++;
             _phase = BattlePhase.AwaitingAction;
             CombatantState actor = _combatants[_currentActorId];
+            // 방어는 다음 자기 턴 시작 시 만료되며 행동 불능 턴에도 연장되지 않는다.
+            if (actor.IsDefending)
+            {
+                actor = new CombatantState(actor.InstanceId, actor.Data, actor.Hp, actor.Memory,
+                    actor.SkippedTurns, rageEnergy: actor.RageEnergy);
+                _combatants[actor.InstanceId] = actor;
+            }
             if (actor.SkippedTurns == 0)
             {
                 return;
             }
 
             // 행동 불능도 한 번의 결과로 전달해 UI가 표시할 수 있게 한다. 재귀 진행을 피한다.
-            var after = new CombatantState(actor.InstanceId, actor.Data, actor.Hp, actor.Memory, actor.SkippedTurns - 1);
+            var after = new CombatantState(actor.InstanceId, actor.Data, actor.Hp, actor.Memory, actor.SkippedTurns - 1, rageEnergy: actor.RageEnergy);
             _combatants[actor.InstanceId] = after;
             var request = new BattleActionRequest(_turnId, actor.InstanceId, BattleActionKind.Wait);
             CompleteAction(request, true, new[] { new BattleStateChange(actor, after) });
