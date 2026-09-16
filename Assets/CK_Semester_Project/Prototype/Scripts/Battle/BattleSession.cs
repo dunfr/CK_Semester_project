@@ -60,7 +60,10 @@ namespace CK.SemesterProject.Battle
             {
                 _roster.Add(participant.InstanceId);
                 _combatants.Add(participant.InstanceId, new CombatantState(participant.InstanceId,
-                    participant.Data, participant.InitialHp, participant.InitialMemory, participant.SkippedTurns,
+                    participant.Data, participant.InitialHp,
+                    (int)Math.Min(int.MaxValue, (long)participant.InitialMemory +
+                        (entryCondition == BattleEntryCondition.MonsterCollision && participant.Data.Team == BattleTeam.Monster
+                            ? _rules.MonsterCollisionMemoryBonus : 0)), participant.SkippedTurns,
                     rageEnergy: participant.InitialRageEnergy, isOverheated: _rules.Mechanics.EnableRage
                         && participant.InitialRageEnergy >= BattleCombatRules.OverheatThreshold));
             }
@@ -174,7 +177,12 @@ namespace CK.SemesterProject.Battle
                 return BattleActionError.InvalidActor;
             }
             CombatantState actor = _combatants[_currentActorId];
-            if (request.MemoryInvestment < 0 || request.MemoryInvestment > actor.Memory)
+            int investment = request.MemoryInvestment;
+            if (_resolver is BattleActionResolver && !_rules.TryGetInvestment(actor.Data, request, out investment, out _, out _))
+            {
+                return BattleActionError.InvalidMemoryInvestment;
+            }
+            if (investment < 0 || investment > actor.Memory)
             {
                 return BattleActionError.InvalidMemoryInvestment;
             }
@@ -185,7 +193,7 @@ namespace CK.SemesterProject.Battle
             if (request.Kind != BattleActionKind.Skill)
             {
                 if (request.SkillId != null || request.TargetId != null
-                    || (request.Kind == BattleActionKind.Wait && request.MemoryInvestment != 0))
+                    || (request.Kind == BattleActionKind.Wait && (investment != 0 || (request.InvestmentStage ?? 0) != 0)))
                 {
                     return BattleActionError.InvalidAction;
                 }
@@ -197,16 +205,12 @@ namespace CK.SemesterProject.Battle
             {
                 return BattleActionError.UnknownSkill;
             }
-            if (_resolver is BattleActionResolver && request.MemoryInvestment >= _rules.InvestmentMultipliers.Count)
-            {
-                return BattleActionError.InvalidMemoryInvestment;
-            }
             if (request.TargetId == null || !_combatants.TryGetValue(request.TargetId, out CombatantState target)
                 || !IsValidTarget(actor, target, skill))
             {
                 return BattleActionError.InvalidTarget;
             }
-            if ((long)skill.MemoryCost + request.MemoryInvestment > actor.Memory)
+            if ((long)skill.MemoryCost + investment > actor.Memory)
             {
                 return BattleActionError.InsufficientMemory;
             }
@@ -251,12 +255,12 @@ namespace CK.SemesterProject.Battle
                 }
                 // long으로 합산해 큰 피해·회복 값이 int 오버플로로 반전되는 것을 방지한다.
                 int hp = Clamp((long)before.Hp + effect.HpDelta, before.Data.MaxHp);
-                int memory = Clamp((long)before.Memory + effect.MemoryDelta, before.Data.MaxMemory);
+                int memory = Clamp((long)before.Memory + effect.MemoryDelta, Math.Max(before.Memory, before.Data.MaxMemory));
                 int skippedTurns = hp == 0 ? 0 : effect.SkippedTurns ?? before.SkippedTurns;
                 var after = new CombatantState(before.InstanceId, before.Data, hp, memory, skippedTurns,
                     effect.IsDefending ?? before.IsDefending, Clamp((long)before.RageEnergy + effect.RageDelta, 100),
                     effect.ChainStep ?? before.ChainStep, effect.ImprintDamage ?? before.ImprintDamage,
-                    _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold);
+                    _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold, before.HasMemoryLoss);
                 changes.Add(new BattleStateChange(before, after));
             }
             return changes;
@@ -275,6 +279,13 @@ namespace CK.SemesterProject.Battle
             {
                 if (!_combatants[id].IsDead)
                 {
+                    CombatantState unit = _combatants[id];
+                    if (_round > 1 && _rules.EnableMemoryLoss && unit.Memory == 0 && unit.Data.InitialMemory > 0)
+                    {
+                        _combatants[id] = new CombatantState(id, unit.Data, unit.Hp, unit.Memory,
+                            unit.SkippedTurns, unit.IsDefending, unit.RageEnergy, unit.ChainStep,
+                            unit.ImprintDamage, unit.IsOverheated, hasMemoryLoss: true);
+                    }
                     _remaining.Add(id);
                 }
             }
@@ -311,9 +322,10 @@ namespace CK.SemesterProject.Battle
             _phase = BattlePhase.AwaitingAction;
             CombatantState actor = _combatants[_currentActorId];
             bool overheated = _rules.Mechanics.EnableRage && actor.RageEnergy >= BattleCombatRules.OverheatThreshold;
-            bool skipped = actor.SkippedTurns > 0 || overheated;
+            bool skipped = actor.SkippedTurns > 0 || overheated || actor.HasMemoryLoss;
             int hp = Math.Max(0, actor.Hp - actor.ImprintDamage);
-            var after = new CombatantState(actor.InstanceId, actor.Data, hp, actor.Memory,
+            var after = new CombatantState(actor.InstanceId, actor.Data, hp,
+                actor.HasMemoryLoss && hp > 0 ? Clamp((long)actor.Memory + actor.Data.InitialMemory, actor.Data.MaxMemory) : actor.Memory,
                 hp == 0 ? 0 : Math.Max(0, actor.SkippedTurns - 1), false,
                 overheated ? 0 : actor.RageEnergy, actor.ChainStep, 0);
             if (!actor.IsDefending && actor.ImprintDamage == 0 && !skipped)

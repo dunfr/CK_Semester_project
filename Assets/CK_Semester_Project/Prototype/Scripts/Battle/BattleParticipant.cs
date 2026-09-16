@@ -22,7 +22,7 @@ namespace CK.SemesterProject.Battle
             InitialHp = initialHp ?? data.MaxHp;
             InitialMemory = initialMemory ?? data.InitialMemory;
             if (InitialHp < 0 || InitialHp > data.MaxHp || InitialMemory < 0
-                || InitialMemory > data.MaxMemory || skippedTurns < 0 || initialRageEnergy < 0 || initialRageEnergy > 100)
+                || skippedTurns < 0 || initialRageEnergy < 0 || initialRageEnergy > 100)
             {
                 throw new ArgumentOutOfRangeException(nameof(initialHp), "초기 전투 상태 범위가 잘못되었습니다.");
             }

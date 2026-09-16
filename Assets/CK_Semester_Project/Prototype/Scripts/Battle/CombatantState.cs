@@ -13,12 +13,13 @@ namespace CK.SemesterProject.Battle
         public int ChainStep { get; }
         public int ImprintDamage { get; }
         public bool IsOverheated { get; }
+        public bool HasMemoryLoss { get; }
         public bool IsDead => Hp == 0;
-        public bool CanAct => !IsDead && SkippedTurns == 0 && !IsOverheated;
+        public bool CanAct => !IsDead && SkippedTurns == 0 && !IsOverheated && !HasMemoryLoss;
 
         internal CombatantState(string instanceId, CombatantData data, int hp, int memory, int skippedTurns,
             bool isDefending = false, int rageEnergy = 0, int chainStep = 0, int imprintDamage = 0,
-            bool isOverheated = false)
+            bool isOverheated = false, bool hasMemoryLoss = false)
         {
             InstanceId = instanceId;
             Data = data;
@@ -30,6 +31,7 @@ namespace CK.SemesterProject.Battle
             ChainStep = IsDead ? 0 : chainStep;
             ImprintDamage = IsDead ? 0 : imprintDamage;
             IsOverheated = !IsDead && isOverheated;
+            HasMemoryLoss = !IsDead && hasMemoryLoss;
         }
     }
 }

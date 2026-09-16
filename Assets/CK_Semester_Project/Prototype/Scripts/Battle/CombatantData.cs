@@ -16,12 +16,17 @@ namespace CK.SemesterProject.Battle
         public int InitialMemory { get; }
         public IReadOnlyList<SkillData> Skills { get; }
         public double Evasion { get; }
+        public double? BaseCriticalChance { get; }
+        public double? CriticalDamageMultiplier { get; }
+        public int? MinMemoryInvestment { get; }
+        public int? MaxMemoryInvestment { get; }
         public IReadOnlyList<BattleElement> WeaknessChain { get; }
 
         public CombatantData(string id, string displayName, BattleTeam team, int maxHp,
             int maxMemory, int initialMemory, IEnumerable<SkillData> skills,
             BattleElement element = BattleElement.None, double evasion = 0,
-            IEnumerable<BattleElement> weaknessChain = null)
+            IEnumerable<BattleElement> weaknessChain = null, double? baseCriticalChance = null,
+            double? criticalDamageMultiplier = null, int? minMemoryInvestment = null, int? maxMemoryInvestment = null)
         {
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(displayName))
             {
@@ -49,6 +54,18 @@ namespace CK.SemesterProject.Battle
             {
                 throw new ArgumentOutOfRangeException(nameof(evasion));
             }
+            if ((baseCriticalChance.HasValue && (double.IsNaN(baseCriticalChance.Value) || baseCriticalChance < 0 || baseCriticalChance > 1))
+                || (criticalDamageMultiplier.HasValue && (double.IsNaN(criticalDamageMultiplier.Value)
+                    || double.IsInfinity(criticalDamageMultiplier.Value) || criticalDamageMultiplier < 1))
+                || minMemoryInvestment.HasValue != maxMemoryInvestment.HasValue
+                || minMemoryInvestment < 0 || maxMemoryInvestment < minMemoryInvestment)
+            {
+                throw new ArgumentOutOfRangeException(nameof(baseCriticalChance));
+            }
+            BaseCriticalChance = baseCriticalChance;
+            CriticalDamageMultiplier = criticalDamageMultiplier;
+            MinMemoryInvestment = minMemoryInvestment;
+            MaxMemoryInvestment = maxMemoryInvestment;
             Evasion = evasion;
             WeaknessChain = Array.AsReadOnly(chain);
             Id = id;

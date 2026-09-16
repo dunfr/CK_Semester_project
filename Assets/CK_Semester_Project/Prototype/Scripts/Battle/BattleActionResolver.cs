@@ -40,9 +40,15 @@ namespace CK.SemesterProject.Battle
                 CombatantState target = snapshot.Combatants.First(state => state.InstanceId == request.TargetId);
                 isHit = Roll(GetHitChance(target, skill));
                 isCritical = isHit && skill.Target == SkillTarget.Enemy && skill.Power > 0
-                    && Roll(skill.CriticalChance ?? _rules.Mechanics.CriticalChance);
+                    && Roll(GetCriticalChance(actor, skill));
             }
             return ResolveOutcome(snapshot, request, isHit, isCritical, out effects, out hit);
+        }
+
+        public double GetCriticalChance(CombatantState actor, SkillData skill)
+        {
+            return skill.CriticalChance ?? Math.Min(1, (actor.Data.BaseCriticalChance
+                ?? _rules.Mechanics.CriticalChance) + skill.BonusCriticalChance);
         }
 
         private bool Roll(double probability)
@@ -61,20 +67,24 @@ namespace CK.SemesterProject.Battle
             {
                 return BattleActionError.None;
             }
+            if (!_rules.TryGetInvestment(actor.Data, request, out int investmentCost,
+                out double investmentMultiplier, out int defenseReduction))
+            {
+                return BattleActionError.InvalidMemoryInvestment;
+            }
+            if (investmentCost > actor.Memory)
+            {
+                return BattleActionError.InsufficientMemory;
+            }
             if (request.Kind == BattleActionKind.Defend)
             {
-                int reduction = (int)Math.Min(actor.RageEnergy,
-                    (long)request.MemoryInvestment * _rules.DefenseRageReductionPerMemory);
-                effects = new[] { new BattleEffect(actor.InstanceId, memoryDelta: -request.MemoryInvestment,
+                int reduction = Math.Min(actor.RageEnergy, defenseReduction);
+                effects = new[] { new BattleEffect(actor.InstanceId, memoryDelta: -investmentCost,
                     isDefending: true, rageDelta: -reduction) };
                 return BattleActionError.None;
             }
             SkillData skill = actor.Data.Skills.First(data => data.Id == request.SkillId);
-            if (request.MemoryInvestment >= _rules.InvestmentMultipliers.Count)
-            {
-                return BattleActionError.InvalidMemoryInvestment;
-            }
-            long cost = (long)skill.MemoryCost + request.MemoryInvestment;
+            long cost = (long)skill.MemoryCost + investmentCost;
             if (cost > actor.Memory)
             {
                 return BattleActionError.InsufficientMemory;
@@ -94,8 +104,8 @@ namespace CK.SemesterProject.Battle
                 : BattleMath.ElementMultiplier(skill.Element, target.Data.Element, mechanics);
             double chainMultiplier = mechanics.ChainMultipliers[chain];
             double rage = mechanics.EnableRage ? BattleMath.RageMultiplier(actor.RageEnergy) : 1;
-            double critical = isHit && isCritical ? mechanics.CriticalMultiplier : 1;
-            double investment = _rules.InvestmentMultipliers[request.MemoryInvestment];
+            double critical = isHit && isCritical ? actor.Data.CriticalDamageMultiplier ?? mechanics.CriticalMultiplier : 1;
+            double investment = investmentMultiplier;
             double defense = target.IsDefending ? _rules.DefenseDamageMultiplier : 1;
             double damage = skill.Power;
             // 0 배율과 큰 수의 곱도 NaN이 되지 않게 0 피해를 먼저 확정한다.
@@ -110,7 +120,7 @@ namespace CK.SemesterProject.Battle
             {
                 recovery += mechanics.AfterimageRecovery;
             }
-            int recovered = (int)Math.Min(recovery, (long)actor.Data.MaxMemory - remaining);
+            int recovered = (int)Math.Min(recovery, Math.Max(0L, (long)actor.Data.MaxMemory - remaining));
             remaining += recovered;
             long steal = isHit ? skill.MemorySteal : 0;
             if (elementEffects && skill.Element == BattleElement.Oblivion)
@@ -118,7 +128,7 @@ namespace CK.SemesterProject.Battle
                 steal += mechanics.OblivionSteal;
             }
             int stolen = actor.InstanceId == target.InstanceId ? 0
-                : (int)Math.Min(steal, Math.Min(target.Memory, actor.Data.MaxMemory - remaining));
+                : (int)Math.Min(steal, Math.Min(target.Memory, Math.Max(0, actor.Data.MaxMemory - remaining)));
             int actorDelta = -(int)cost + recovered + stolen;
             int rageGain = mechanics.EnableRage ? skill.RageGain : 0;
             int? imprint = elementEffects && skill.Element == BattleElement.Imprint

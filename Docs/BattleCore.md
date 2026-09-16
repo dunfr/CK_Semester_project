@@ -12,11 +12,11 @@ UnityEngine에 의존하지 않는 불변 데이터와 C# 세션을 사용한다
 - 폭주 에너지 획득·단계 보너스·행동 불능, 턴 시작 각인 피해.
 - 몬스터 AI의 스킬·대상·투자량 선택 및 명중·치명타 확률을 반영한 기대값 평가.
 
-캐릭터·몬스터·스킬의 CSV/ScriptableObject 입력, 필드 진입 보너스, 최종 UI·연출, 몬스터별 전용 패턴은 별도 작업이다. 필드 진입 조건은 저장하며 미제공된 추가 메모리 수치는 임의 적용하지 않는다.
+스킬 CSV와 로더를 추가했다. 캐릭터·몬스터 PDF는 필드 설명만 있어 실제 데이터 행과 로더 연결, 최종 UI·연출, 몬스터별 전용 패턴은 별도 작업이다. 충돌 진입 보너스는 설정으로 지원하며 제공되지 않은 양의 기본값은 0이다.
 
 ## 기획 기준과 미확정 정책
 
-참고: `Docs/References/전투 시스템 통합 문서 (1).pdf` 6~11쪽.
+참고 자료는 `Docs/References/`에 보관한다. 통합 전투 문서와 함께 메모리 로스 시스템 기획서, Character_DT, Skill_DT, Monster_DT를 반영했다.
 상성 도표는 잔상 → 각인 → 망각 → 잔상 순으로 약점을 찌른다.
 
 기획서 내 충돌 수치에 대한 답변이 없어 다음을 **교체 가능한 임시 기본값**으로 적용했다.
@@ -43,18 +43,17 @@ UnityEngine에 의존하지 않는 불변 데이터와 C# 세션을 사용한다
 
 ## 공통 데이터
 
-`CombatantData`: 정의 ID, 이름, 팀, 속성, 최대 HP·메모리, 초기 메모리, 스킬 목록, `Evasion`, `WeaknessChain`.
+`CombatantData`: 정의 ID, 이름, 팀, 속성, 최대 HP·메모리, 초기 메모리, 스킬 목록, `Evasion`, `WeaknessChain`, `BaseCriticalChance`, `CriticalDamageMultiplier`, `MinMemoryInvestment`, `MaxMemoryInvestment`. InitialMemory는 DT의 base_memory이며 참가자의 초기 상태 오버라이드나 진입 보너스와 구분한다.
 `WeaknessChain`은 비어 있거나 원소 4개다. 첫 항목을 시작 약점으로 사용하며 성공한 연쇄는 대상 기본 속성과 관계없이 약점 배율을 유지한다. 정의 배열은 복사한다.
 
 `SkillData`: 정의 ID, Power, Element, Target, MemoryCost, MemoryRecovery, MemorySteal,
-`Accuracy`(기본 1), `CriticalChance`(null이면 공통 설정), `RageGain`(기본 0, 범위 0~100), `InflictedSkippedTurns`(기본 0).
-몬스터 DT가 없으므로 스킬별 폭주 획득량은 반드시 콘텐츠에서 지정한다.
+`Accuracy`(기본 1), `BonusCriticalChance`(추가 확률), `EnglishName`, `RageGain`(범위 0~100), `InflictedSkippedTurns`. 기존 CriticalChance는 테스트·특수 스킬용 절대 확률 오버라이드로 유지하며 제공된 CSV에서는 사용하지 않는다. 실제 확률은 캐릭터 기본값(없으면 공통값) + 스킬 보너스, 최대 1이다. 캐릭터 CriticalDamageMultiplier가 있으면 공통 치명타 배율보다 우선한다. DT의 치명타 데미지는 현재 배율로 해석했으며 절대 피해량 의도라면 변경이 필요하다.
 
 `BattleParticipant`: 전투 개체 InstanceId, 정의, 초기 HP·메모리·행동 불능 횟수·폭주.
 정의 ID와 전투 개체 ID는 다르며 요청·결과는 InstanceId를 사용한다.
 
 `CombatantState`: HP, Memory, SkippedTurns, IsDefending, RageEnergy, IsOverheated,
-ChainStep(다음에 맞힐 순서의 인덱스 0~3), ImprintDamage(다음 행동 기회에 받을 피해).
+ChainStep(다음에 맞힐 순서의 인덱스 0~3), ImprintDamage(다음 행동 기회에 받을 피해), HasMemoryLoss(고갈 페널티 예약 여부).
 사망 시 방어·각인·연쇄·폭주 행동 불능 표시는 해제된다. HP·메모리·폭주는 세션에서만 변경한다.
 
 ## 계산 순서
@@ -81,7 +80,33 @@ ChainStep(다음에 맞힐 순서의 인덱스 0~3), ImprintDamage(다음 행동
 6. 스킬 RageGain, 각인, 행동 불능, 연쇄 초기화 등을 대상별 효과 한 개로 합산한다.
 7. 세션이 효과 전체를 검증한 뒤 한 번에 적용하고 남은 순서·승패를 갱신한다.
 
-`BattleRules.InvestmentMultipliers` 인덱스는 투자할 메모리 수량이며 기본값은 `[1.0]`이다. 상세 메모리 기획서가 없으므로 0보다 큰 스킬 투자는 표를 주입해야 한다. 방어는 투자량만 소모하며 `DefenseRageReductionPerMemory`(기본 0)만큼 에너지를 줄인다.
+### 메모리 투자와 고갈 — 추가 기획서 반영
+
+기본 `new BattleRules()`는 5단계 투자와 메모리 고갈을 활성화한다.
+요청은 `InvestmentStage` 0~5를 사용하며 서버가 초기 메모리 기준 비용을 계산한다. 이 모드에서 MemoryInvestment에 수량을 보내면 거절한다. 두 표현을 섞어 비용을 우회할 수 없다.
+
+| 단계 | 초기 메모리 대비 추가 비용 | 공격 배율 | 방어 시 폭주 감소 |
+|---|---|---|---|
+| 0 | 0 | 1 | 0 |
+| 1 | 10% | 1.1 | 10 |
+| 2 | 20% | 1.2 | 15 |
+| 3 | 30% | 1.35 | 20 |
+| 4 | 40% | 1.5 | 25 |
+| 5 | 50% | 1.7 | 30 |
+
+기본 스킬 비용은 위 투자 비용에 별도로 더한다. 최대 투자 제한은 기본 비용을 제외한 추가 투자량에 적용한다. 초기 메모리 100이면 3단계는 30을 투자하며, 기본 비용 10인 스킬은 총 40을 소모한다. UI는 `GetStageCost(data, stage)`와 `TryGetInvestment`로 비용·배율·방어 감소량을 읽는다.
+
+소수 비용은 내림한다(가정). 0 비용이 되는 유료 단계는 거절하며, 5단계 비용은 초기값의 50%를 초과하지 않는다. 같은 정수 비용이 되는 단계가 있을 수 있다.
+
+모든 기본·추가 행동을 마친 뒤 새 라운드를 시작할 때 메모리 0인 생존 개체에 HasMemoryLoss를 예약한다. 다음 자기 행동 기회에 초기 메모리만큼 회복하고 한 번 건너뛴다. 결과는 IsTurnStartEffect/WasSkipped와 Changes의 MemoryDelta로 전달한다. 초기 메모리 0인 테스트 정의는 회복량도 0이므로 자동 고갈 대상에서 제외한다.
+
+가정: 라운드 경계 전에 회복하면 예약하지 않는다. 경계에서 예약된 뒤 회복해도 예약은 유지한다. 그 경우 초기값만큼 추가 회복하되 MaxMemory에서 제한한다. 고갈·일반 행동 불능·폭주가 겹치면 같은 기회에서 함께 처리한다. 각인으로 사망한 대상은 회복하지 않는다.
+
+### 초과 메모리
+
+`MonsterCollisionMemoryBonus`는 충돌 진입 시 몬스터 초기 메모리에만 더한다. 기본 0이며 구체적인 양은 기획 확정 후 지정한다. MaxMemory를 초과해 시작할 수 있고 대기·피격 시 초과분을 잘라내지 않는다. 소모는 초과분을 포함한 보유량에서 처리한다. 이미 MaxMemory보다 높으면 일반 회복·강탈로 더 늘어나지 않는다. 투자·고갈 회복 기준은 항상 DT의 InitialMemory다.
+
+호환 모드: 기존 데모·회귀 테스트처럼 생성자에 명시적인 investmentMultipliers 배열을 전달하면 이전 수량별 투자·선형 방어 감소 모드다. 그 모드는 고갈 처리가 기본 비활성이다. 신규 콘텐츠는 배열 없이 기본 5단계 모드를 사용한다. EnableMemoryLoss는 별도로 지정할 수 있다.
 
 ## 턴과 추가 행동
 
@@ -95,16 +120,17 @@ ChainStep(다음에 맞힐 순서의 인덱스 0~3), ImprintDamage(다음 행동
 ## B의 호출·결과 계약
 
 ```csharp
-var attack = new SkillData("attack", "공격", 100, BattleElement.Afterimage,
-    accuracy: 0.95, rageGain: 12);
-var rules = new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 },
-    defenseRageReductionPerMemory: 5,
-    mechanics: new BattleCombatRules(criticalChance: 0.1, criticalMultiplier: 1.2));
+var skills = SkillTable.LoadCsv(System.IO.File.ReadAllText(
+    "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv"));
+var rules = new BattleRules();
 var battle = new BattleSession(randomSeed: 17, rules: rules);
-// 참가자 정의를 만든 뒤 battle.Start(participants)를 호출한다.
+// 실제 캐릭터·몬스터 정의와 참가자를 만든 뒤 Start 호출.
+// AwaitingAction 단계에서:
+var request = new BattleActionRequest(turnId, actorId, BattleActionKind.Skill,
+    "SK00", targetId, investmentStage: 3);
 ```
 
-위 투자 표와 RageGain은 연결 예시용 수치다.
+스킬 CSV 수치는 제공된 Skill_DT 2쪽 기준이다. 캐릭터·몬스터 수치는 아직 제공되지 않았다.
 
 | Phase | 호출자 동작 |
 |---|---|
@@ -118,7 +144,7 @@ var battle = new BattleSession(randomSeed: 17, rules: rules);
 
 결과 필드:
 
-- `Request`: 원래 스킬·대상·투자량.
+- `Request`: 원래 스킬·대상·InvestmentStage. 단계의 실제 비용은 세션 규칙과 행동자 정의로 계산한다. MemoryInvestment는 이전 호환 모드에서만 사용한다.
 - `Hit`: 일반 스킬이면 명중·치명타 여부, HitChance, BaseDamage, Damage, 각 배율, ChainStepReached. 대기·방어·자동 턴 시작 결과는 null.
 - `Damage`: HP 상한 적용 전 계산 피해. 실제 피해 숫자는 `Changes.HpDelta`를 사용한다.
 - `Changes`: 적용 전후 상태, 실제 HP·메모리·폭주 변화량, 사망 여부.
@@ -131,10 +157,23 @@ var battle = new BattleSession(randomSeed: 17, rules: rules);
 ## 몬스터 AI
 
 `MonsterAi.TryChooseAction(battle, out request)`는 요청만 만든다. 호출자는 `TrySubmit`으로 실행한다.
-후보는 소유 스킬 × 유효 대상 × 지불 가능한 투자량이다. 피해·처치·메모리 손익을 비교하며 동점이면 적은 비용, 스킬 정의 순서, 참가자 순서를 따른다. 유익한 후보가 없으면 무료 방어다.
+후보는 소유 스킬 × 유효 대상 × 지불 가능한 투자 단계다. MinMemoryInvestment/MaxMemoryInvestment가 없으면 피해·처치·메모리 손익으로 비교한다. 두 값이 있으면 해당 추가 메모리 수량 범위에서 지불 가능한 단계 하나를 균등 선택한 뒤 그 단계의 스킬·대상을 평가한다. 범위에 맞는 단계가 없으면 무료 방어다. 기본 비용은 범위에서 제외하며, 범위와 단계의 관계는 몬스터 세부 기획서 미제공으로 정한 가정이다. 두 범위 값은 함께 지정해야 한다. AI randomSeed와 개체 ID·TurnId로 선택하므로 같은 턴 재조회는 같은 결과를 반환하며 전투 판정 난수와 분리된다.
 
 이번 연결에서 빗나감·일반 명중·치명타 결과를 각각 공통 계산식으로 예측하여 확률 가중한다. 예측은 실제 전투 난수를 소비하지 않는다. 각인 예상 피해와 연쇄 추가 행동도 점수에 포함한다. 일반 행동 불능·폭주로 잃는 미래 턴까지 탐색하는 AI는 아니며 전용 패턴은 별도 작업이다.
 실제 실행용 난수는 턴 순서 난수와 분리하며 세션 randomSeed로 재현한다.
+
+## 제공 스킬 데이터
+
+`Prototype/Data/Battle/Skill_DT.csv`와 `SkillTable.LoadCsv`를 추가했다.
+
+| ID | 이름 | 피해 | 추가 치명타 | 폭주 획득 | 기본 비용 |
+|---|---|---|---|---|---|
+| SK00 | 테스트_잔상 | 100 | 15%p | 20 | 10 |
+| SK01 | 테스트_각인 | 100 | 10%p | 45 | 15 |
+| Sk02 | 테스트_망각 | 100 | 15%p | 15 | 20 |
+
+원본 ID 대소문자 Sk02를 보존한다. 치명타 표기 15는 15%p로 해석해 0.15로 변환한다(확인 필요). 속성 효과는 코어가 부여하므로 CSV에 회복·강탈을 중복 입력하지 않았다.
+로더는 현재 표의 단순 CSV 형식만 지원한다. 8개 열·헤더·ID 중복·수치·속성을 검증하고 오류는 행 번호와 ID를 포함한다. 따옴표나 셀 안 쉼표·줄바꿈은 지원하지 않으며 거절한다. 캐릭터·몬스터 PDF는 실제 수치 행이 없어 데이터를 창작하지 않았다.
 
 ## 데모와 검증
 
@@ -143,4 +182,4 @@ var battle = new BattleSession(randomSeed: 17, rules: rules);
 
 EditMode 테스트: `CK.Battle.Core.Tests`, 파일 위치 `Assets/CK_Semester_Project/Tests/EditMode/Battle/`.
 기존 메모리·턴·AI 테스트는 Basic 규칙으로 회귀 검증하고, BattleMechanicsTests는 전체 규칙을 활성화한다.
-2026-09-16 Unity 6000.3.23f1 EditMode 89개 통과, 실패·건너뜀 0개. 기획서 피해 292, 상성 6방향, 명중·회피·치명타, 폭주 단계 경계, 각인 사망·비중첩·행동 재개, 연쇄 실패·추가 행동·최종 처치, 폭주로 추가 행동 소비, AI 확률 예측과 난수 보존, 3개 시드의 전체 전투 종료를 검증했다. 컴파일 오류가 없으며 에디터는 PlayMode가 아닌 정지 상태로 확인했다. 직전 단계의 PlayMode 9개 통과 기록은 신규 전투 연출 검증으로 간주하지 않는다.
+2026-09-16 추가 문서 반영 후 Unity 6000.3.23f1 EditMode 108개 통과, 실패·건너뜀 0개. 추가로 5단계 비용·방어 감소, 고갈 예약·회복, 치명타 합산, CSV 원본 값·오류, 초과 메모리, 몬스터 투자 범위를 검증했다. 기획서 피해 292, 상성 6방향, 명중·회피·치명타, 폭주 단계 경계, 각인 사망·비중첩·행동 재개, 연쇄 실패·추가 행동·최종 처치, 폭주로 추가 행동 소비, AI 확률 예측과 난수 보존, 3개 시드의 전체 전투 종료를 검증했다. 컴파일 오류가 없으며 에디터는 PlayMode가 아닌 정지 상태로 확인했다. 직전 단계의 PlayMode 9개 통과 기록은 신규 전투 연출 검증으로 간주하지 않는다.

@@ -9,7 +9,7 @@ namespace CK.SemesterProject.Battle
         public double KillBonus { get; }
 
         // 초기 AI 정책값이며 몬스터별 확정 밸런스 데이터가 아니다.
-        public MonsterAiSettings(int maxMemoryInvestment = 3, double memoryWeight = 1,
+        public MonsterAiSettings(int maxMemoryInvestment = 5, double memoryWeight = 1,
             double killBonus = 100)
         {
             if (maxMemoryInvestment < 0 || double.IsNaN(memoryWeight) || double.IsInfinity(memoryWeight)

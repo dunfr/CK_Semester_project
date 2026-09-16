@@ -14,13 +14,16 @@ namespace CK.SemesterProject.Battle
         public int MemorySteal { get; }
         public double Accuracy { get; }
         public double? CriticalChance { get; }
+        public double BonusCriticalChance { get; }
+        public string EnglishName { get; }
         public int RageGain { get; }
         public int InflictedSkippedTurns { get; }
 
         public SkillData(string id, string displayName, int power,
             BattleElement element = BattleElement.None, SkillTarget target = SkillTarget.Enemy,
             int memoryCost = 0, int memoryRecovery = 0, int memorySteal = 0,
-            double accuracy = 1, double? criticalChance = null, int rageGain = 0, int inflictedSkippedTurns = 0)
+            double accuracy = 1, double? criticalChance = null, int rageGain = 0, int inflictedSkippedTurns = 0,
+            double bonusCriticalChance = 0, string englishName = null)
         {
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(displayName))
             {
@@ -38,6 +41,12 @@ namespace CK.SemesterProject.Battle
             {
                 throw new ArgumentOutOfRangeException(nameof(accuracy));
             }
+            if (double.IsNaN(bonusCriticalChance) || bonusCriticalChance < 0 || bonusCriticalChance > 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(bonusCriticalChance));
+            }
+            BonusCriticalChance = bonusCriticalChance;
+            EnglishName = englishName ?? displayName;
             Accuracy = accuracy;
             CriticalChance = criticalChance;
             RageGain = rageGain;
