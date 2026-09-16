@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adef2d2b68e4fb341bfe3c19374bd836, type: 3}
+  m_Name: Character_DT
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Data.CharacterDatabase
+  _characters:
+  - <Id>k__BackingField: CH00
+    <Name>k__BackingField: "\uD14C\uC2A4\uD2B80"
+    <EnglishName>k__BackingField: Test0
+    <Hp>k__BackingField: 1000
+    <Speed>k__BackingField: 20
+    <BaseMovementSpeed>k__BackingField: 100
+    <RunningMovementSpeed>k__BackingField: 150
+    <MaxOverheatEnergy>k__BackingField: 100
+    <BaseCriticalChance>k__BackingField: 0.15
+    <CriticalDamage>k__BackingField: 1.5
+    <EvasionRate>k__BackingField: 0.1
+    <BaseMemory>k__BackingField: 200
