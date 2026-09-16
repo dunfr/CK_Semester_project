@@ -84,7 +84,7 @@ namespace CK.SemesterProject.Battle.Demo
                 72, 40, enemyMemory, new[] { enemyStrike });
 
             // 동률 시드와 전투 수치는 데모 재현용이다. 밸런스 확정값이 아니다.
-            _session = new BattleSession(randomSeed: 17, rules: new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 }, 5));
+            _session = new BattleSession(randomSeed: 17, rules: new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 }, 5, mechanics: BattleCombatRules.Basic));
             _history.Clear();
             _recordedActionId = 0;
             MemoryInvestment = 0;

@@ -1,180 +1,146 @@
 # 전투 코어 연결 안내
 
-`feat/battle-core`는 `prototype`에서 분기한 전투 로직의 첫 단계다. Unity에 독립적인 C# 코어, EditMode 테스트, 직접 조작할 수 있는 Unity 데모 씬을 제공한다.
+작업 브랜치: `feat/battle-core`. 기본 프로젝트: `C:/CK_Semester_project/Semesterproject`.
+코어: `Assets/CK_Semester_Project/Prototype/Scripts/Battle/`, 어셈블리 `CK.Battle.Core`.
+UnityEngine에 의존하지 않는 불변 데이터와 C# 세션을 사용한다.
 
-## 직접 실행하기
+## 구현 범위
 
-1. Unity 6000.3.23f1에서 `feat/battle-core` 브랜치의 프로젝트를 연다. 기본 작업 폴더는 `C:/CK_Semester_project/Semesterproject`다.
-2. `Assets/CK_Semester_Project/Prototype/Scenes/BattleCoreDemo.unity`를 열고 Play를 누른다. 메뉴 `CK > Battle Demo > Open And Play`도 사용할 수 있다.
-3. 하단에서 스킬과 센티널 A/B를 선택하고 **공격 실행**을 누른다. 몬스터는 자동으로 응답한다.
-4. **자동 진행 OFF**를 누르면 **다음 단계로 진행** 버튼으로 연출 완료·몬스터 행동을 한 단계씩 실행한다.
-5. 상단의 **일반 전투 / 메모리 동률 / 행동 불능**으로 초기 상황을 바꾸거나 **처음부터 다시**로 재시작한다.
+- 초기화, 메모리 순서·동률, 공통 행동 검증·실행, 사망·승패.
+- 메모리 비용·투자·회복·강탈, 방어와 투자에 따른 폭주 감소.
+- 명중·회피·치명타, 속성 상성·효과, 몬스터 약점 연쇄, 추가 행동.
+- 폭주 에너지 획득·단계 보너스·행동 불능, 턴 시작 각인 피해.
+- 몬스터 AI의 스킬·대상·투자량 선택 및 명중·치명타 확률을 반영한 기대값 평가.
 
-Game 뷰는 16:10 화면에 맞췄으며 다른 크기에서는 비율을 유지해 축소한다. 창을 크게 하면 글자를 읽기 쉽다.
+캐릭터·몬스터·스킬의 CSV/ScriptableObject 입력, 필드 진입 보너스, 최종 UI·연출, 몬스터별 전용 패턴은 별도 작업이다. 필드 진입 조건은 저장하며 미제공된 추가 메모리 수치는 임의 적용하지 않는다.
 
-데모 모델·밸런스 수치는 검증용이다. 기본 공격은 피해 24와 메모리 회복 3, 강타는 피해 36과 기본 비용 2, 메모리 교란은 피해 12와 최대 8 강탈이다. 강탈은 대상 보유량과 행동자의 남은 용량까지만 이전한다. 센티널 A에게 첫 교란을 사용하면 A의 메모리가 18→10, 플레이어는 24→32가 되어 B(14)가 A보다 먼저 행동한다. 기획서의 망각 강탈 2와 구별되는 데모 데이터이며 속성 효과 자동 발동은 후속 작업이다.
+## 기획 기준과 미확정 정책
 
-하단 **투자 MEM** 버튼을 누르면 0~3을 순환한다. 선택한 투자량은 공격·방어 요청에 포함되며 대기에는 적용하지 않는다. 데모 투자 배율은 1 / 1.1 / 1.2 / 1.35이고, 방어 투자 1당 폭주 에너지 5를 감소시킨다. 이 표는 별도 메모리 기획서가 없는 상태에서 조작 확인용으로 지정한 값이다. 방어는 다음 자기 턴 시작까지 받는 피해를 50% 줄이며 상태 카드에서 방어·폭주를 확인할 수 있다. 초기 폭주 50은 감소 확인용이며 자동 획득·폭주 발동은 아직 없다. 몬스터 행동은 `MonsterAi`가 선택한다. 기존 데모 피해 수치를 유지하도록 데모의 AI 최대 투자량만 0으로 지정했다. 일반 AI 설정은 최대 3이며 몬스터별 설정으로 교체할 수 있다.
+참고: `Docs/References/전투 시스템 통합 문서 (1).pdf` 6~11쪽.
+상성 도표는 잔상 → 각인 → 망각 → 잔상 순으로 약점을 찌른다.
 
-청록색 플레이어와 두 센티널, HP·메모리·턴 순서·전투 기록, 공격·피해·사망 표시, 승리·패배 화면이 포함된다. 모델·UI는 프로토타입 검증용이며 팀원 B가 최종 화면으로 교체할 수 있다. 실제 코어의 요청·결과 계약을 그대로 사용한다.
+기획서 내 충돌 수치에 대한 답변이 없어 다음을 **교체 가능한 임시 기본값**으로 적용했다.
 
-데모 파일은 `Prototype/Scripts/BattleDemo/`, 씬 생성·실행 메뉴는 `Editor/BattleDemo/`, 데모 연동 테스트는 `Tests/PlayMode/BattleDemo/`에 있다.
+| 항목 | 기본 설정 | 다른 기재 |
+|---|---|---|
+| 치명타 | 확률 10%, 배율 1.2 | 4쪽 15%, 1.5 |
+| 약점 / 역상성 | 1.25 / 0.75 | 예시 일부 약점 1.5 |
+| 연쇄 0~4단계 | 1 / 1 / 1.2 / 1.3 / 1 | 본문 일부 2단계 1.1, 3단계 1.2 |
+| 방어 | 피해 ×0.5 | 지속 시점 표현은 불명확 |
+| 잔상 / 망각 / 각인 | 메모리 +3 / 최대 2 강탈 / 최종 스킬 피해의 10% | 변경 가능 수치 |
 
-## 위치와 구현 범위
+`BattleCombatRules` 생성자에서 위 수치를 바꾼다. 공격·방어 스탯 차감식이 제공되지 않아 기본 피해는 `SkillData.Power`다. 명중률은 `Clamp(Accuracy - Evasion, 0, 1)`로 정했으며 명중 실패를 회피로 전달한다. 별도 명중 스탯식이나 회피 애니메이션 종류가 확정되면 변경한다.
 
-- 코어: `Assets/CK_Semester_Project/Prototype/Scripts/Battle/`
-- 테스트: `Assets/CK_Semester_Project/Tests/EditMode/Battle/`
-- 네임스페이스: `CK.SemesterProject.Battle`
-- 어셈블리: `CK.Battle.Core` — UnityEngine 의존성 없음.
+이번 구현의 명시적 정책:
 
-공통 정의, 전투 개체 상태, 전투 초기화, 메모리 기반 순서, 행동 요청 검증, 결과 전달, 연출 완료 후 진행, 사망·승패 판정을 구현했다. 스킬·캐릭터·몬스터 정의는 생성자로 만들며 CSV 로더와 Inspector 자산 연결은 후속 작업이다.
+- 방어는 다음 자기 행동 기회 시작까지 지속하며 그때 행동 불능이어도 해제한다.
+- 각인은 최신 적용값으로 덮어쓰고 중첩하지 않는다. 다음 행동 기회 시작에 한 번 발동한 뒤 해제한다. 추가 행동과 행동 불능 기회도 포함한다.
+- 각인 피해는 적용 당시 방어 등 배율까지 계산한 스킬 피해의 10%다. 발동 때 방어를 다시 적용하지 않는다. 각인으로 다른 속성 효과·연쇄·폭주를 재발동시키지 않는다.
+- 빗나가도 스킬 비용·투자 메모리를 소모하고 지정된 폭주를 얻는다. HP 피해·회복·강탈·각인·행동 불능 부여는 명중했을 때만 적용한다. 연쇄는 빗나가면 0으로 초기화한다.
+- 잔상·망각은 양 팀 행동자에게 동일하게 적용한다. 별도 지정한 MemoryRecovery/MemorySteal과 합산하므로 콘텐츠에서 중복 입력하지 않는다.
+- 연쇄 실패 공격이 첫 원소와 같으면 즉시 1단계부터 다시 시작한다. 그 외는 0단계다.
+- 폭주 91 이상과 일반 행동 불능이 겹치면 한 행동 기회에서 함께 처리한다. 일반 행동 불능 횟수도 1 감소한다.
 
-`CombatantData`는 캐릭터와 몬스터가 공유하는 정의다. `Team`으로 구분하며 동일한 몬스터 정의를 여러 `BattleParticipant`에 사용할 수 있다. `Data.Id`는 콘텐츠 정의 ID, `InstanceId`는 해당 전투에서 고유한 개체 ID다. UI·요청·결과에서는 `InstanceId`를 사용한다.
+## 공통 데이터
 
-정의와 외부에 전달하는 상태는 불변이다. HP·메모리·행동 불능 횟수는 세션 내부에서 새 상태로 교체한다. 과거 스냅샷과 결과는 이후 행동으로 바뀌지 않는다.
+`CombatantData`: 정의 ID, 이름, 팀, 속성, 최대 HP·메모리, 초기 메모리, 스킬 목록, `Evasion`, `WeaknessChain`.
+`WeaknessChain`은 비어 있거나 원소 4개다. 첫 항목을 시작 약점으로 사용하며 성공한 연쇄는 대상 기본 속성과 관계없이 약점 배율을 유지한다. 정의 배열은 복사한다.
 
-## 현재 턴 규칙
+`SkillData`: 정의 ID, Power, Element, Target, MemoryCost, MemoryRecovery, MemorySteal,
+`Accuracy`(기본 1), `CriticalChance`(null이면 공통 설정), `RageGain`(기본 0, 범위 0~100), `InflictedSkippedTurns`(기본 0).
+몬스터 DT가 없으므로 스킬별 폭주 획득량은 반드시 콘텐츠에서 지정한다.
 
-1. 메모리 내림차순으로 행동한다.
-2. 메모리가 같으면 플레이어가 몬스터보다 먼저 행동한다.
-3. 같은 팀의 동률은 무작위 순서다. 테스트는 시드를 지정해 재현할 수 있다.
-4. 한 라운드에서 생존 개체마다 기본 행동 기회를 한 번 갖는다.
-5. 행동 후 아직 행동하지 않은 생존 개체만 현재 메모리로 다시 정렬한다.
-6. 모두 행동하면 새 라운드를 시작한다. 사망한 개체는 순서·선택 대상에서 제외한다.
-7. 행동 불능은 자기 행동 기회 하나를 소모하며 남은 횟수가 하나 줄어든다. `WasSkipped` 결과를 연출한 뒤 진행한다.
+`BattleParticipant`: 전투 개체 InstanceId, 정의, 초기 HP·메모리·행동 불능 횟수·폭주.
+정의 ID와 전투 개체 ID는 다르며 요청·결과는 InstanceId를 사용한다.
 
-**기획 가정:** 4~5번의 라운드 방식과 플레이어끼리 동률일 때의 무작위 처리는 이번 프로토타입의 가정이다. 기획서의 “행동 후 재측정”만으로 이미 행동한 개체의 재선택 여부가 명확하지 않아, 가장 빠른 개체가 계속 행동하는 상황을 피하도록 정했다. 확정 기획이 다르면 이 정책과 테스트를 함께 수정한다.
+`CombatantState`: HP, Memory, SkippedTurns, IsDefending, RageEnergy, IsOverheated,
+ChainStep(다음에 맞힐 순서의 인덱스 0~3), ImprintDamage(다음 행동 기회에 받을 피해).
+사망 시 방어·각인·연쇄·폭주 행동 불능 표시는 해제된다. HP·메모리·폭주는 세션에서만 변경한다.
 
-추가 행동·연쇄·폭주 규칙은 후속 작업 범위다. 현재 `SkippedTurns`는 일반적인 행동 불능 상태를 표현하며 폭주 조건을 자동 계산하지 않는다.
+## 계산 순서
 
-## B가 호출하는 흐름
-
-```csharp
-using CK.SemesterProject.Battle;
-
-var attack = new SkillData("basic_attack", "기본 공격", 25);
-var player = new CombatantData("hero", "플레이어", BattleTeam.Player,
-    100, 100, 20, new[] { attack });
-var monster = new CombatantData("slime", "슬라임", BattleTeam.Monster,
-    60, 100, 10, new[] { attack });
-
-var battle = new BattleSession();
-BattleSnapshot snapshot = battle.Start(new[]
-{
-    new BattleParticipant("player_1", player),
-    new BattleParticipant("monster_1", monster)
-}, BattleEntryCondition.PlayerInitiated);
-
-// AwaitingAction일 때 선택 UI를 열고 제공된 목록으로 대상을 표시한다.
-var targets = battle.GetSelectableTargets("basic_attack");
-var request = new BattleActionRequest(snapshot.TurnId, snapshot.CurrentActorId,
-    BattleActionKind.Skill, "basic_attack", targets[0]);
-
-if (battle.TrySubmit(request, out BattleActionResult result, out BattleActionError error))
-{
-    // result.Request로 공격 연출, result.Changes로 피해·사망·게이지 변화를 표시한다.
-    // 실제 게임에서는 연출 완료 콜백에서 아래 호출을 한다.
-    battle.CompletePresentation(result.ActionId);
-    snapshot = battle.GetSnapshot();
-}
-```
-
-위 코드는 기본 호출 예제다. 실제 연결에서는 매 전환 후 `GetSnapshot()`의 `Phase`를 확인한다.
-
-| 단계 | B의 동작 |
-|---|---|
-| `NotStarted` | 참가자를 구성한 뒤 `Start` 호출 |
-| `AwaitingAction` | 현재 행동자의 요청 생성. 플레이어는 UI, 몬스터는 MonsterAi가 결정 |
-| `AwaitingPresentation` | `PendingResult`를 받아 연출하고 완료 시 `CompletePresentation(ActionId)` 호출 |
-| `Finished` | `Outcome`에 따라 승리·패배·무승부 화면 표시 |
-
-`Start` 직후에도 행동 불능이면 `AwaitingPresentation`, 한 팀이 이미 사망했으면 `Finished`가 될 수 있다. 무조건 선택 UI부터 열지 않는다. 새 전투에는 새 `BattleSession`을 사용한다.
-
-### 데이터 전달 계약
-
-- `BattleSnapshot`: 현재 단계, 라운드, 턴 ID, 행동자 ID, 전체 개체 상태, 행동 순서, 승패, 진입 조건.
-- `BattleActionRequest`: 턴 ID, 행동자 ID, 종류, 스킬 ID, 대상 ID, 메모리 투자량.
-- `BattleActionResult`: 행동 ID, 원래 요청, 행동 불능 여부, 상태 변화 목록, 승패.
-- `BattleStateChange`: 적용 전·후 상태, 실제 HP·메모리 변화량, 이번에 사망했는지 여부.
-- `GetSelectableTargets`: 현재 행동자가 가진 스킬의 살아 있는 유효 대상. 아군 대상에는 자신도 포함하며 Self는 자신만 반환한다.
-
-행동 대기 중 `TurnOrder`는 현재 행동자를 포함한다. 행동 결과 대기 중에는 이번 행동자와 사망자를 제외한 남은 순서다. 현재 연출 중인 행동자는 `CurrentActorId`로 별도 표시한다. 종료 결과가 발생하면 남은 순서는 비운다.
-
-### 상태 적용과 연출 시점
-
-이번 코어에서는 **`TrySubmit` 성공 시 상태를 한 번 적용**한다. B는 `Before`와 `After`를 사용해 타격 시점에 화면을 갱신하고, 모든 연출이 끝나면 `CompletePresentation`을 호출한다. 타격 콜백에서 피해를 다시 적용하지 않는다. 타격 시점 자체를 코어가 기다리는 계약이 필요하면 이후 연출 연결에서 조정한다.
-
-최종 공격도 연출 완료 전에는 `AwaitingPresentation`을 유지한다. 결과의 `Outcome`으로 종료 연출을 준비하고, 완료 통보 후 `Finished`에서 종료 화면을 연다.
-
-잘못된 턴 ID, 다른 행동자, 잘못된 스킬·대상, 범위를 벗어난 투자, 중복 입력은 실패 코드로 반환하며 상태와 턴을 소모하지 않는다. 완료 콜백은 행동 ID가 일치할 때 한 번만 수락한다. 이전 전투의 콜백은 이전 세션에 연결되도록 B가 세션별 콜백 수명을 관리한다.
-
-## 후속 행동 실행기 연결
-
-`IBattleActionResolver`를 `BattleSession` 생성자에 주입한다. 플레이어와 몬스터 모두 같은 `TrySubmit` 경로를 사용한다. 실행기는 불변 스냅샷과 검증된 요청을 받아 `BattleEffect` 목록을 반환한다. 개체마다 효과 하나로 합산하며 메모리 소모·회복도 효과에 포함한다. 지원하지 않는 요청은 실패 코드를 반환한다.
-
-세션은 모든 효과를 먼저 검증한 후 일괄 적용한다. 알 수 없는 개체, 죽은 개체, 중복 개체 효과, 음수 행동 불능 횟수는 실행기 계약 오류로 예외를 발생시키며 부분 적용하지 않는다. HP·메모리는 0~최댓값으로 제한한다. 이 단계는 부활을 지원하지 않는다. 여러 효과가 동시에 양 팀을 전멸시키면 무승부다.
-
-기본 실행기는 `BattleActionResolver`다. `PrototypeActionResolver`는 이전 최소 동작의 비교 테스트용으로만 남겨 두었다. 데모도 기본 실행기를 사용한다.
-
-### 메모리·방어 계약
-
-- `SkillData.MemoryCost`: 스킬 기본 비용. `MemoryRecovery`: 행동자 회복량. `MemorySteal`: 대상에서 행동자로 이전할 최대량. 기본값은 모두 0이다.
-- 요청의 `MemoryInvestment`는 소비할 메모리 수량이다. 스킬 비용 + 투자량을 현재 보유량으로 감당해야 하며, 이번 행동에서 얻을 회복·강탈분을 미리 사용할 수 없다.
-- 비용 소모 → 행동자 회복 → 강탈 순서다. 회복은 MaxMemory까지, 강탈은 상대 보유량과 행동자 빈 용량까지 제한한다. 자기 자신에게서는 강탈하지 않는다. 사망 전 유효했던 대상에는 해당 공격과 강탈을 함께 적용한다.
-- `BattleRules.InvestmentMultipliers`의 인덱스는 투자 수량이다. 목록 밖의 스킬 투자는 거절한다. 기본 설정은 `[1.0]`으로 0 투자만 허용한다. 확정된 비용·배율 표는 세션 생성 시 주입한다. 입력 배열은 복사해 보관한다.
-- 방어는 별도 스킬·대상 없이 요청한다. 투자 메모리를 소모하고 `DefenseRageReductionPerMemory`만큼 폭주 에너지를 낮춘다. 계수 기본값 0, 피해 배율 기본값 0.5다. `RageEnergy` 범위는 0~100이다.
-- **지속 시간 가정:** 방어 직후부터 다음 자기 턴 시작까지 모든 공격에 적용한다. 그때 행동 불능이어도 만료한다. 연속 방어로 중첩되지 않으며 사망 시 해제한다. 기획의 ‘다음 턴’ 해석이 확정되면 이 시점과 테스트를 함께 변경한다.
-- 스킬 피해는 Power × 투자 배율 × 대상 방어 배율을 계산한 뒤 0.5 이상 올림으로 정수 반올림한다. 명중·치명타·속성·연쇄 배율은 아직 포함하지 않는다.
-- `ValidateRequest`로 현재 요청의 실패 사유를 미리 확인할 수 있다. `TrySubmit`에서도 다시 검증한다. 실패 시 메모리·HP·턴·방어는 바뀌지 않는다. 커스텀 실행기의 추가 제한은 실행기에서 판정한다.
-- 결과 `Changes`의 `Before/After.IsDefending`, `RageEnergy`, `RageDelta`로 B가 표시한다. 다음 자기 턴 시작의 방어 만료는 `CompletePresentation` 이후 새 스냅샷에서 읽는다.
-
-```csharp
-// 예시용 표다. 실제 밸런스 데이터로 교체한다.
-var rules = new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 },
-    defenseRageReductionPerMemory: 5);
-var session = new BattleSession(rules: rules);
-// Start 후 현재 TurnId / ActorId로 생성
-var defend = new BattleActionRequest(turnId, actorId, BattleActionKind.Defend,
-    memoryInvestment: 2);
-```
-
-명중·회피·치명타, 속성·연쇄·폭주 발동, 몬스터별 전용 패턴, 추가 행동, CSV 입력은 후속 작업이다. 진입 조건은 보관만 하며 추가 메모리 수치를 임의로 부여하지 않는다. 치명타·약점·연쇄 수치는 기획서 내 불일치를 확인한 뒤 반영한다.
-
-## 몬스터 AI 연결
-
-`MonsterAi.TryChooseAction(session, out request)`는 현재 몬스터 턴의 행동 요청만 만든다. 호출자가 `TrySubmit`으로 실행하고 기존 결과·연출 완료 흐름을 사용한다. 플레이어 턴, 행동 불능 결과 대기, 연출 중, 종료 상태에서는 false를 반환한다. 선택 과정은 HP·메모리·턴 순서·난수를 변경하지 않는다.
-
-```csharp
-var ai = new MonsterAi(new MonsterAiSettings(maxMemoryInvestment: 3,
-    memoryWeight: 1, killBonus: 100));
-if (ai.TryChooseAction(battle, out BattleActionRequest monsterRequest))
-{
-    bool accepted = battle.TrySubmit(monsterRequest, out BattleActionResult result,
-        out BattleActionError error);
-    // 성공 시 B에게 result 전달. 선택 이후 상태가 바뀌었으면 거절될 수 있다.
-}
-```
-
-- 보유 스킬, 살아 있는 유효 대상, 지불 가능한 투자량을 후보로 만든다. 최대 투자량과 세션의 배율 표 범위를 모두 지킨다.
-- 공통 계산기의 방어·반올림·회복·강탈 계산을 사용해 예상 효과를 평가한다. 실제 HP 한도를 넘어선 과잉 피해는 이득으로 계산하지 않는다.
-- 아군 HP 증가·적 HP 감소 + 메모리 손익 × MemoryWeight + 적 처치 보너스 − 아군 사망 손실로 점수를 계산한다. 기본 가중치 1과 처치 보너스 100은 초기 정책값이다.
-- 양수 점수 중 가장 높은 후보를 선택한다. 동점이면 총 소비 메모리가 적은 후보, 다시 동점이면 스킬 정의 순서와 참가자 순서를 사용한다. 같은 상태에서 선택은 재현 가능하다.
-- 공격이 이미 처치에 충분하면 불필요한 추가 투자를 줄인다. 자기 회복도 선택할 수 있고 아군 공격·자기 강탈은 이득으로 평가하지 않는다.
-- 유익한 스킬이 없거나 모두 비용 부족이면 투자 없는 방어를 요청한다. 지금은 체력이 낮다는 이유만으로 공격 대신 방어하는 별도 성향은 없다.
-- 현재 예측은 `BattleActionResolver`의 확정 계산에 맞춰져 있다. 커스텀 실행기, 향후 명중·치명타 확률, 추가 효과를 넣을 때는 AI의 예상 효과 평가도 함께 확장해야 한다. 장기 턴 예측이나 보스 전용 패턴은 아직 없다.
-
-## 검증 실행
-
-Unity 6000.3.23f1에서 Test Runner의 EditMode 탭을 열고 `CK.Battle.Core.Tests`를 실행한다. 테스트는 전투 시작·종료, 메모리 정렬·동률·라운드, 결과 불변성, 중복 입력·완료 콜백, 사망 대상 제외, 행동 불능, 실행기 오류의 원자적 처리, 수치 범위를 검증한다.
-
-2026-09-16 몬스터 AI 추가 후 Unity 6000.3.23f1 **EditMode 50개 통과**, 실패·건너뜀 0개. AI 선택·비용·최소 처치 투자·대상 제외·회복·방어 대체·불변성·호출 시점 등을 검증했다. 이번 작업에서는 사용자 요청에 따라 데모와 PlayMode를 실행하지 않았다. 직전 메모리·방어 구현 시 PlayMode 9개가 통과한 이력이 있다. 컴파일 오류는 없었으며 스크립트 재로딩에서 Unity 내부의 `Deleting invalid font reference` 로그가 한 차례 관찰됐다.
-
-메모리 비용+투자 검증, 소모 후 회복·강탈 순서, 부족한 메모리를 회복으로 선지급할 수 없음, 강탈의 양측 한도, 자기 대상 효과 집계, 데미지 반올림, 방어 지속·만료·폭주 감소, 중복 실행 방지, 기존 턴·사망·승패 계약을 검증했다. PlayMode에서는 투자 버튼 잠금, 두 몬스터의 공격 모두 방어, 다음 자기 턴 방어 만료, 시나리오 재시작, 전투 승패와 자동 진행을 확인했다. 최종 모델·연출과 몬스터별 전용 패턴은 검증 범위에 포함되지 않는다.
-
-명령줄 실행 예:
+1. 세션이 단계, 턴 ID, 행동자, 소유 스킬, 살아 있는 대상, 투자 범위와 총 비용을 검증한다.
+2. 적 대상 스킬은 명중을 판정하고 명중한 피해 스킬만 치명타를 판정한다. 아군·자기 대상은 자동 명중이며 치명타가 없다.
+3. 명중 여부와 속성 순서로 해당 몬스터의 연쇄 단계를 계산한다.
+4. 아래 식 전체를 계산한 뒤 한 번만 반올림한다. 0.5는 올림, int 상한을 넘으면 포화시킨다.
 
 ```text
-Unity.exe -batchmode -nographics -projectPath <프로젝트 경로> -runTests -testPlatform EditMode -testFilter CK.SemesterProject.Battle.Tests -testResults <결과.xml> -logFile <로그.txt>
+피해 = Power × 폭주 배율 × 속성 배율 × 연쇄 배율
+       × 치명타 배율 × 투자 배율 × 방어 배율
 ```
 
-테스트 실행에는 `-quit`을 덧붙이지 않는다. Unity Test Runner가 실행 종료를 관리한다. 같은 프로젝트를 Unity에서 열어둔 경우 에디터 내 Test Runner를 사용한다.
+폭주 배율은 **이번 스킬을 사용하기 전** 에너지를 사용한다.
+0~19: 1 / 20~44: 1.08 / 45~74: 1.2 / 75~90: 1.35.
+91~100은 다음 자기 행동 기회를 건너뛰고 에너지를 0으로 초기화한다.
+이 처리는 결과 적용 시 논리 상태에 반영하며 화면은 Before/After로 연출한다.
+
+기획서 11쪽 예시: `100 × 1.2 × 1.25 × 1.2 × 1.2 × 1.35 = 291.6 → 292`.
+방어가 있으면 여기에 0.5를 곱한 후 반올림한다.
+
+5. 비용 소모 → 명중 시 회복 → 강탈 순으로 계산한다. 회복은 최대 메모리까지, 강탈은 대상 보유량·행동자의 빈 용량까지만 이전한다. 회복분으로 비용을 미리 지불할 수 없다.
+6. 스킬 RageGain, 각인, 행동 불능, 연쇄 초기화 등을 대상별 효과 한 개로 합산한다.
+7. 세션이 효과 전체를 검증한 뒤 한 번에 적용하고 남은 순서·승패를 갱신한다.
+
+`BattleRules.InvestmentMultipliers` 인덱스는 투자할 메모리 수량이며 기본값은 `[1.0]`이다. 상세 메모리 기획서가 없으므로 0보다 큰 스킬 투자는 표를 주입해야 한다. 방어는 투자량만 소모하며 `DefenseRageReductionPerMemory`(기본 0)만큼 에너지를 줄인다.
+
+## 턴과 추가 행동
+
+메모리 내림차순, 동률이면 플레이어 우선, 같은 팀 동률은 시드 기반 무작위다. 한 라운드에 각 생존 개체가 기본 행동 기회를 한 번 갖는다. 행동 후 미행동 생존자만 현재 메모리로 다시 정렬한다. 이것은 초기 프로토타입의 라운드 가정이다.
+
+몬스터 연쇄 4단계 성공은 그 몬스터의 ChainStep을 0으로 만들고 행동자에게 즉시 추가 행동 1회를 준다. 새 라운드를 시작하지 않고 새 TurnId를 발급한다. 기존에 남은 개체의 기본 행동은 보존한다. 추가 행동도 다시 연쇄를 시작할 수 있다.
+전투가 끝나면 추가 행동을 취소한다. 추가 행동을 받았어도 폭주 상태이면 그 추가 행동 기회에서 건너뛰기와 초기화를 처리한다.
+
+각인 발동은 행동 선택 전에 별도 `IsTurnStartEffect` 결과로 전달한다. 살아 있고 행동 불능이 아니면 연출 완료 후 같은 행동 기회를 계속하고 새 TurnId를 발급한다. 각인으로 사망하거나 행동 불능이면 해당 기회를 소비한다. 재귀적으로 턴을 넘기지 않아 연속 행동 불능도 호출 스택을 늘리지 않는다.
+
+## B의 호출·결과 계약
+
+```csharp
+var attack = new SkillData("attack", "공격", 100, BattleElement.Afterimage,
+    accuracy: 0.95, rageGain: 12);
+var rules = new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 },
+    defenseRageReductionPerMemory: 5,
+    mechanics: new BattleCombatRules(criticalChance: 0.1, criticalMultiplier: 1.2));
+var battle = new BattleSession(randomSeed: 17, rules: rules);
+// 참가자 정의를 만든 뒤 battle.Start(participants)를 호출한다.
+```
+
+위 투자 표와 RageGain은 연결 예시용 수치다.
+
+| Phase | 호출자 동작 |
+|---|---|
+| NotStarted | 참가자 구성 후 Start |
+| AwaitingAction | GetSelectableTargets와 ValidateRequest로 선택 UI 또는 AI 요청 구성 |
+| AwaitingPresentation | PendingResult 표시 후 CompletePresentation(ActionId) |
+| Finished | Outcome에 따른 종료 처리 |
+
+`Start` 직후에도 초기 폭주·행동 불능이면 AwaitingPresentation, 초기 사망이면 Finished일 수 있다.
+`TrySubmit` 성공 시 상태는 이미 한 번 적용되었다. B는 타격 시점에 Before/After로 화면만 바꾸며 피해를 다시 적용하지 않는다. 연출 완료 뒤 새 스냅샷을 읽는다. 중복·과거 요청과 중복 완료는 거절하며 실패한 요청은 상태·난수를 소모하지 않는다.
+
+결과 필드:
+
+- `Request`: 원래 스킬·대상·투자량.
+- `Hit`: 일반 스킬이면 명중·치명타 여부, HitChance, BaseDamage, Damage, 각 배율, ChainStepReached. 대기·방어·자동 턴 시작 결과는 null.
+- `Damage`: HP 상한 적용 전 계산 피해. 실제 피해 숫자는 `Changes.HpDelta`를 사용한다.
+- `Changes`: 적용 전후 상태, 실제 HP·메모리·폭주 변화량, 사망 여부.
+- `GrantsExtraAction`: 이번 결과 뒤 추가 행동 여부. 전투 종료 시 false.
+- `IsTurnStartEffect`: 각인·행동 불능·폭주 처리 결과. 각인 결과를 Wait 요청의 일반 대기 연출로 표시하지 않는다.
+- `WasSkipped`: 행동 기회 소비 여부를 나타내는 자동 결과 표시. 일반 스킬은 false.
+
+공통 실행기는 `BattleActionResolver`다. 커스텀 `IBattleActionResolver`도 기존 효과 인터페이스로 주입할 수 있지만 명중 메타데이터·추가 행동은 공통 실행 경로에서만 생성한다.
+
+## 몬스터 AI
+
+`MonsterAi.TryChooseAction(battle, out request)`는 요청만 만든다. 호출자는 `TrySubmit`으로 실행한다.
+후보는 소유 스킬 × 유효 대상 × 지불 가능한 투자량이다. 피해·처치·메모리 손익을 비교하며 동점이면 적은 비용, 스킬 정의 순서, 참가자 순서를 따른다. 유익한 후보가 없으면 무료 방어다.
+
+이번 연결에서 빗나감·일반 명중·치명타 결과를 각각 공통 계산식으로 예측하여 확률 가중한다. 예측은 실제 전투 난수를 소비하지 않는다. 각인 예상 피해와 연쇄 추가 행동도 점수에 포함한다. 일반 행동 불능·폭주로 잃는 미래 턴까지 탐색하는 AI는 아니며 전용 패턴은 별도 작업이다.
+실제 실행용 난수는 턴 순서 난수와 분리하며 세션 randomSeed로 재현한다.
+
+## 데모와 검증
+
+사용자 요청에 따라 이번 작업에서는 **데모·PlayMode를 실행하지 않는다**.
+기존 BattleCoreDemo는 최소 동작을 비교하는 용도로 `BattleCombatRules.Basic`을 명시한다. Basic은 치명타 확률 0, 자동 속성 효과와 폭주 기능을 비활성화하며 기존 데모의 중복 회복·강탈과 피해 수치 변화를 방지한다. 신규 기능은 기본 세션 또는 명시적인 BattleCombatRules와 콘텐츠 데이터로 사용한다. UI 자체의 속성·연쇄 표시 작업은 이번 로직 범위에 포함되지 않는다.
+
+EditMode 테스트: `CK.Battle.Core.Tests`, 파일 위치 `Assets/CK_Semester_Project/Tests/EditMode/Battle/`.
+기존 메모리·턴·AI 테스트는 Basic 규칙으로 회귀 검증하고, BattleMechanicsTests는 전체 규칙을 활성화한다.
+2026-09-16 Unity 6000.3.23f1 EditMode 89개 통과, 실패·건너뜀 0개. 기획서 피해 292, 상성 6방향, 명중·회피·치명타, 폭주 단계 경계, 각인 사망·비중첩·행동 재개, 연쇄 실패·추가 행동·최종 처치, 폭주로 추가 행동 소비, AI 확률 예측과 난수 보존, 3개 시드의 전체 전투 종료를 검증했다. 컴파일 오류가 없으며 에디터는 PlayMode가 아닌 정지 상태로 확인했다. 직전 단계의 PlayMode 9개 통과 기록은 신규 전투 연출 검증으로 간주하지 않는다.

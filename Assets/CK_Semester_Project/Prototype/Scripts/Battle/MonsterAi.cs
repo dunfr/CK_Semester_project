@@ -45,12 +45,11 @@ namespace CK.SemesterProject.Battle
                     {
                         var candidate = new BattleActionRequest(snapshot.TurnId, actor.InstanceId,
                             BattleActionKind.Skill, skill.Id, targetId, investment);
-                        if (session.ValidateRequest(candidate) != BattleActionError.None
-                            || estimator.Resolve(snapshot, candidate, out IReadOnlyList<BattleEffect> effects) != BattleActionError.None)
+                        if (session.ValidateRequest(candidate) != BattleActionError.None)
                         {
                             continue;
                         }
-                        double score = Evaluate(snapshot, actor.Data.Team, effects);
+                        double score = EvaluateCandidate(snapshot, actor.Data.Team, skill, candidate, estimator);
                         long cost = (long)skill.MemoryCost + investment;
                         // 동점이면 적은 비용, 이후 데이터에 정의된 스킬·대상 순서를 유지한다.
                         if (score > bestScore || (score == bestScore && score > 0 && cost < bestCost))
@@ -72,6 +71,40 @@ namespace CK.SemesterProject.Battle
             return true;
         }
 
+        private double EvaluateCandidate(BattleSnapshot snapshot, BattleTeam team, SkillData skill,
+            BattleActionRequest request, BattleActionResolver estimator)
+        {
+            CombatantState target = snapshot.Combatants.First(state => state.InstanceId == request.TargetId);
+            double hitChance = BattleActionResolver.GetHitChance(target, skill);
+            double criticalChance = skill.Target == SkillTarget.Enemy && skill.Power > 0
+                ? skill.CriticalChance ?? estimator.Rules.Mechanics.CriticalChance : 0;
+            double score = 0;
+            for (int branch = 0; branch < 3; branch++)
+            {
+                bool isHit = branch != 0;
+                bool isCritical = branch == 2;
+                double probability = !isHit ? 1 - hitChance
+                    : hitChance * (isCritical ? criticalChance : 1 - criticalChance);
+                if (probability <= 0)
+                {
+                    continue;
+                }
+                if (estimator.ResolveOutcome(snapshot, request, isHit, isCritical,
+                    out IReadOnlyList<BattleEffect> effects, out BattleHitResult hit) != BattleActionError.None)
+                {
+                    continue;
+                }
+                double value = Evaluate(snapshot, team, effects);
+                // 추가 행동은 확정적인 기회만 평가하고 이후 행동까지 재귀 탐색하지 않는다.
+                if (hit != null && hit.GrantsExtraAction)
+                {
+                    value += skill.Power;
+                }
+                score += probability * value;
+            }
+            return score;
+        }
+
         private double Evaluate(BattleSnapshot snapshot, BattleTeam team, IReadOnlyList<BattleEffect> effects)
         {
             double score = 0;
@@ -82,6 +115,11 @@ namespace CK.SemesterProject.Battle
                 int memoryAfter = (int)Math.Max(0L, Math.Min(target.Data.MaxMemory, (long)target.Memory + effect.MemoryDelta));
                 int sign = target.Data.Team == team ? 1 : -1;
                 score += sign * ((double)hpAfter - target.Hp + ((double)memoryAfter - target.Memory) * _settings.MemoryWeight);
+                if (hpAfter > 0 && effect.ImprintDamage.HasValue)
+                {
+                    score -= sign * (Math.Min(hpAfter, effect.ImprintDamage.Value)
+                        - Math.Min(hpAfter, target.ImprintDamage));
+                }
                 if (hpAfter == 0 && !target.IsDead)
                 {
                     score -= sign * _settings.KillBonus;

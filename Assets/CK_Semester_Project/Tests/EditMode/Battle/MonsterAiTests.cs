@@ -10,7 +10,7 @@ namespace CK.SemesterProject.Battle.Tests
             BattleRules rules = null, int skippedTurns = 0)
         {
             var session = new BattleSession(randomSeed: 11,
-                rules: rules ?? new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 }));
+                rules: rules ?? new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 }, mechanics: BattleCombatRules.Basic));
             var player = new CombatantData("hero", "Hero", BattleTeam.Player, 100, 40, 0,
                 new[] { new SkillData("attack", "Attack", 10) });
             var monster = new CombatantData("monster", "Monster", BattleTeam.Monster,
@@ -112,7 +112,7 @@ namespace CK.SemesterProject.Battle.Tests
             var hit = new SkillData("hit", "Hit", 10);
             var player = new CombatantData("hero", "Hero", BattleTeam.Player, 100, 40, 0, new[] { hit });
             var monster = new CombatantData("monster", "Monster", BattleTeam.Monster, 100, 40, 20, new[] { hit });
-            var session = new BattleSession();
+            var session = new BattleSession(rules: new BattleRules(mechanics: BattleCombatRules.Basic));
             session.Start(new[] { new BattleParticipant("full", player),
                 new BattleParticipant("dead", player, initialHp: 0),
                 new BattleParticipant("low", player, initialHp: 5), new BattleParticipant("m", monster) });
@@ -133,7 +133,7 @@ namespace CK.SemesterProject.Battle.Tests
         {
             var ai = new MonsterAi();
             SkillData[] skills = { new SkillData("hit", "Hit", 10) };
-            Assert.That(ai.TryChooseAction(new BattleSession(), out _), Is.False);
+            Assert.That(ai.TryChooseAction(new BattleSession(rules: new BattleRules(mechanics: BattleCombatRules.Basic)), out _), Is.False);
             Assert.That(ai.TryChooseAction(Start(skills, memory: 0), out _), Is.False);
             Assert.That(ai.TryChooseAction(Start(skills, skippedTurns: 1), out _), Is.False);
             Assert.That(ai.TryChooseAction(Start(skills, playerHp: 0), out _), Is.False);
@@ -150,7 +150,7 @@ namespace CK.SemesterProject.Battle.Tests
             session = Start(new[] { new SkillData("hit", "Hit", 20) });
             Assert.That(Choose(session, new MonsterAi(new MonsterAiSettings(maxMemoryInvestment: 1))).MemoryInvestment,
                 Is.EqualTo(1));
-            session = Start(new[] { new SkillData("hit", "Hit", 20) }, rules: new BattleRules());
+            session = Start(new[] { new SkillData("hit", "Hit", 20) }, rules: new BattleRules(mechanics: BattleCombatRules.Basic));
             Assert.That(Choose(session).MemoryInvestment, Is.Zero);
         }
 

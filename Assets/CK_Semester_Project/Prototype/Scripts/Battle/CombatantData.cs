@@ -15,10 +15,13 @@ namespace CK.SemesterProject.Battle
         public int MaxMemory { get; }
         public int InitialMemory { get; }
         public IReadOnlyList<SkillData> Skills { get; }
+        public double Evasion { get; }
+        public IReadOnlyList<BattleElement> WeaknessChain { get; }
 
         public CombatantData(string id, string displayName, BattleTeam team, int maxHp,
             int maxMemory, int initialMemory, IEnumerable<SkillData> skills,
-            BattleElement element = BattleElement.None)
+            BattleElement element = BattleElement.None, double evasion = 0,
+            IEnumerable<BattleElement> weaknessChain = null)
         {
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(displayName))
             {
@@ -39,6 +42,15 @@ namespace CK.SemesterProject.Battle
                 throw new ArgumentException("스킬이 비어 있거나 ID가 중복됩니다.", nameof(skills));
             }
 
+            BattleElement[] chain = (weaknessChain ?? Array.Empty<BattleElement>()).ToArray();
+            if (double.IsNaN(evasion) || evasion < 0 || evasion > 1
+                || (chain.Length != 0 && chain.Length != 4)
+                || chain.Any(value => value == BattleElement.None || !Enum.IsDefined(typeof(BattleElement), value)))
+            {
+                throw new ArgumentOutOfRangeException(nameof(evasion));
+            }
+            Evasion = evasion;
+            WeaknessChain = Array.AsReadOnly(chain);
             Id = id;
             DisplayName = displayName;
             Team = team;

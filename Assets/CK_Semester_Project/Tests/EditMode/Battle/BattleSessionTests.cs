@@ -17,7 +17,7 @@ namespace CK.SemesterProject.Battle.Tests
 
         private static BattleSession Start(IBattleActionResolver resolver = null, params BattleParticipant[] roster)
         {
-            var session = new BattleSession(resolver, 42);
+            var session = new BattleSession(resolver, 42, new BattleRules(mechanics: BattleCombatRules.Basic));
             session.Start(roster.Length == 0
                 ? new[] { Unit("player", BattleTeam.Player), Unit("monster", BattleTeam.Monster) }
                 : roster);
@@ -57,8 +57,8 @@ namespace CK.SemesterProject.Battle.Tests
             var observed = new HashSet<string>();
             for (int seed = 0; seed < 20; seed++)
             {
-                var first = new BattleSession(randomSeed: seed);
-                var second = new BattleSession(randomSeed: seed);
+                var first = new BattleSession(randomSeed: seed, rules: new BattleRules(mechanics: BattleCombatRules.Basic));
+                var second = new BattleSession(randomSeed: seed, rules: new BattleRules(mechanics: BattleCombatRules.Basic));
                 first.Start(roster);
                 second.Start(roster);
                 CollectionAssert.AreEqual(first.GetSnapshot().TurnOrder, second.GetSnapshot().TurnOrder);
@@ -280,7 +280,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void InvalidRosterDoesNotPartiallyStartSession()
         {
-            var session = new BattleSession();
+            var session = new BattleSession(rules: new BattleRules(mechanics: BattleCombatRules.Basic));
             Assert.Throws<ArgumentException>(() => session.Start(new[] { Unit("same", BattleTeam.Player), Unit("same", BattleTeam.Monster) }));
             Assert.That(session.GetSnapshot().Combatants, Is.Empty);
             Assert.Throws<ArgumentException>(() => session.Start(new[] { Unit("player", BattleTeam.Player) }));
@@ -291,7 +291,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void EntryConditionIsPreservedWithoutInventingBonusMemory()
         {
-            var session = new BattleSession();
+            var session = new BattleSession(rules: new BattleRules(mechanics: BattleCombatRules.Basic));
             session.Start(new[] { Unit("player", BattleTeam.Player), Unit("monster", BattleTeam.Monster) }, BattleEntryCondition.MonsterCollision);
             Assert.That(session.GetSnapshot().EntryCondition, Is.EqualTo(BattleEntryCondition.MonsterCollision));
             Assert.That(session.GetSnapshot().Combatants.All(state => state.Memory == 10), Is.True);

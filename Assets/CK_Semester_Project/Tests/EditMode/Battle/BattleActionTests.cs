@@ -10,7 +10,7 @@ namespace CK.SemesterProject.Battle.Tests
             int rage = 50, BattleRules rules = null)
         {
             var session = new BattleSession(randomSeed: 1,
-                rules: rules ?? new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 }, 5));
+                rules: rules ?? new BattleRules(new[] { 1.0, 1.1, 1.2, 1.35 }, 5, mechanics: BattleCombatRules.Basic));
             session.Start(new[]
             {
                 new BattleParticipant("p", new CombatantData("p", "Player", BattleTeam.Player,
@@ -141,7 +141,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void MissingInvestmentTableRejectsPositiveSkillInvestment()
         {
-            BattleSession session = Start(new SkillData("hit", "Hit", 10), rules: new BattleRules());
+            BattleSession session = Start(new SkillData("hit", "Hit", 10), rules: new BattleRules(mechanics: BattleCombatRules.Basic));
             Assert.That(session.ValidateRequest(Request(session, BattleActionKind.Skill, 1)),
                 Is.EqualTo(BattleActionError.InvalidMemoryInvestment));
             Assert.That(session.TrySubmit(Request(session, BattleActionKind.Skill, 1), out _, out _), Is.False);

@@ -9,9 +9,11 @@ namespace CK.SemesterProject.Battle
         public int? SkippedTurns { get; }
         public bool? IsDefending { get; }
         public int RageDelta { get; }
+        public int? ChainStep { get; }
+        public int? ImprintDamage { get; }
 
         public BattleEffect(string targetId, int hpDelta = 0, int memoryDelta = 0, int? skippedTurns = null,
-            bool? isDefending = null, int rageDelta = 0)
+            bool? isDefending = null, int rageDelta = 0, int? chainStep = null, int? imprintDamage = null)
         {
             TargetId = targetId;
             HpDelta = hpDelta;
@@ -19,6 +21,8 @@ namespace CK.SemesterProject.Battle
             SkippedTurns = skippedTurns;
             IsDefending = isDefending;
             RageDelta = rageDelta;
+            ChainStep = chainStep;
+            ImprintDamage = imprintDamage;
         }
     }
 }

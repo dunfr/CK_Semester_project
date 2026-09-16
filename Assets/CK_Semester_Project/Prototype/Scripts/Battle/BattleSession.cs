@@ -19,6 +19,8 @@ namespace CK.SemesterProject.Battle
         private string _currentActorId;
         private int _round;
         private long _turnId;
+        private string _extraActorId;
+        private bool _resumeActorAfterPresentation;
 
         public BattleActionResult PendingResult { get; private set; }
         public BattleRules Rules => _rules;
@@ -26,7 +28,7 @@ namespace CK.SemesterProject.Battle
         public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null, BattleRules rules = null)
         {
             _rules = (resolver as BattleActionResolver)?.Rules ?? rules ?? new BattleRules();
-            _resolver = resolver ?? new BattleActionResolver(_rules);
+            _resolver = resolver ?? new BattleActionResolver(_rules, randomSeed);
             _random = randomSeed.HasValue ? new Random(randomSeed.Value) : new Random();
         }
 
@@ -58,7 +60,9 @@ namespace CK.SemesterProject.Battle
             {
                 _roster.Add(participant.InstanceId);
                 _combatants.Add(participant.InstanceId, new CombatantState(participant.InstanceId,
-                    participant.Data, participant.InitialHp, participant.InitialMemory, participant.SkippedTurns, rageEnergy: participant.InitialRageEnergy));
+                    participant.Data, participant.InitialHp, participant.InitialMemory, participant.SkippedTurns,
+                    rageEnergy: participant.InitialRageEnergy, isOverheated: _rules.Mechanics.EnableRage
+                        && participant.InitialRageEnergy >= BattleCombatRules.OverheatThreshold));
             }
             _entryCondition = entryCondition;
             _outcome = EvaluateOutcome();
@@ -98,7 +102,11 @@ namespace CK.SemesterProject.Battle
                 return false;
             }
 
-            error = _resolver.Resolve(GetSnapshot(), request, out IReadOnlyList<BattleEffect> effects);
+            BattleHitResult hit = null;
+            IReadOnlyList<BattleEffect> effects;
+            error = _resolver is BattleActionResolver common
+                ? common.ResolveDetailed(GetSnapshot(), request, out effects, out hit)
+                : _resolver.Resolve(GetSnapshot(), request, out effects);
             if (error != BattleActionError.None)
             {
                 return false;
@@ -109,7 +117,7 @@ namespace CK.SemesterProject.Battle
             {
                 _combatants[change.After.InstanceId] = change.After;
             }
-            CompleteAction(request, false, changes);
+            CompleteAction(request, false, changes, hit);
             result = PendingResult;
             return true;
         }
@@ -122,15 +130,24 @@ namespace CK.SemesterProject.Battle
                 return false;
             }
             PendingResult = null;
-            _currentActorId = null;
             if (_outcome != BattleOutcome.None)
             {
                 _phase = BattlePhase.Finished;
+                _currentActorId = null;
+                _resumeActorAfterPresentation = false;
                 _turnOrder.Clear();
                 return true;
             }
 
-            if (_remaining.Count == 0)
+            if (_resumeActorAfterPresentation)
+            {
+                _resumeActorAfterPresentation = false;
+                _turnId++;
+                _phase = BattlePhase.AwaitingAction;
+                return true;
+            }
+            _currentActorId = null;
+            if (_remaining.Count == 0 && _extraActorId == null)
             {
                 BeginRound();
             }
@@ -227,7 +244,8 @@ namespace CK.SemesterProject.Battle
             {
                 if (effect == null || effect.TargetId == null || !seen.Add(effect.TargetId)
                     || !_combatants.TryGetValue(effect.TargetId, out CombatantState before)
-                    || before.IsDead || effect.SkippedTurns < 0)
+                    || before.IsDead || effect.SkippedTurns < 0
+                    || effect.ChainStep < 0 || effect.ChainStep > 3 || effect.ImprintDamage < 0)
                 {
                     throw new InvalidOperationException("행동 실행기의 효과 대상 또는 상태가 잘못되었습니다.");
                 }
@@ -236,7 +254,9 @@ namespace CK.SemesterProject.Battle
                 int memory = Clamp((long)before.Memory + effect.MemoryDelta, before.Data.MaxMemory);
                 int skippedTurns = hp == 0 ? 0 : effect.SkippedTurns ?? before.SkippedTurns;
                 var after = new CombatantState(before.InstanceId, before.Data, hp, memory, skippedTurns,
-                    effect.IsDefending ?? before.IsDefending, Clamp((long)before.RageEnergy + effect.RageDelta, 100));
+                    effect.IsDefending ?? before.IsDefending, Clamp((long)before.RageEnergy + effect.RageDelta, 100),
+                    effect.ChainStep ?? before.ChainStep, effect.ImprintDamage ?? before.ImprintDamage,
+                    _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold);
                 changes.Add(new BattleStateChange(before, after));
             }
             return changes;
@@ -276,45 +296,69 @@ namespace CK.SemesterProject.Battle
             _turnOrder.Clear();
             _turnOrder.AddRange(candidates.OrderByDescending(id => _combatants[id].Memory)
                 .ThenBy(id => _combatants[id].Data.Team == BattleTeam.Player ? 0 : 1));
+            if (_extraActorId != null && !_combatants[_extraActorId].IsDead)
+            {
+                _turnOrder.Remove(_extraActorId);
+                _turnOrder.Insert(0, _extraActorId);
+            }
         }
 
         private void SelectNextActor()
         {
-            _currentActorId = _turnOrder[0];
+            _currentActorId = _extraActorId ?? _turnOrder[0];
+            _extraActorId = null;
             _turnId++;
             _phase = BattlePhase.AwaitingAction;
             CombatantState actor = _combatants[_currentActorId];
-            // 방어는 다음 자기 턴 시작 시 만료되며 행동 불능 턴에도 연장되지 않는다.
-            if (actor.IsDefending)
-            {
-                actor = new CombatantState(actor.InstanceId, actor.Data, actor.Hp, actor.Memory,
-                    actor.SkippedTurns, rageEnergy: actor.RageEnergy);
-                _combatants[actor.InstanceId] = actor;
-            }
-            if (actor.SkippedTurns == 0)
+            bool overheated = _rules.Mechanics.EnableRage && actor.RageEnergy >= BattleCombatRules.OverheatThreshold;
+            bool skipped = actor.SkippedTurns > 0 || overheated;
+            int hp = Math.Max(0, actor.Hp - actor.ImprintDamage);
+            var after = new CombatantState(actor.InstanceId, actor.Data, hp, actor.Memory,
+                hp == 0 ? 0 : Math.Max(0, actor.SkippedTurns - 1), false,
+                overheated ? 0 : actor.RageEnergy, actor.ChainStep, 0);
+            if (!actor.IsDefending && actor.ImprintDamage == 0 && !skipped)
             {
                 return;
             }
-
-            // 행동 불능도 한 번의 결과로 전달해 UI가 표시할 수 있게 한다. 재귀 진행을 피한다.
-            var after = new CombatantState(actor.InstanceId, actor.Data, actor.Hp, actor.Memory, actor.SkippedTurns - 1, rageEnergy: actor.RageEnergy);
             _combatants[actor.InstanceId] = after;
+            if (actor.ImprintDamage == 0 && !skipped)
+            {
+                return;
+            }
+            // 각인은 선택 전에 별도 결과로 전달한다. 살아 있고 행동 가능하면 연출 후 같은 행동 기회를 이어간다.
+            bool consumesTurn = skipped || after.IsDead;
+            _resumeActorAfterPresentation = !consumesTurn;
             var request = new BattleActionRequest(_turnId, actor.InstanceId, BattleActionKind.Wait);
-            CompleteAction(request, true, new[] { new BattleStateChange(actor, after) });
+            CompleteAction(request, consumesTurn, new[] { new BattleStateChange(actor, after) },
+                isTurnStartEffect: true, consumesTurn: consumesTurn);
         }
 
         private void CompleteAction(BattleActionRequest request, bool wasSkipped,
-            IEnumerable<BattleStateChange> changes)
+            IEnumerable<BattleStateChange> changes, BattleHitResult hit = null,
+            bool isTurnStartEffect = false, bool consumesTurn = true)
         {
-            _remaining.Remove(_currentActorId);
+            if (consumesTurn)
+            {
+                _remaining.Remove(_currentActorId);
+            }
             _outcome = EvaluateOutcome();
+            if (hit != null && hit.GrantsExtraAction && !_combatants[_currentActorId].IsDead
+                && _outcome == BattleOutcome.None)
+            {
+                _extraActorId = _currentActorId;
+            }
             _phase = BattlePhase.AwaitingPresentation;
-            RebuildOrder();
+            if (consumesTurn)
+            {
+                RebuildOrder();
+            }
             if (_outcome != BattleOutcome.None)
             {
                 _turnOrder.Clear();
+                _extraActorId = null;
             }
-            PendingResult = new BattleActionResult(_turnId, request, wasSkipped, _outcome, changes);
+            PendingResult = new BattleActionResult(_turnId, request, wasSkipped, _outcome, changes,
+                hit, isTurnStartEffect);
         }
 
         private BattleOutcome EvaluateOutcome()
