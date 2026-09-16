@@ -21,6 +21,7 @@ namespace CK.SemesterProject.Battle
         private long _turnId;
 
         public BattleActionResult PendingResult { get; private set; }
+        public BattleRules Rules => _rules;
 
         public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null, BattleRules rules = null)
         {

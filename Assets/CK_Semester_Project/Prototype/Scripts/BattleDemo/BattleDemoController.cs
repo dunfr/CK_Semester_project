@@ -10,6 +10,8 @@ namespace CK.SemesterProject.Battle.Demo
         [SerializeField, Min(0.1f), Tooltip("한 행동의 연출 시간(초)")]
         private float _presentationSeconds = 1.1f;
 
+        // 기존 데모의 피해 수치를 유지하며 선택 경로는 실제 AI를 사용한다.
+        private readonly MonsterAi _monsterAi = new MonsterAi(new MonsterAiSettings(maxMemoryInvestment: 0));
         private BattleSession _session;
         private readonly List<string> _history = new List<string>();
         private float _phaseElapsed;
@@ -155,12 +157,7 @@ namespace CK.SemesterProject.Battle.Demo
             {
                 return false;
             }
-            CombatantState actor = Snapshot.Combatants.First(state => state.InstanceId == Snapshot.CurrentActorId);
-            // 후속 몬스터 AI를 대신하는 데모 입력: 첫 스킬로 살아 있는 플레이어 공격.
-            string skillId = actor.Data.Skills[0].Id;
-            string target = _session.GetSelectableTargets(skillId).First();
-            return Submit(new BattleActionRequest(Snapshot.TurnId, actor.InstanceId,
-                BattleActionKind.Skill, skillId, target));
+            return _monsterAi.TryChooseAction(_session, out BattleActionRequest request) && Submit(request);
         }
 
         public string GetName(string id)
