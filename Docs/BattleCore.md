@@ -183,3 +183,15 @@ var request = new BattleActionRequest(turnId, actorId, BattleActionKind.Skill,
 EditMode 테스트: `CK.Battle.Core.Tests`, 파일 위치 `Assets/CK_Semester_Project/Tests/EditMode/Battle/`.
 기존 메모리·턴·AI 테스트는 Basic 규칙으로 회귀 검증하고, BattleMechanicsTests는 전체 규칙을 활성화한다.
 2026-09-16 추가 문서 반영 후 Unity 6000.3.23f1 EditMode 108개 통과, 실패·건너뜀 0개. 추가로 5단계 비용·방어 감소, 고갈 예약·회복, 치명타 합산, CSV 원본 값·오류, 초과 메모리, 몬스터 투자 범위를 검증했다. 기획서 피해 292, 상성 6방향, 명중·회피·치명타, 폭주 단계 경계, 각인 사망·비중첩·행동 재개, 연쇄 실패·추가 행동·최종 처치, 폭주로 추가 행동 소비, AI 확률 예측과 난수 보존, 3개 시드의 전체 전투 종료를 검증했다. 컴파일 오류가 없으며 에디터는 PlayMode가 아닌 정지 상태로 확인했다. 직전 단계의 PlayMode 9개 통과 기록은 신규 전투 연출 검증으로 간주하지 않는다.
+
+
+## 전투 화면 구성 (2026-09-16)
+
+- `BattleCoreDemo.unity`의 `Battle/Battle HUD`는 씬에 저장한 uGUI다. OnGUI 디버그 화면, 상단 제목·브랜딩·시나리오 버튼·수동 진행·로그 패널을 제거했다.
+- 왼쪽 위는 턴 순서, 왼쪽 아래는 플레이어 HP·메모리·폭주, 적 머리 위는 대상 선택과 HP, 오른쪽 아래는 스킬·메모리 투자·공격·방어다. 대상 표시는 카메라 좌표를 따라가며 사망한 적은 선택할 수 없다.
+- 스킬 선택 → 메모리 투자 버튼(0~3 순환) → 적 머리 위 이름 선택 → 공격 순서다. 방어 버튼은 현재 투자량으로 방어한다. 연출·적 행동 중 입력은 잠긴다. 기존 Basic 시나리오 수치와 전투 코어는 변경하지 않았다.
+- 카메라는 전체 화면을 사용한다. 배경과 임시 캐릭터 모델은 `Battle/Battle Stage`에서 직접 편집할 수 있다. 실제 캐릭터·애니메이션 자산 연결은 별도다.
+- `Tools > Battle > Open Scene`은 씬만 연다. `Rebuild Screen`은 HUD와 무대를 기본 배치로 다시 만들므로 수동 배치 수정 후 사용하지 않는다. 자동 재생·자동 캡처 메뉴는 제거했다.
+- 요청한 Jobs 메뉴는 에디터 로드 뒤 숨긴다. Burst 패키지와 설정은 유지한다. 다시 표시하려면 `BattleDemoTools.ScheduleMenuCleanup`의 등록을 제거하고 에디터를 다시 연다. 기존 CK 메뉴 경로는 Tools/Battle로 변경했다.
+- 한글 폰트는 OS의 Malgun Gothic, Apple SD Gothic Neo, Arial 순서로 찾는다. 배포 플랫폼용 폰트 자산은 별도로 지정해야 한다.
+- 검증: Unity 컴파일·콘솔 오류 없음, 편집 모드 MCP 화면 캡처 확인, 버튼 9개·폰트 참조 26개·EventSystem 1개 확인. 사용자 요청에 따라 PlayMode와 데모를 실행하지 않았으므로 실제 클릭·연출 연동은 이번에 실행 검증하지 않았다.

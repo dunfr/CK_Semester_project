@@ -1,252 +1,152 @@
 using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace CK.SemesterProject.Battle.Demo
 {
     [RequireComponent(typeof(BattleDemoController))]
     public sealed class BattleDemoView : MonoBehaviour
     {
-        private const float CanvasWidth = 1440f;
-        private const float CanvasHeight = 900f;
-        private static readonly Color Ink = new Color(0.035f, 0.05f, 0.08f);
-        private static readonly Color Panel = new Color(0.065f, 0.09f, 0.13f);
-        private static readonly Color Muted = new Color(0.56f, 0.65f, 0.73f);
-        private static readonly Color Cyan = new Color(0.34f, 0.92f, 0.83f);
-        private static readonly Color Pink = new Color(1f, 0.43f, 0.52f);
+        [SerializeField, Tooltip("씬에 저장된 전투 HUD")]
+        private RectTransform _hud;
+        [SerializeField, Tooltip("전투 카메라")]
+        private Camera _camera;
+        [SerializeField, Tooltip("플레이어, 센티널 A, 센티널 B 순서의 모델")]
+        private Transform[] _figures;
 
+        private readonly string[] _ids = { "player", "sentinel_a", "sentinel_b" };
+        private readonly string[] _skills = { "strike", "heavy", "disrupt" };
         private BattleDemoController _controller;
-        private Font _font;
-        private GUIStyle _label;
-        private GUIStyle _button;
+        private Text[] _texts;
+        private Button[] _buttons;
+        private Image[] _images;
 
         private void Awake()
         {
             _controller = GetComponent<BattleDemoController>();
-            _font = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Apple SD Gothic Neo", "Arial" }, 20);
-        }
-
-        private void OnDestroy()
-        {
-            if (_font != null)
+            if (_hud == null || _camera == null || _figures == null || _figures.Length != 3)
             {
-                Destroy(_font);
+                Debug.LogError("BattleDemoView: HUD, 카메라와 모델 참조가 필요합니다.", this);
+                enabled = false;
+                return;
+            }
+            _texts = _hud.GetComponentsInChildren<Text>(true);
+            _buttons = _hud.GetComponentsInChildren<Button>(true);
+            _images = _hud.GetComponentsInChildren<Image>(true);
+            foreach (Button button in _buttons)
+            {
+                string command = button.name;
+                button.onClick.AddListener(() => Execute(command));
             }
         }
 
-        private void OnGUI()
+        private void LateUpdate()
         {
             if (_controller.Snapshot == null)
             {
                 return;
             }
-            if (_label == null)
+            BattleSnapshot snapshot = _controller.Snapshot;
+            CombatantState player = _controller.GetDisplayedState("player");
+            SetText("Health", player.Hp + " / " + player.Data.MaxHp);
+            SetText("Memory", "메모리  " + player.Memory);
+            SetText("Rage", "폭주  " + player.RageEnergy);
+            SetText("InvestmentLabel", "메모리 투자  " + _controller.MemoryInvestment + "  +");
+            SetText("Round", snapshot.Round.ToString("00") + "  /  ROUND");
+            SetText("Status", player.IsDead ? "전투 불능" : player.IsDefending ? "방어 중" : player.SkippedTurns > 0 ? "행동 불능" : "");
+            SetFill("HealthFill", (float)player.Hp / player.Data.MaxHp);
+            SetFill("MemoryFill", player.Memory / 40f);
+            SetFill("RageFill", player.RageEnergy / 100f);
+            for (int i = 0; i < 3; i++)
             {
-                _label = new GUIStyle(GUI.skin.label) { font = _font, padding = new RectOffset(0, 0, 0, 0) };
-                _button = new GUIStyle(_label) { alignment = TextAnchor.MiddleCenter };
+                string id = i < snapshot.TurnOrder.Count ? snapshot.TurnOrder[i] : null;
+                SetText("Order" + i, id == null ? "—" : _controller.GetName(id));
+                SetText("OrderMemory" + i, id == null ? "" : "MEM " + snapshot.Combatants.First(unit => unit.InstanceId == id).Memory);
+                SetColor("OrderCard" + i, id == snapshot.CurrentActorId ? new Color(0.08f, 0.38f, 0.48f, 0.94f) : new Color(0.025f, 0.04f, 0.065f, 0.8f));
+                SetColor("Skill" + i, _controller.SelectedSkillId == _skills[i] ? new Color(0.12f, 0.42f, 0.51f, 0.95f) : new Color(0.035f, 0.055f, 0.075f, 0.92f));
             }
-            Matrix4x4 previous = GUI.matrix;
-            float scale = Mathf.Min(Screen.width / CanvasWidth, Screen.height / CanvasHeight);
-            var origin = new Vector3((Screen.width - CanvasWidth * scale) * 0.5f,
-                (Screen.height - CanvasHeight * scale) * 0.5f, 0f);
-            GUI.matrix = Matrix4x4.TRS(origin, Quaternion.identity, Vector3.one * scale);
-
-            DrawHeader();
-            DrawOrder();
-            DrawStatusCards();
-            DrawCommands();
-            DrawHistory();
-            DrawResult();
-            GUI.matrix = previous;
-        }
-
-        private void DrawHeader()
-        {
-            Fill(new Rect(0, 0, 1440, 205), Ink);
-            Text(new Rect(36, 22, 520, 24), "CK  /  BATTLE SYSTEM     ·     PROTOTYPE 01", 14, Cyan);
-            Text(new Rect(36, 52, 650, 55), "전투 코어 플레이그라운드", 34, Color.white);
-            Text(new Rect(38, 106, 700, 25), "스킬과 대상을 고른 뒤 공격하세요. 메모리가 높은 순서로 행동합니다.", 16, Muted);
-            string[] scenarios = { "일반 전투", "메모리 동률", "행동 불능" };
-            for (int i = 0; i < scenarios.Length; i++)
+            foreach (Button button in _buttons)
             {
-                if (Button(new Rect(926 + i * 158, 34, 148, 39), scenarios[i], _controller.Scenario == i))
+                button.interactable = button.name == "Restart" || _controller.IsPlayerInput;
+            }
+            for (int i = 1; i < 3; i++)
+            {
+                CombatantState enemy = _controller.GetDisplayedState(_ids[i]);
+                Button target = _buttons.First(button => button.name == "Target" + i);
+                target.gameObject.SetActive(!enemy.IsDead);
+                target.interactable = _controller.IsPlayerInput && !enemy.IsDead;
+                Vector3 screen = _camera.WorldToViewportPoint(_figures[i].position + Vector3.up * 2.8f);
+                RectTransform rect = (RectTransform)target.transform;
+                rect.anchorMin = rect.anchorMax = new Vector2(screen.x, screen.y);
+                rect.anchoredPosition = Vector2.zero;
+                SetText("EnemyName" + i, (_controller.SelectedTargetId == _ids[i] ? "◇  " : "") + _controller.GetName(_ids[i]));
+                SetFill("EnemyHealth" + i, (float)enemy.Hp / enemy.Data.MaxHp);
+                SetText("Damage" + i, "");
+            }
+            SetText("PlayerDamage", "");
+            BattleActionResult result = _controller.PendingResult;
+            if (result != null && _controller.PresentationProgress >= 0.4f)
+            {
+                foreach (BattleStateChange change in result.Changes)
                 {
-                    _controller.RestartScenario(i);
-                }
-            }
-            if (Button(new Rect(926, 85, 225, 36), "자동 진행  " + (_controller.AutoAdvance ? "ON" : "OFF"), _controller.AutoAdvance))
-            {
-                _controller.SetAutoAdvance(!_controller.AutoAdvance);
-            }
-            if (Button(new Rect(1167, 85, 223, 36), "처음부터 다시"))
-            {
-                _controller.RestartScenario(_controller.Scenario);
-            }
-        }
-
-        private void DrawOrder()
-        {
-            BattleSnapshot state = _controller.Snapshot;
-            Text(new Rect(38, 153, 130, 30), "ROUND  " + state.Round.ToString("00"), 18, Color.white);
-            float x = 202;
-            foreach (string id in state.TurnOrder)
-            {
-                bool current = id == state.CurrentActorId;
-                Fill(new Rect(x, 145, 246, 44), current ? new Color(0.11f, 0.29f, 0.29f) : Panel);
-                CombatantState unit = state.Combatants.First(item => item.InstanceId == id);
-                Text(new Rect(x + 14, 154, 230, 28), _controller.GetName(id) + "   /   MEM " + unit.Memory, 17,
-                    current ? Cyan : Color.white);
-                x += 258;
-            }
-            string phase = state.Phase == BattlePhase.AwaitingPresentation ? "행동 연출 중"
-                : state.Phase == BattlePhase.Finished ? "전투 종료"
-                : _controller.IsPlayerInput ? "플레이어 입력 대기" : "몬스터 행동 대기";
-            Text(new Rect(1060, 152, 330, 32), phase, 18, Cyan, TextAnchor.MiddleRight);
-            Fill(new Rect(36, 204, 1368, 1), new Color(0.17f, 0.23f, 0.29f));
-        }
-
-        private void DrawStatusCards()
-        {
-            string[] ids = { "player", "sentinel_a", "sentinel_b" };
-            float[] positions = { 58, 626, 1036 };
-            for (int i = 0; i < ids.Length; i++)
-            {
-                string id = ids[i];
-                CombatantState unit = _controller.GetDisplayedState(id);
-                float x = positions[i];
-                Color accent = i == 0 ? Cyan : Pink;
-                bool selected = id == _controller.SelectedTargetId && _controller.IsPlayerInput && !unit.IsDead;
-                Fill(new Rect(x, 469, 344, 132), selected ? new Color(0.23f, 0.13f, 0.18f, 0.96f) : Panel);
-                Fill(new Rect(x, 469, 344, 3), unit.IsDead ? Muted : accent);
-                Text(new Rect(x + 16, 482, 240, 30), _controller.GetName(id), 22, unit.IsDead ? Muted : Color.white);
-                Text(new Rect(x + 230, 485, 98, 26), unit.IsDead ? "사망" : selected ? "선택됨" : "", 14, accent, TextAnchor.MiddleRight);
-                Text(new Rect(x + 16, 522, 190, 24), "HP  " + unit.Hp + " / " + unit.Data.MaxHp, 16, Color.white);
-                Text(new Rect(x + 196, 522, 132, 24), "MEM  " + unit.Memory, 16, Cyan, TextAnchor.MiddleRight);
-                Fill(new Rect(x + 16, 557, 312, 7), new Color(0.15f, 0.2f, 0.25f));
-                Fill(new Rect(x + 16, 557, 312f * unit.Hp / unit.Data.MaxHp, 7), accent);
-                Text(new Rect(x + 16, 572, 312, 22), unit.SkippedTurns > 0 ? "행동 불능 · " + unit.SkippedTurns + "회 남음"
-                    : unit.IsDead ? "행동 및 선택 대상에서 제외" : (unit.IsDefending ? "방어 중 · " : "") + "폭주 " + unit.RageEnergy, 12, Muted);
-            }
-            if (_controller.PendingResult != null && _controller.PresentationProgress >= 0.4f)
-            {
-                foreach (BattleStateChange change in _controller.PendingResult.Changes)
-                {
-                    int index = System.Array.IndexOf(ids, change.After.InstanceId);
-                    if (index >= 0 && change.HpDelta < 0)
+                    int index = System.Array.IndexOf(_ids, change.After.InstanceId);
+                    if (change.HpDelta < 0 && index >= 0)
                     {
-                        Text(new Rect(positions[index], 380, 344, 65), change.HpDelta.ToString(), 42, Pink, TextAnchor.MiddleCenter);
+                        SetText(index == 0 ? "PlayerDamage" : "Damage" + index, (-change.HpDelta).ToString());
                     }
                 }
             }
+            SetText("Notice", _controller.LastError != BattleActionError.None ? "행동할 수 없습니다. 스킬과 메모리를 확인하세요."
+                : snapshot.Phase == BattlePhase.AwaitingPresentation ? "" : _controller.IsPlayerInput ? "대상을 선택하세요" : "적의 행동");
+            Text outcome = _texts.First(label => label.name == "Outcome");
+            outcome.transform.parent.gameObject.SetActive(snapshot.Phase == BattlePhase.Finished);
+            outcome.text = snapshot.Outcome == BattleOutcome.Victory ? "승리" : snapshot.Outcome == BattleOutcome.Defeat ? "패배" : "무승부";
         }
 
-        private void DrawCommands()
+        private void OnDestroy()
         {
-            Fill(new Rect(0, 621, 1440, 279), Ink);
-            Text(new Rect(36, 636, 790, 34), "행동 선택", 21, Color.white);
-            string[] ids = { "strike", "heavy", "disrupt" };
-            string[] labels = { "기본 공격\n피해 24 · 메모리 회복 3", "강타\n피해 36 · 메모리 비용 2", "메모리 강탈\n피해 12 · 최대 8 강탈" };
-            for (int i = 0; i < ids.Length; i++)
-            {
-                if (Button(new Rect(36 + i * 254, 681, 242, 67), labels[i], _controller.SelectedSkillId == ids[i], _controller.IsPlayerInput))
-                {
-                    _controller.SelectSkill(ids[i]);
-                }
-            }
-            for (int i = 1; i < _controller.Snapshot.Combatants.Count; i++)
-            {
-                CombatantState target = _controller.Snapshot.Combatants[i];
-                if (Button(new Rect(36 + (i - 1) * 194, 762, 182, 42), _controller.GetName(target.InstanceId),
-                    _controller.SelectedTargetId == target.InstanceId, _controller.IsPlayerInput && !target.IsDead))
-                {
-                    _controller.SelectTarget(target.InstanceId);
-                }
-            }
-            if (Button(new Rect(436, 762, 176, 42), "공격 실행  →", true, _controller.IsPlayerInput))
-            {
-                _controller.Attack();
-            }
-            if (Button(new Rect(626, 762, 160, 42), "대기", false, _controller.IsPlayerInput))
-            {
-                _controller.Wait();
-            }
-            bool canAdvance = _controller.Snapshot.Phase == BattlePhase.AwaitingPresentation
-                || (_controller.Snapshot.Phase == BattlePhase.AwaitingAction && !_controller.IsPlayerInput);
-            if (Button(new Rect(36, 818, 368, 39), "다음 단계로 진행  →", false, canAdvance))
-            {
-                _controller.Advance();
-            }
-            if (Button(new Rect(424, 818, 176, 39), "투자 MEM " + _controller.MemoryInvestment, false, _controller.IsPlayerInput))
-            {
-                _controller.CycleInvestment();
-            }
-            if (Button(new Rect(614, 818, 172, 39), "방어", false, _controller.IsPlayerInput))
-            {
-                _controller.Defend();
-            }
-            Text(new Rect(36, 871, 1340, 22), "데모 수치: 투자 0~3 → ×1 / 1.1 / 1.2 / 1.35 · 방어 투자당 폭주 −5 · 방어는 다음 자기 턴 시작까지", 13, Muted);
-        }
-
-        private void DrawHistory()
-        {
-            Fill(new Rect(826, 636, 578, 221), Panel);
-            Text(new Rect(848, 650, 530, 28), "전투 기록", 18, Cyan);
-            for (int i = 0; i < _controller.History.Count; i++)
-            {
-                Text(new Rect(848, 691 + i * 29, 536, 27), _controller.History[i], 14, i == 0 ? Color.white : Muted);
-            }
-        }
-
-        private void DrawResult()
-        {
-            if (_controller.Snapshot.Phase != BattlePhase.Finished)
+            if (_buttons == null)
             {
                 return;
             }
-            BattleOutcome outcome = _controller.Snapshot.Outcome;
-            Fill(new Rect(492, 260, 458, 151), new Color(0.025f, 0.065f, 0.09f, 0.97f));
-            Fill(new Rect(492, 260, 458, 3), Cyan);
-            Text(new Rect(512, 281, 418, 61), outcome == BattleOutcome.Victory ? "승리  /  VICTORY"
-                : outcome == BattleOutcome.Defeat ? "패배  /  DEFEAT" : "무승부  /  DRAW", 30, Color.white, TextAnchor.MiddleCenter);
-            Text(new Rect(512, 353, 418, 32), "상단의 ‘처음부터 다시’로 재시작", 16, Muted, TextAnchor.MiddleCenter);
-        }
-
-        private void Text(Rect rect, string text, int size, Color color, TextAnchor alignment = TextAnchor.UpperLeft)
-        {
-            _label.fontSize = size;
-            _label.normal.textColor = color;
-            _label.alignment = alignment;
-            GUI.Label(rect, text, _label);
-        }
-
-        private bool Button(Rect rect, string label, bool selected = false, bool enabled = true)
-        {
-            Color background = selected ? new Color(0.13f, 0.31f, 0.31f) : Panel;
-            if (enabled && rect.Contains(Event.current.mousePosition))
+            foreach (Button button in _buttons)
             {
-                background += new Color(0.045f, 0.06f, 0.065f, 0);
+                if (button != null)
+                {
+                    button.onClick.RemoveAllListeners();
+                }
             }
-            Fill(rect, enabled ? background : new Color(0.065f, 0.08f, 0.105f));
-            if (selected)
-            {
-                Fill(new Rect(rect.x, rect.yMax - 2, rect.width, 2), enabled ? Cyan : Muted * 0.5f);
-            }
-            _button.fontSize = 16;
-            _button.normal.textColor = enabled ? (selected ? Cyan : Color.white) : Muted * 0.6f;
-            _button.hover.textColor = _button.normal.textColor;
-            _button.active.textColor = _button.normal.textColor;
-            bool previous = GUI.enabled;
-            GUI.enabled = enabled;
-            bool clicked = GUI.Button(rect, label, _button);
-            GUI.enabled = previous;
-            return clicked;
         }
 
-        private static void Fill(Rect rect, Color color)
+        private void Execute(string command)
         {
-            Color previous = GUI.color;
-            GUI.color = color;
-            GUI.DrawTexture(rect, Texture2D.whiteTexture);
-            GUI.color = previous;
+            switch (command)
+            {
+                case "Skill0": _controller.SelectSkill("strike"); break;
+                case "Skill1": _controller.SelectSkill("heavy"); break;
+                case "Skill2": _controller.SelectSkill("disrupt"); break;
+                case "Target1": _controller.SelectTarget("sentinel_a"); break;
+                case "Target2": _controller.SelectTarget("sentinel_b"); break;
+                case "Attack": _controller.Attack(); break;
+                case "Defend": _controller.Defend(); break;
+                case "Investment": _controller.CycleInvestment(); break;
+                case "Restart": _controller.RestartScenario(_controller.Scenario); break;
+            }
+        }
+
+        private void SetText(string name, string value)
+        {
+            _texts.First(label => label.name == name).text = value;
+        }
+
+        private void SetFill(string name, float value)
+        {
+            _images.First(image => image.name == name).fillAmount = Mathf.Clamp01(value);
+        }
+
+        private void SetColor(string name, Color color)
+        {
+            _images.First(image => image.name == name).color = color;
         }
     }
 }
