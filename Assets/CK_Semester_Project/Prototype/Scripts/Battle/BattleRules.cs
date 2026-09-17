@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -42,11 +42,12 @@ namespace CK.SemesterProject.Battle
 
         public int GetStageCost(CombatantData actor, int stage)
         {
-            if (actor == null || stage < 0 || stage > 5)
+            if (actor == null || stage < 0 || stage > (actor.MonsterProfile?.MaxStage ?? 5))
             {
                 throw new ArgumentOutOfRangeException(nameof(stage));
             }
-            return (int)((long)actor.InitialMemory * stage / 10);
+            int percent = actor.MonsterProfile == null ? stage * 10 : actor.MonsterProfile.CostPercent[stage];
+            return (int)((long)actor.InitialMemory * percent / 100);
         }
 
         public bool TryGetInvestment(CombatantData actor, BattleActionRequest request,
@@ -58,7 +59,8 @@ namespace CK.SemesterProject.Battle
             if (UsesInvestmentStages)
             {
                 int stage = request.InvestmentStage ?? 0;
-                if (request.MemoryInvestment != 0 || stage < 0 || stage > 5)
+                if (request.MemoryInvestment != 0 || stage < 0 || stage > (actor.MonsterProfile?.MaxStage ?? 5)
+                    || (actor.MonsterProfile != null && !actor.MonsterProfile.AllowsStage(stage)))
                 {
                     return false;
                 }
@@ -67,7 +69,7 @@ namespace CK.SemesterProject.Battle
                 {
                     return false;
                 }
-                multiplier = InvestmentMultipliers[stage];
+                multiplier = actor.MonsterProfile == null ? InvestmentMultipliers[stage] : actor.MonsterProfile.Multipliers[stage];
                 rageReduction = stage == 0 ? 0 : 5 * stage + 5;
                 return true;
             }

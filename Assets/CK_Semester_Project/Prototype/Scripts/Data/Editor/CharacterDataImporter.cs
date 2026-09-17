@@ -13,7 +13,6 @@ namespace CK.SemesterProject.Data.Editor
         public const string SourcePath = "Assets/CK_Semester_Project/Prototype/Data/CSV/Character_DT.xlsx";
         public const string OutputPath = "Assets/CK_Semester_Project/Prototype/Data/Resources/Character_DT.asset";
 
-        [MenuItem("Tools/CK/Data/Import Character DT")]
         public static void ImportFromMenu()
         {
             CharacterDatabase database = Import();

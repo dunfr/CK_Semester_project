@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -80,7 +80,10 @@ namespace CK.SemesterProject.Battle
             {
                 int reduction = Math.Min(actor.RageEnergy, defenseReduction);
                 effects = new[] { new BattleEffect(actor.InstanceId, memoryDelta: -investmentCost,
-                    isDefending: true, rageDelta: -reduction) };
+                    isDefending: true, rageDelta: -reduction,
+                    defenseDamageMultiplier: actor.Data.MonsterProfile?.Element == BattleElement.Afterimage
+                        ? Math.Max(0, _rules.DefenseDamageMultiplier - 2 * (investmentMultiplier - 1))
+                        : _rules.DefenseDamageMultiplier) };
                 return BattleActionError.None;
             }
             SkillData skill = actor.Data.Skills.First(data => data.Id == request.SkillId);
@@ -106,7 +109,7 @@ namespace CK.SemesterProject.Battle
             double rage = mechanics.EnableRage ? BattleMath.RageMultiplier(actor.RageEnergy) : 1;
             double critical = isHit && isCritical ? actor.Data.CriticalDamageMultiplier ?? mechanics.CriticalMultiplier : 1;
             double investment = investmentMultiplier;
-            double defense = target.IsDefending ? _rules.DefenseDamageMultiplier : 1;
+            double defense = target.IsDefending ? target.DefenseDamageMultiplier ?? _rules.DefenseDamageMultiplier : 1;
             double damage = skill.Power;
             // 0 배율과 큰 수의 곱도 NaN이 되지 않게 0 피해를 먼저 확정한다.
             int roundedDamage = !isHit || damage == 0 || element == 0 || chainMultiplier == 0 || defense == 0 ? 0

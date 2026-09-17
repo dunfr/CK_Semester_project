@@ -1,4 +1,4 @@
-# 전투 코어 연결 안내
+﻿# 전투 코어 연결 안내
 
 작업 브랜치: `feat/battle-core`. 기본 프로젝트: `C:/CK_Semester_project/Semesterproject`.
 코어: `Assets/CK_Semester_Project/Prototype/Scripts/Battle/`, 어셈블리 `CK.Battle.Core`.
@@ -195,3 +195,11 @@ EditMode 테스트: `CK.Battle.Core.Tests`, 파일 위치 `Assets/CK_Semester_Pr
 - 요청한 Jobs 메뉴는 에디터 로드 뒤 숨긴다. Burst 패키지와 설정은 유지한다. 다시 표시하려면 `BattleDemoTools.ScheduleMenuCleanup`의 등록을 제거하고 에디터를 다시 연다. 기존 CK 메뉴 경로는 Tools/Battle로 변경했다.
 - 한글 폰트는 OS의 Malgun Gothic, Apple SD Gothic Neo, Arial 순서로 찾는다. 배포 플랫폼용 폰트 자산은 별도로 지정해야 한다.
 - 검증: Unity 컴파일·콘솔 오류 없음, 편집 모드 MCP 화면 캡처 확인, 버튼 9개·폰트 참조 26개·EventSystem 1개 확인. 사용자 요청에 따라 PlayMode와 데모를 실행하지 않았으므로 실제 클릭·연출 연동은 이번에 실행 검증하지 않았다.
+
+
+2026-09-17: `Tools > Battle` 및 `BattleDemoTools`를 삭제했다. 이후 통합 작업은 기존 `TutorialDemo` 씬에서 진행하며, 연결 구성과 조작은 [TutorialBattle.md](TutorialBattle.md)를 참고한다.
+
+
+## 몬스터 AI 기획서 V0.1 반영
+
+`CombatantData.MonsterProfile`을 지정하면 일반 기대값 AI 대신 속성별 행동표 AI를 사용한다. `MonsterBehaviorProfile.CreateDefault`는 각인/잔상/망각의 단독 및 모든 2기 조합 기본표를 제공한다. `MonsterBattleDefinition` 에셋은 Inspector 수정값으로 같은 불변 프로필을 생성한다. 투자 비용·배율은 개체별 프로필을 공통 실행기에서 검증/적용한다. `CombatantState.DefenseDamageMultiplier`는 잔상 70% 방어를 다음 행동 시작까지 보존한다. `BattleSession.GetActionCount`는 실제 제출한 행동만 센다. 상세 설정과 해석은 `Docs/MonsterAI.md`를 참조한다.

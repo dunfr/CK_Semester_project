@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,6 +7,7 @@ namespace CK.SemesterProject.Battle
     // 캐릭터와 몬스터가 공유하는 정의. 같은 몬스터 정의로 여러 전투 개체를 만들 수 있다.
     public sealed class CombatantData
     {
+        public MonsterBehaviorProfile MonsterProfile { get; }
         public string Id { get; }
         public string DisplayName { get; }
         public BattleTeam Team { get; }
@@ -26,7 +27,7 @@ namespace CK.SemesterProject.Battle
             int maxMemory, int initialMemory, IEnumerable<SkillData> skills,
             BattleElement element = BattleElement.None, double evasion = 0,
             IEnumerable<BattleElement> weaknessChain = null, double? baseCriticalChance = null,
-            double? criticalDamageMultiplier = null, int? minMemoryInvestment = null, int? maxMemoryInvestment = null)
+            double? criticalDamageMultiplier = null, int? minMemoryInvestment = null, int? maxMemoryInvestment = null, MonsterBehaviorProfile monsterProfile = null)
         {
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(displayName))
             {
@@ -62,6 +63,11 @@ namespace CK.SemesterProject.Battle
             {
                 throw new ArgumentOutOfRangeException(nameof(baseCriticalChance));
             }
+            if (monsterProfile != null && (team != BattleTeam.Monster || monsterProfile.Element != element))
+            {
+                throw new ArgumentException("몬스터 AI 프로필의 팀/속성이 정의와 다릅니다.");
+            }
+            MonsterProfile = monsterProfile;
             BaseCriticalChance = baseCriticalChance;
             CriticalDamageMultiplier = criticalDamageMultiplier;
             MinMemoryInvestment = minMemoryInvestment;

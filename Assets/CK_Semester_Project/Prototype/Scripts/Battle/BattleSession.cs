@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -6,6 +6,10 @@ namespace CK.SemesterProject.Battle
 {
     public sealed class BattleSession
     {
+        private readonly Dictionary<string, int> _actionsTaken = new Dictionary<string, int>();
+
+        public int GetActionCount(string actorId) => _actionsTaken.TryGetValue(actorId, out int count) ? count : 0;
+
         private readonly IBattleActionResolver _resolver;
         private readonly BattleRules _rules;
         private readonly Random _random;
@@ -177,6 +181,18 @@ namespace CK.SemesterProject.Battle
                 return BattleActionError.InvalidActor;
             }
             CombatantState actor = _combatants[_currentActorId];
+            if (actor.Data.MonsterProfile?.Element == BattleElement.Imprint && request.Kind == BattleActionKind.Defend)
+            {
+                return BattleActionError.InvalidAction;
+            }
+            if (actor.Data.MonsterProfile?.Element == BattleElement.Afterimage && request.InvestmentStage == 5)
+            {
+                CombatantState[] allies = _combatants.Values.Where(unit => !unit.IsDead && unit.Data.Team == BattleTeam.Monster).ToArray();
+                if (allies.Length == 2 && allies.Any(unit => unit.InstanceId != actor.InstanceId && unit.Data.Element == BattleElement.Imprint))
+                {
+                    return BattleActionError.InvalidMemoryInvestment;
+                }
+            }
             int investment = request.MemoryInvestment;
             if (_resolver is BattleActionResolver && !_rules.TryGetInvestment(actor.Data, request, out investment, out _, out _))
             {
@@ -249,7 +265,9 @@ namespace CK.SemesterProject.Battle
                 if (effect == null || effect.TargetId == null || !seen.Add(effect.TargetId)
                     || !_combatants.TryGetValue(effect.TargetId, out CombatantState before)
                     || before.IsDead || effect.SkippedTurns < 0
-                    || effect.ChainStep < 0 || effect.ChainStep > 3 || effect.ImprintDamage < 0)
+                    || effect.ChainStep < 0 || effect.ChainStep > 3 || effect.ImprintDamage < 0
+                    || (effect.DefenseDamageMultiplier.HasValue && (double.IsNaN(effect.DefenseDamageMultiplier.Value)
+                        || effect.DefenseDamageMultiplier < 0 || effect.DefenseDamageMultiplier > 1)))
                 {
                     throw new InvalidOperationException("행동 실행기의 효과 대상 또는 상태가 잘못되었습니다.");
                 }
@@ -260,7 +278,8 @@ namespace CK.SemesterProject.Battle
                 var after = new CombatantState(before.InstanceId, before.Data, hp, memory, skippedTurns,
                     effect.IsDefending ?? before.IsDefending, Clamp((long)before.RageEnergy + effect.RageDelta, 100),
                     effect.ChainStep ?? before.ChainStep, effect.ImprintDamage ?? before.ImprintDamage,
-                    _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold, before.HasMemoryLoss);
+                    _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold, before.HasMemoryLoss,
+                    effect.DefenseDamageMultiplier ?? before.DefenseDamageMultiplier);
                 changes.Add(new BattleStateChange(before, after));
             }
             return changes;
@@ -284,7 +303,7 @@ namespace CK.SemesterProject.Battle
                     {
                         _combatants[id] = new CombatantState(id, unit.Data, unit.Hp, unit.Memory,
                             unit.SkippedTurns, unit.IsDefending, unit.RageEnergy, unit.ChainStep,
-                            unit.ImprintDamage, unit.IsOverheated, hasMemoryLoss: true);
+                            unit.ImprintDamage, unit.IsOverheated, hasMemoryLoss: true, defenseDamageMultiplier: unit.DefenseDamageMultiplier);
                     }
                     _remaining.Add(id);
                 }
@@ -349,6 +368,10 @@ namespace CK.SemesterProject.Battle
             IEnumerable<BattleStateChange> changes, BattleHitResult hit = null,
             bool isTurnStartEffect = false, bool consumesTurn = true)
         {
+            if (!isTurnStartEffect && !wasSkipped)
+            {
+                _actionsTaken[request.ActorId] = GetActionCount(request.ActorId) + 1;
+            }
             if (consumesTurn)
             {
                 _remaining.Remove(_currentActorId);

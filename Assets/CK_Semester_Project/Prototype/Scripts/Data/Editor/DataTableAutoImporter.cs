@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,11 +15,34 @@ namespace CK.SemesterProject.Data.Editor
     {
         private static readonly HashSet<string> Pending = new(StringComparer.OrdinalIgnoreCase);
         private static bool _scheduled;
+        private static bool _startupScanPending;
 
         static DataTableAutoImporter()
         {
-            // 에디터 종료 중 Pull한 파일과 새로 추가된 변환기도 반영합니다.
-            EditorApplication.delayCall += QueueAll;
+            // Play 진입의 도메인 재로드마다 전체 자산 목록을 다시 검색하지 않는다.
+            EditorApplication.delayCall += QueueStartupTables;
+        }
+
+        private static void QueueStartupTables()
+        {
+            string sessionKey = "CK.DataTableStartupScan:" + Application.dataPath;
+            if (SessionState.GetBool(sessionKey, false))
+            {
+                return;
+            }
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating
+                || EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                EditorApplication.delayCall += QueueStartupTables;
+                return;
+            }
+            _startupScanPending = true;
+            QueueAll();
+            if (Pending.Count == 0)
+            {
+                SessionState.SetBool(sessionKey, true);
+                _startupScanPending = false;
+            }
         }
 
         private static bool IsTable(string path)
@@ -31,7 +54,19 @@ namespace CK.SemesterProject.Data.Editor
             string[] moved, string[] movedFrom)
         {
             foreach (string path in imported.Concat(moved))
-                if (IsTable(path)) Pending.Add(path);
+            {
+                if (IsTable(path))
+                {
+                    Pending.Add(path);
+                }
+                else if (path.Contains("/Scripts/Data/Editor/") && path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 변환기 변경은 재검사하되 일반 Play 재로드는 건너뛴다.
+                    SessionState.SetBool("CK.DataTableStartupScan:" + Application.dataPath, false);
+                    EditorApplication.delayCall -= QueueStartupTables;
+                    EditorApplication.delayCall += QueueStartupTables;
+                }
+            }
 
             foreach (string path in deleted.Concat(movedFrom))
                 if (IsTable(path))
@@ -40,7 +75,6 @@ namespace CK.SemesterProject.Data.Editor
             Schedule();
         }
 
-        [MenuItem("Tools/CK/Data/Reimport All DT")]
         public static void QueueAll()
         {
             foreach (string path in AssetDatabase.GetAllAssetPaths())
@@ -79,6 +113,11 @@ namespace CK.SemesterProject.Data.Editor
                 {
                     Debug.LogError($"DT 자동 임포트 실패: {path}\n{exception.Message}\n기존 데이터 에셋은 갱신되지 않았습니다.");
                 }
+            }
+            if (_startupScanPending)
+            {
+                SessionState.SetBool("CK.DataTableStartupScan:" + Application.dataPath, true);
+                _startupScanPending = false;
             }
         }
 

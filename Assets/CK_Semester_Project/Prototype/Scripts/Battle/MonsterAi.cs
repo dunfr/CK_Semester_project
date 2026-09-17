@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -31,6 +31,11 @@ namespace CK.SemesterProject.Battle
             if (actor.Data.Team != BattleTeam.Monster || !actor.CanAct)
             {
                 return false;
+            }
+
+            if (actor.Data.MonsterProfile != null && session.Rules.UsesInvestmentStages)
+            {
+                return MonsterProfileAi.TryChooseAction(session, snapshot, actor, _randomSeed, out request);
             }
 
             // 실행기를 호출하지 않고 현재 공통 계산식으로만 예측한다. 난수·상태를 소비하지 않는다.
