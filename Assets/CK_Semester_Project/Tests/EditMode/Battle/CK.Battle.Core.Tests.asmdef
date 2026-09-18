@@ -1,0 +1,8 @@
+{
+    "name": "CK.Battle.Core.Tests",
+    "rootNamespace": "CK.SemesterProject.Battle.Tests",
+    "references": ["CK.Battle.Core"],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"],
+    "noEngineReferences": true
+}

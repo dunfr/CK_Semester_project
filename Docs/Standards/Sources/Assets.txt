@@ -1,0 +1,75 @@
+Assets/
+└── CK_Semester_Project/
+    │
+    ├── Prototype/                    프로토타입·임시 작업
+    │   ├── Scenes/                   공동 검증용 프로토타입 씬
+    │   ├── Scripts/                  실험용 코드
+    │   ├── Prefabs/                  임시 캐릭터·적·오브젝트
+    │   ├── Materials/                임시 재질
+    │   ├── Data/                     테스트 데이터
+    │   └── Sandbox/                  개인별 실험 공간
+    │       ├── Seongmin/
+    │       └── Junmo/
+    │
+    ├── Scenes/                       정식 게임 씬
+    │                                 타이틀·훈련시설·도시·전투
+    │
+    ├── Scripts/                      정식 게임 코드
+    │   ├── Core/                     게임 상태·씬 전환·공통 시스템
+    │   ├── Player/                   이동·필드 공격·상호작용
+    │   ├── Camera/                   추적·회전·카메라 충돌 처리
+    │   ├── Battle/                   턴·스킬·피해·약점 연쇄·폭주
+    │   ├── Enemies/                  배회·감지·추적·전투 AI
+    │   ├── Data/                     데이터 구조·CSV 읽기·검증
+    │   ├── UI/                       메뉴·HUD·대사·결과 화면
+    │   └── Audio/                    사운드 재생·음량 관리
+    │
+    ├── Data/                         게임 데이터 자산
+    │   ├── CSV/                      캐릭터·몬스터·스킬 수치
+    │   └── ScriptableObjects/        설정·정의 자산 — 사용 시 생성
+    │
+    ├── Prefabs/                      정식 프리팹
+    │   ├── Core/                     게임·오디오 매니저
+    │   ├── Characters/               푸시아·일반 적·보스
+    │   ├── Environment/              건물·바닥·벽·배경 소품
+    │   ├── Interactables/            회복 오브젝트·문·진행 트리거
+    │   ├── Effects/                  공격·피격·필살기 이펙트
+    │   └── UI/                       캔버스·HUD·메뉴·팝업
+    │
+    ├── Graphics/                     시각 자산
+    │   ├── Models/                   모델 파일
+    │   │   ├── Characters/           캐릭터·적·보스
+    │   │   ├── Environment/          배경·소품
+    │   │   └── Weapons/              무기·칼집
+    │   ├── Materials/                재질
+    │   ├── Shaders/                  셰이더·Shader Graph
+    │   ├── Textures/                 모델·배경·이펙트 텍스처
+    │   └── UI/
+    │       ├── Sprites/              아이콘·버튼·초상화
+    │       ├── Fonts/                폰트·폰트 자산
+    │       └── Atlases/              Sprite Atlas — 사용 시 생성
+    │
+    ├── Animations/                   애니메이션 자산
+    │   ├── Clips/                    이동·공격·피격·승리 모션
+    │   └── Controllers/              Animator·Override Controller
+    │
+    ├── Cinematics/                   연출 자산
+    │   └── Timelines/                전투 진입·필살기·보스·종료 연출
+    │
+    ├── Audio/                        오디오 자산
+    │   ├── BGM/                      배경음악
+    │   ├── SFX/                      효과음
+    │   ├── Mixers/                   오디오 믹서
+    │   └── Voice/                    음성 — 사용 시 생성
+    │
+    ├── Input/                        Input Actions 자산
+    │
+    ├── Settings/                     프로젝트 전용 설정 자산
+    │                                 렌더링·Volume Profile 등
+    │
+    ├── Editor/                       에디터 전용 도구
+    │                                 CSV 변환·데이터 검사 등
+    │
+    └── Tests/                        자동 테스트 — 작성 시 생성
+        ├── EditMode/                 피해 계산·데이터 검증
+        └── PlayMode/                 실행 중 시스템 동작 검증

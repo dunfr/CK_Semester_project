@@ -1,0 +1,119 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d2ea9e0f6c022a41b1e60e46f559e65, type: 3}
+  m_Name: Imprint
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.MonsterBattleDefinition
+  _id: prototype_imprint
+  _displayName: "\uAC01\uC778 \uBAAC\uC2A4\uD130"
+  _element: 2
+  _maxHp: 600
+  _memory: 180
+  _power: 90
+  _accuracy: 1
+  _rageGain: 10
+  _weaknessChain: 01000000020000000300000001000000
+  _costPercent: 000000000a000000140000001e00000028000000320000003c00000046000000
+  _multipliers:
+  - 1
+  - 1.1
+  - 1.2
+  - 1.35
+  - 1.5
+  - 1.7
+  - 1.75
+  - 1.8
+  _playerThresholds: 5a0000004b000000320000001e000000
+  _selfThresholds: 5a000000460000003200000023000000
+  _solo:
+    _attack:
+    - _min: 5
+      _max: 7
+      _defenseChance: 1
+    - _min: 4
+      _max: 7
+      _defenseChance: 1
+    - _min: 3
+      _max: 6
+      _defenseChance: 1
+    - _min: 2
+      _max: 5
+      _defenseChance: 1
+    - _min: 6
+      _max: 7
+      _defenseChance: 1
+    _rageThree: []
+    _rageFour: []
+    _chainOne: []
+    _chainTwo: []
+  _withImprint:
+    _attack:
+    - _min: 5
+      _max: 7
+      _defenseChance: 1
+    - _min: 4
+      _max: 7
+      _defenseChance: 1
+    - _min: 3
+      _max: 6
+      _defenseChance: 1
+    - _min: 2
+      _max: 5
+      _defenseChance: 1
+    - _min: 6
+      _max: 7
+      _defenseChance: 1
+    _rageThree: []
+    _rageFour: []
+    _chainOne: []
+    _chainTwo: []
+  _withAfterimage:
+    _attack:
+    - _min: 5
+      _max: 7
+      _defenseChance: 1
+    - _min: 4
+      _max: 7
+      _defenseChance: 1
+    - _min: 3
+      _max: 6
+      _defenseChance: 1
+    - _min: 2
+      _max: 5
+      _defenseChance: 1
+    - _min: 6
+      _max: 7
+      _defenseChance: 1
+    _rageThree: []
+    _rageFour: []
+    _chainOne: []
+    _chainTwo: []
+  _withOblivion:
+    _attack:
+    - _min: 6
+      _max: 7
+      _defenseChance: 1
+    - _min: 5
+      _max: 7
+      _defenseChance: 1
+    - _min: 4
+      _max: 6
+      _defenseChance: 1
+    - _min: 2
+      _max: 6
+      _defenseChance: 1
+    - _min: 6
+      _max: 7
+      _defenseChance: 1
+    _rageThree: []
+    _rageFour: []
+    _chainOne: []
+    _chainTwo: []
