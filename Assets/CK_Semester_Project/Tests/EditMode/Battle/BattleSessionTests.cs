@@ -7,6 +7,72 @@ namespace CK.SemesterProject.Battle.Tests
 {
     public sealed class BattleSessionTests
     {
+        [TestCase(BattleEntryCondition.PlayerInitiated, 20, 10, "player,player,monster,player")]
+        [TestCase(BattleEntryCondition.PlayerInitiated, 10, 20, "player,monster,player,monster")]
+        [TestCase(BattleEntryCondition.MonsterCollision, 20, 10, "monster,player,monster,player")]
+        [TestCase(BattleEntryCondition.MonsterCollision, 10, 20, "monster,monster,player,monster")]
+        public void EntryGrantsOneOpeningActionWithoutConsumingRegularTurn(
+            BattleEntryCondition entry, int playerMemory, int monsterMemory, string expected)
+        {
+            var session = new BattleSession(randomSeed: 42, rules: new BattleRules(mechanics: BattleCombatRules.Basic));
+            session.Start(new[] { Unit("player", BattleTeam.Player, playerMemory),
+                Unit("monster", BattleTeam.Monster, monsterMemory) }, entry);
+            var actors = new List<string>();
+            for (int i = 0; i < 4; i++)
+            {
+                actors.Add(session.GetSnapshot().CurrentActorId);
+                BattleActionResult result = Submit(session);
+                session.CompletePresentation(result.ActionId);
+            }
+            Assert.That(string.Join(",", actors), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void CollisionOpeningBelongsToTheSpecifiedMonsterOnly()
+        {
+            var session = new BattleSession(rules: new BattleRules(monsterCollisionMemoryBonus: 1));
+            BattleSnapshot snapshot = session.Start(new[] { Unit("player", BattleTeam.Player, 20),
+                Unit("fast", BattleTeam.Monster, 30), Unit("contact", BattleTeam.Monster, 5) },
+                BattleEntryCondition.MonsterCollision, "contact");
+            CollectionAssert.AreEqual(new[] { "contact", "fast", "player", "contact" }, snapshot.TurnOrder);
+            Assert.That(snapshot.Combatants.Single(unit => unit.InstanceId == "contact").Memory, Is.EqualTo(6));
+            session.CompletePresentation(Submit(session).ActionId);
+            Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("fast"));
+        }
+
+        [Test]
+        public void OpeningInvestmentRecalculatesRegularOrder()
+        {
+            var session = new BattleSession(rules: new BattleRules(mechanics: BattleCombatRules.Basic));
+            session.Start(new[] { Unit("player", BattleTeam.Player, 20), Unit("monster", BattleTeam.Monster, 15) },
+                BattleEntryCondition.PlayerInitiated);
+            var attack = new BattleActionRequest(session.GetSnapshot().TurnId, "player", BattleActionKind.Skill,
+                "attack", "monster", investmentStage: 5);
+            session.CompletePresentation(Submit(session, attack).ActionId);
+            CollectionAssert.AreEqual(new[] { "monster", "player" }, session.GetSnapshot().TurnOrder);
+        }
+
+        [Test]
+        public void SkippedOpeningDoesNotConsumeRegularTurn()
+        {
+            var session = new BattleSession(rules: new BattleRules(mechanics: BattleCombatRules.Basic));
+            session.Start(new[] { Unit("player", BattleTeam.Player, 20, skippedTurns: 1),
+                Unit("monster", BattleTeam.Monster, 10) }, BattleEntryCondition.PlayerInitiated);
+            Assert.That(session.PendingResult.WasSkipped, Is.True);
+            session.CompletePresentation(session.PendingResult.ActionId);
+            Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("player"));
+            Assert.That(session.GetSnapshot().Phase, Is.EqualTo(BattlePhase.AwaitingAction));
+        }
+
+        [Test]
+        public void InvalidInitiatorIsRejectedBeforeSessionIsMutated()
+        {
+            var session = new BattleSession();
+            BattleParticipant[] roster = { Unit("player", BattleTeam.Player), Unit("monster", BattleTeam.Monster) };
+            Assert.Throws<ArgumentException>(() => session.Start(roster, BattleEntryCondition.MonsterCollision, "player"));
+            Assert.That(session.Start(roster).CurrentActorId, Is.EqualTo("player"));
+        }
+
         private static BattleParticipant Unit(string id, BattleTeam team, int memory = 10,
             int hp = 100, int skippedTurns = 0, int power = 25)
         {

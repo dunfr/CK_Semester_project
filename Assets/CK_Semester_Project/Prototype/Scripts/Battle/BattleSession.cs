@@ -24,6 +24,8 @@ namespace CK.SemesterProject.Battle
         private int _round;
         private long _turnId;
         private string _extraActorId;
+        private string _openingActorId;
+        private bool _isBonusAction;
         private bool _resumeActorAfterPresentation;
 
         public BattleActionResult PendingResult { get; private set; }
@@ -43,7 +45,7 @@ namespace CK.SemesterProject.Battle
         }
 
         public BattleSnapshot Start(IEnumerable<BattleParticipant> participants,
-            BattleEntryCondition entryCondition = BattleEntryCondition.Normal)
+            BattleEntryCondition entryCondition = BattleEntryCondition.Normal, string initiatorId = null)
         {
             if (_phase != BattlePhase.NotStarted)
             {
@@ -58,6 +60,25 @@ namespace CK.SemesterProject.Battle
                 || !roster.Any(participant => participant.Data.Team == BattleTeam.Monster))
             {
                 throw new ArgumentException("양 팀의 개체, 고유한 개체 ID, 유효한 진입 조건이 필요합니다.", nameof(participants));
+            }
+
+            string openingActor = null;
+            if (entryCondition != BattleEntryCondition.Normal)
+            {
+                BattleTeam initiatingTeam = entryCondition == BattleEntryCondition.PlayerInitiated
+                    ? BattleTeam.Player : BattleTeam.Monster;
+                BattleParticipant initiator = initiatorId == null
+                    ? roster.FirstOrDefault(unit => unit.Data.Team == initiatingTeam && unit.InitialHp > 0)
+                    : roster.FirstOrDefault(unit => unit.InstanceId == initiatorId);
+                if (initiatorId != null && (initiator == null || initiator.Data.Team != initiatingTeam || initiator.InitialHp <= 0))
+                {
+                    throw new ArgumentException("선제 행동자는 진입한 팀의 살아 있는 개체여야 합니다.", nameof(initiatorId));
+                }
+                openingActor = initiator?.InstanceId;
+            }
+            else if (initiatorId != null)
+            {
+                throw new ArgumentException("일반 진입에는 선제 행동자를 지정할 수 없습니다.", nameof(initiatorId));
             }
 
             foreach (BattleParticipant participant in roster)
@@ -79,6 +100,7 @@ namespace CK.SemesterProject.Battle
                 return GetSnapshot();
             }
 
+            _openingActorId = openingActor;
             BeginRound();
             SelectNextActor();
             return GetSnapshot();
@@ -328,14 +350,19 @@ namespace CK.SemesterProject.Battle
                 .ThenBy(id => _combatants[id].Data.Team == BattleTeam.Player ? 0 : 1));
             if (_extraActorId != null && !_combatants[_extraActorId].IsDead)
             {
-                _turnOrder.Remove(_extraActorId);
                 _turnOrder.Insert(0, _extraActorId);
+            }
+            if (_openingActorId != null && !_combatants[_openingActorId].IsDead)
+            {
+                _turnOrder.Insert(0, _openingActorId);
             }
         }
 
         private void SelectNextActor()
         {
-            _currentActorId = _extraActorId ?? _turnOrder[0];
+            _isBonusAction = _openingActorId != null || _extraActorId != null;
+            _currentActorId = _openingActorId ?? _extraActorId ?? _turnOrder[0];
+            _openingActorId = null;
             _extraActorId = null;
             _turnId++;
             _phase = BattlePhase.AwaitingAction;
@@ -372,7 +399,8 @@ namespace CK.SemesterProject.Battle
             {
                 _actionsTaken[request.ActorId] = GetActionCount(request.ActorId) + 1;
             }
-            if (consumesTurn)
+            // 선제/연쇄 추가 행동은 이번 라운드의 기본 행동권을 소모하지 않는다.
+            if (consumesTurn && !_isBonusAction)
             {
                 _remaining.Remove(_currentActorId);
             }
