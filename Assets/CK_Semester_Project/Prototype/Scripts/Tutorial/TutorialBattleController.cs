@@ -37,6 +37,8 @@ namespace CK.SemesterProject.Tutorial
         private int _collisionMemoryBonus = 1;
         [SerializeField, Range(1, 3), Tooltip("전투 참여 몬스터 수. 접촉한 몬스터와 가까운 살아 있는 필드 몬스터를 선택합니다. 부족하면 현재 수로 진입합니다.")]
         private int _encounterSize = 1;
+        [SerializeField, Tooltip("필드 E/접촉 자동 진입 사용. 조합 선택 테스트 씬에서는 끕니다.")]
+        private bool _automaticEncounters = true;
         [SerializeField, Tooltip("튜토리얼 플레이어 이동 컴포넌트")]
         private PlayerMovement _movement;
         [SerializeField, Tooltip("필드 카메라 입력")]
@@ -198,14 +200,17 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             _battleUI.SetActive(false);
-            _notice.text = "WASD 이동 · 가까운 몬스터에 E 선제 진입 · Space 소리";
+            _notice.text = "WASD 이동 · 가까운 몬스터에 좌클릭 선제 진입 · Space 소리";
         }
 
         private void Update()
         {
             if (!IsInBattle)
             {
-                UpdateExploration();
+                if (_automaticEncounters)
+                {
+                    UpdateExploration();
+                }
                 return;
             }
             if (_cameraTime < _cameraEntrySeconds)
@@ -350,11 +355,11 @@ namespace CK.SemesterProject.Tutorial
                 _nextFootstep = Time.time + 0.4f;
             }
             Keyboard keyboard = Keyboard.current;
-            if (keyboard == null || !Application.isFocused || Cursor.lockState != CursorLockMode.Locked)
+            if (!Application.isFocused || Cursor.lockState != CursorLockMode.Locked)
             {
                 return;
             }
-            if (keyboard.spaceKey.wasPressedThisFrame)
+            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
             {
                 EnemyNoise.Emit(position, 12f, _movement.gameObject);
             }
@@ -389,7 +394,8 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            if (keyboard.eKey.wasPressedThisFrame && distance <= 2.5f)
+            Mouse mouse = Mouse.current;
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame && distance <= 2.5f)
             {
                 BeginBattle(nearest, BattleEntryCondition.PlayerInitiated);
             }
@@ -399,14 +405,21 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
-        public bool BeginBattle(EnemyStateMachine enemy, BattleEntryCondition entry)
+        public bool BeginBattle(EnemyStateMachine enemy, BattleEntryCondition entry,
+            IReadOnlyList<EnemyStateMachine> members = null)
         {
             if (!enabled || _playerData == null || IsInBattle || Time.time < _encounterCooldown
                 || enemy == null || !enemy.isActiveAndEnabled || !_enemies.Contains(enemy))
             {
                 return false;
             }
-            _encounterMembers = new[] { enemy }.Concat(_enemies
+            if (members != null && (members.Count < 1 || members.Count > 3 || members[0] != enemy
+                || members.Distinct().Count() != members.Count
+                || members.Any(member => member == null || !member.isActiveAndEnabled || !_enemies.Contains(member))))
+            {
+                return false;
+            }
+            _encounterMembers = members != null ? members.ToArray() : new[] { enemy }.Concat(_enemies
                 .Where(other => other != null && other != enemy && other.isActiveAndEnabled)
                 .Distinct().OrderBy(other => (other.transform.position - enemy.transform.position).sqrMagnitude))
                 .Take(Mathf.Clamp(_encounterSize, 1, 3)).ToArray();
@@ -428,7 +441,8 @@ namespace CK.SemesterProject.Tutorial
                 return false;
             }
             var session = new BattleSession(rules: new BattleRules(monsterCollisionMemoryBonus: _collisionMemoryBonus));
-            session.Start(participants, entry);
+            session.Start(participants, entry, entry == BattleEntryCondition.PlayerInitiated ? "player"
+                : entry == BattleEntryCondition.MonsterCollision ? GetMonsterId(0) : null);
             var formation = new TutorialBattleFormation(_characterController,
                 _encounterMembers.Select(member => member.GetComponent<NavMeshAgent>()).ToArray());
             _encounter = enemy;
@@ -499,7 +513,8 @@ namespace CK.SemesterProject.Tutorial
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
             _battleUI.SetActive(true);
-            _notice.text = entry == BattleEntryCondition.PlayerInitiated ? "선제 진입" : "몬스터 접촉";
+            _notice.text = entry == BattleEntryCondition.PlayerInitiated ? "플레이어 선제 행동 +1"
+                : entry == BattleEntryCondition.MonsterCollision ? enemy.name + " 선제 행동 +1" : "전투 진입";
             RefreshUI();
             return true;
         }
@@ -712,7 +727,19 @@ namespace CK.SemesterProject.Tutorial
             _encounterCooldown = Time.time + 3;
             RestoreExploration(state.Outcome != BattleOutcome.Victory, state.Outcome == BattleOutcome.Victory);
             _battleUI.SetActive(false);
-            _notice.text = _enemies.All(enemy => enemy == null || !enemy.gameObject.activeSelf) ? "모든 몬스터를 처치했습니다." : "WASD 이동 · E 선제 진입 · Space 소리";
+            _notice.text = _enemies.All(enemy => enemy == null || !enemy.gameObject.activeSelf) ? "모든 몬스터를 처치했습니다." : "WASD 이동 · 좌클릭 선제 진입 · Space 소리";
+        }
+
+        public void CancelBattle()
+        {
+            if (IsInBattle)
+            {
+                RestoreExploration();
+                _session = null;
+                _cachedSnapshot = null;
+                _battleUI.SetActive(false);
+            }
+            _encounterCooldown = 0f;
         }
 
         private void RestoreExploration(bool respawn = false, bool defeated = false)
