@@ -531,7 +531,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 return definition.GetData();
             }
-            var skill = new SkillData("monster_attack", "공격", 90, rageGain: 10);
+            var skill = new SkillData("monster_attack", "공격", 90);
             return new CombatantData("tutorial_box", enemy.name, BattleTeam.Monster,
                 _monsterHp, _monsterMemory, _monsterMemory, new[] { skill }, BattleElement.Imprint,
                 weaknessChain: new[] { BattleElement.Afterimage, BattleElement.Imprint, BattleElement.Oblivion, BattleElement.Afterimage });
@@ -686,7 +686,7 @@ namespace CK.SemesterProject.Tutorial
             _enemyStatus.text = string.Join("\n", monsters.Select((monster, index) =>
                 (monster.InstanceId == _targetId ? "▶ " : "") + (index + 1) + ". " + monster.Data.DisplayName
                 + " [" + TutorialMonster.GetElementName(monster.Data.Element) + "]  HP " + monster.Hp + "/" + monster.Data.MaxHp
-                + "  메모리 " + monster.Memory + "  폭주 " + monster.RageEnergy + "  연쇄 " + monster.ChainStep + "/4"))
+                + "  메모리 " + monster.Memory + "  연쇄 " + monster.ChainStep + "/4"))
                 + "\n순서: " + string.Join(" → ", state.TurnOrder.Select(id =>
                     state.Combatants.First(unit => unit.InstanceId == id).Data.DisplayName));
             _investmentLabel.text = "투자 " + _investment + "단계 (" + _session.Rules.GetStageCost(_playerData, _investment) + ")";

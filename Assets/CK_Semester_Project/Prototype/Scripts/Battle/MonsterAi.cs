@@ -63,7 +63,8 @@ namespace CK.SemesterProject.Battle
                 }
                 if (choices.Count == 0)
                 {
-                    request = new BattleActionRequest(snapshot.TurnId, actor.InstanceId, BattleActionKind.Defend);
+                    request = new BattleActionRequest(snapshot.TurnId, actor.InstanceId,
+                        IsPlayerOverheated(snapshot) ? BattleActionKind.Wait : BattleActionKind.Defend);
                     return true;
                 }
                 // 같은 턴의 재조회는 같은 선택을 반환하고 전투 판정 난수와 분리한다.
@@ -117,8 +118,15 @@ namespace CK.SemesterProject.Battle
             }
 
             // 유효한 이득이 없거나 비용이 부족해도 턴 진행이 멈추지 않게 한다.
-            request = new BattleActionRequest(snapshot.TurnId, actor.InstanceId, BattleActionKind.Defend);
+            request = new BattleActionRequest(snapshot.TurnId, actor.InstanceId,
+                IsPlayerOverheated(snapshot) ? BattleActionKind.Wait : BattleActionKind.Defend);
             return true;
+        }
+
+        internal static bool IsPlayerOverheated(BattleSnapshot snapshot)
+        {
+            return snapshot.Combatants.Any(unit => unit.Data.Team == BattleTeam.Player
+                && !unit.IsDead && unit.IsOverheated);
         }
 
         private double EvaluateCandidate(BattleSnapshot snapshot, BattleTeam team, SkillData skill,

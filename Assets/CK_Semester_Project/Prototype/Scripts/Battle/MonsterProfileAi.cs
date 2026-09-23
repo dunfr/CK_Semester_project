@@ -23,14 +23,17 @@ namespace CK.SemesterProject.Battle
             var random = new Random(DecisionSeed(seed, actor.InstanceId, snapshot.TurnId));
             bool duel = snapshot.Combatants.Count(unit => unit.Data.Team == BattleTeam.Monster) == 1
                 && snapshot.Combatants.Count(unit => unit.Data.Team == BattleTeam.Player) == 1;
-            if (profile.Element == BattleElement.Afterimage && duel && session.GetActionCount(actor.InstanceId) == 0)
+            bool canDefend = !MonsterAi.IsPlayerOverheated(snapshot);
+            int openingDefenseAction = session.EntryInitiatorId == actor.InstanceId ? 1 : 0;
+            if (canDefend && profile.Element == BattleElement.Afterimage && duel
+                && session.GetActionCount(actor.InstanceId) == openingDefenseAction)
             {
                 if (TryDefend(session, snapshot, actor, new MonsterInvestmentRange(2, 2), random, out request))
                 {
                     return true;
                 }
             }
-            if (profile.Element == BattleElement.Oblivion)
+            if (canDefend && profile.Element == BattleElement.Oblivion)
             {
                 int band = Band(actor.Memory, actor.Data.InitialMemory, profile.SelfThresholds);
                 IReadOnlyList<MonsterInvestmentRange> defense = actor.ChainStep >= 2 ? table.ChainTwo
@@ -67,7 +70,7 @@ namespace CK.SemesterProject.Battle
             }
             // 스킬 기본 비용조차 없으면 방어 금지 각인은 대기한다. 턴을 멈추지 않는다.
             request = new BattleActionRequest(snapshot.TurnId, actor.InstanceId,
-                profile.Element == BattleElement.Imprint ? BattleActionKind.Wait : BattleActionKind.Defend);
+                !canDefend || profile.Element == BattleElement.Imprint ? BattleActionKind.Wait : BattleActionKind.Defend);
             return session.ValidateRequest(request) == BattleActionError.None;
         }
 
