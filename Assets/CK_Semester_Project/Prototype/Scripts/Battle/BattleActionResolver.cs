@@ -133,7 +133,7 @@ namespace CK.SemesterProject.Battle
             int stolen = actor.InstanceId == target.InstanceId ? 0
                 : (int)Math.Min(steal, Math.Min(target.Memory, Math.Max(0, actor.Data.MaxMemory - remaining)));
             int actorDelta = -(int)cost + recovered + stolen;
-            int rageGain = mechanics.EnableRage ? skill.RageGain : 0;
+            int rageGain = mechanics.EnableRage && actor.Data.Team == BattleTeam.Player ? skill.RageGain : 0;
             int? imprint = elementEffects && skill.Element == BattleElement.Imprint
                 ? BattleMath.RoundDamage(roundedDamage * mechanics.ImprintRatio) : (int?)null;
             int? skipped = isHit && skill.InflictedSkippedTurns > 0

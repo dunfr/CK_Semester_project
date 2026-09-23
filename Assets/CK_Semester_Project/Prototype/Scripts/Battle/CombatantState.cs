@@ -29,10 +29,10 @@
             SkippedTurns = skippedTurns;
             IsDefending = !IsDead && isDefending;
             DefenseDamageMultiplier = IsDefending ? defenseDamageMultiplier : null;
-            RageEnergy = rageEnergy;
+            RageEnergy = data.Team == BattleTeam.Player ? rageEnergy : 0;
             ChainStep = IsDead ? 0 : chainStep;
             ImprintDamage = IsDead ? 0 : imprintDamage;
-            IsOverheated = !IsDead && isOverheated;
+            IsOverheated = data.Team == BattleTeam.Player && !IsDead && isOverheated;
             HasMemoryLoss = !IsDead && hasMemoryLoss;
         }
     }

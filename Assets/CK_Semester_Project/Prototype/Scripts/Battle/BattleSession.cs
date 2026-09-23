@@ -30,6 +30,7 @@ namespace CK.SemesterProject.Battle
 
         public BattleActionResult PendingResult { get; private set; }
         public BattleRules Rules => _rules;
+        public string EntryInitiatorId { get; private set; }
 
         public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null, BattleRules rules = null)
         {
@@ -101,6 +102,7 @@ namespace CK.SemesterProject.Battle
             }
 
             _openingActorId = openingActor;
+            EntryInitiatorId = openingActor;
             BeginRound();
             SelectNextActor();
             return GetSnapshot();

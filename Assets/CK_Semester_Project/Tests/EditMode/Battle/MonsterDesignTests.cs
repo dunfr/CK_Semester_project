@@ -6,6 +6,82 @@ namespace CK.SemesterProject.Battle.Tests
 {
     public sealed class MonsterDesignTests
     {
+        private static BattleSession CreateFixScenario(BattleElement element, int playerRage = 0,
+            int monsterRage = 0, bool profile = true, int skillCost = 0,
+            BattleEntryCondition entry = BattleEntryCondition.Normal)
+        {
+            var player = new CombatantData("p", "플레이어", BattleTeam.Player, 10000, 100, 100,
+                new[] { new SkillData("hit", "공격", 1) });
+            var monster = new CombatantData("m", "몬스터", BattleTeam.Monster, 10000, 1000, 1000,
+                new[] { new SkillData("attack", "공격", 10, element, memoryCost: skillCost, rageGain: 100) },
+                element, monsterProfile: profile ? MonsterBehaviorProfile.CreateDefault(element) : null);
+            var session = new BattleSession(randomSeed: 7);
+            session.Start(new[] { new BattleParticipant("p", player, initialRageEnergy: playerRage),
+                new BattleParticipant("m", monster, initialRageEnergy: monsterRage) }, entry);
+            return session;
+        }
+
+        [Test]
+        public void AfterimageOpeningBonusAttacksThenDefendsOnSecondAction()
+        {
+            BattleSession session = CreateFixScenario(BattleElement.Afterimage, entry: BattleEntryCondition.MonsterCollision);
+            var ai = new MonsterAi();
+            Assert.That(session.EntryInitiatorId, Is.EqualTo("m"));
+            Assert.That(ai.TryChooseAction(session, out BattleActionRequest first), Is.True);
+            Assert.That(first.Kind, Is.EqualTo(BattleActionKind.Skill));
+            Assert.That(session.TrySubmit(first, out BattleActionResult hit, out _), Is.True);
+            session.CompletePresentation(hit.ActionId);
+            Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("m"));
+            Assert.That(ai.TryChooseAction(session, out BattleActionRequest second), Is.True);
+            Assert.That(second.Kind, Is.EqualTo(BattleActionKind.Defend));
+            Assert.That(second.InvestmentStage, Is.EqualTo(2));
+        }
+
+        [TestCase(BattleElement.Afterimage)]
+        [TestCase(BattleElement.Imprint)]
+        [TestCase(BattleElement.Oblivion)]
+        public void OverheatedPlayerPreventsProfileDefenseIncludingNoAffordableAttack(BattleElement element)
+        {
+            foreach (int cost in new[] { 0, 2000 })
+            {
+                BattleSession session = CreateFixScenario(element, playerRage: 100, skillCost: cost);
+                Assert.That(session.GetSnapshot().Combatants.First(unit => unit.InstanceId == "p").IsOverheated, Is.True);
+                Assert.That(new MonsterAi().TryChooseAction(session, out BattleActionRequest request), Is.True);
+                Assert.That(request.Kind, Is.EqualTo(cost == 0 ? BattleActionKind.Skill : BattleActionKind.Wait));
+                Assert.That(session.ValidateRequest(request), Is.EqualTo(BattleActionError.None));
+            }
+        }
+
+        [Test]
+        public void OverheatedPlayerPreventsGenericAiFallbackDefense()
+        {
+            BattleSession session = CreateFixScenario(BattleElement.None, playerRage: 100, profile: false, skillCost: 2000);
+            Assert.That(new MonsterAi().TryChooseAction(session, out BattleActionRequest request), Is.True);
+            Assert.That(request.Kind, Is.EqualTo(BattleActionKind.Wait));
+        }
+
+        [TestCase(0)]
+        [TestCase(100)]
+        public void MonsterCannotGainRageBonusOrOverheat(int initialRage)
+        {
+            BattleSession session = CreateFixScenario(BattleElement.None, monsterRage: initialRage, profile: false);
+            BattleSnapshot before = session.GetSnapshot();
+            CombatantState monster = before.Combatants.First(unit => unit.InstanceId == "m");
+            Assert.That(monster.RageEnergy, Is.Zero);
+            Assert.That(monster.IsOverheated, Is.False);
+            Assert.That(before.Phase, Is.EqualTo(BattlePhase.AwaitingAction));
+            Assert.That(session.TrySubmit(new BattleActionRequest(before.TurnId, "m", BattleActionKind.Skill,
+                "attack", "p"), out BattleActionResult result, out _), Is.True);
+            Assert.That(result.Hit.RageMultiplier, Is.EqualTo(1));
+            Assert.That(session.GetSnapshot().Combatants.First(unit => unit.InstanceId == "m").RageEnergy, Is.Zero);
+            session.CompletePresentation(result.ActionId);
+            BattleSnapshot next = session.GetSnapshot();
+            Assert.That(session.TrySubmit(new BattleActionRequest(next.TurnId, "p", BattleActionKind.Wait), out result, out _), Is.True);
+            session.CompletePresentation(result.ActionId);
+            Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("m"));
+            Assert.That(session.GetSnapshot().Phase, Is.EqualTo(BattlePhase.AwaitingAction));
+        }
+
         [TestCase(1)]
         [TestCase(2)]
         [TestCase(3)]

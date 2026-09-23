@@ -73,8 +73,6 @@ namespace CK.SemesterProject.Tutorial
         private int _power = 90;
         [SerializeField, Range(0f, 1f), Tooltip("기본 공격 명중률")]
         private float _accuracy = 1;
-        [SerializeField, Range(0, 100), Tooltip("공격 후 폭주 에너지 획득량")]
-        private int _rageGain = 10;
         [SerializeField, Tooltip("4개 원소로 구성한 약점 연쇄")]
         private BattleElement[] _weaknessChain;
         [SerializeField, Tooltip("0단계부터 기본 메모리 대비 비용 백분율")]
@@ -121,7 +119,7 @@ namespace CK.SemesterProject.Tutorial
         {
             var profile = new MonsterBehaviorProfile(_element, _costPercent, _multipliers,
                 _playerThresholds, _selfThresholds, _solo.Create(), _withImprint.Create(), _withAfterimage.Create(), _withOblivion.Create());
-            var attack = new SkillData(_id + "_attack", "공격", _power, _element, accuracy: _accuracy, rageGain: _rageGain);
+            var attack = new SkillData(_id + "_attack", "공격", _power, _element, accuracy: _accuracy);
             return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
                 new[] { attack }, _element, weaknessChain: _weaknessChain, monsterProfile: profile);
         }

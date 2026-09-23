@@ -168,7 +168,7 @@ var request = new BattleActionRequest(turnId, actorId, BattleActionKind.Skill,
 
 | ID | 이름 | 피해 | 추가 치명타 | 폭주 획득 | 기본 비용 |
 |---|---|---|---|---|---|
-| SK00 | 테스트_잔상 | 100 | 15%p | 20 | 10 |
+| SK00 | 테스트_잔상 | 100 | 15%p | 20 | 13 |
 | SK01 | 테스트_각인 | 100 | 10%p | 45 | 15 |
 | Sk02 | 테스트_망각 | 100 | 15%p | 15 | 20 |
 
