@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 namespace CK.SemesterProject.Tutorial
 {
     [DisallowMultipleComponent]
-    [RequireComponent(typeof(CharacterController), typeof(Animator))]
+    [RequireComponent(typeof(CharacterController))]
     public sealed class PlayerMovement : MonoBehaviour
     {
         [SerializeField] private Transform _cameraTransform;
@@ -22,7 +22,10 @@ namespace CK.SemesterProject.Tutorial
         {
             _controller = GetComponent<CharacterController>();
             _animator = GetComponent<Animator>();
-            _animator.applyRootMotion = false;
+            if (_animator != null)
+            {
+                _animator.applyRootMotion = false;
+            }
             if (_cameraTransform == null && Camera.main != null)
             {
                 _cameraTransform = Camera.main.transform;
@@ -60,9 +63,12 @@ namespace CK.SemesterProject.Tutorial
                 _verticalSpeed = -2f;
             }
 
-            // UnityChanLocomotions의 전진 블렌드를 사용하고 이동 방향으로 모델을 돌립니다.
-            _animator.SetFloat(SpeedId, input.magnitude, 0.1f, Time.deltaTime);
-            _animator.SetFloat(DirectionId, 0f);
+            // 뼈대 없는 모델도 같은 이동을 사용하며, 기존 UnityChan 애니메이션은 유지합니다.
+            if (_animator != null && _animator.runtimeAnimatorController != null)
+            {
+                _animator.SetFloat(SpeedId, input.magnitude, 0.1f, Time.deltaTime);
+                _animator.SetFloat(DirectionId, 0f);
+            }
         }
 
         private static Vector2 ReadMovement()
