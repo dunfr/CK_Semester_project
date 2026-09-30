@@ -3889,7 +3889,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.PlayerMovement
   _cameraTransform: {fileID: 1985736203}
-  _moveSpeed: 3
+  _moveSpeed: 10
   _rotationSpeed: 540
   _gravity: 20
 --- !u!143 &77063179
@@ -3926,11 +3926,12 @@ Transform:
   m_GameObject: {fileID: 77063177}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -57.232483, y: 47.03271, z: -2.31054}
+  m_LocalPosition: {x: -54.5, y: 11.9, z: -14.61}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1967640261}
+  - {fileID: 742129938}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &84812186
@@ -38821,12 +38822,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 742129932}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.13870105, y: 0, z: 0, w: 0.99033433}
-  m_LocalPosition: {x: -57.232483, y: 49.13271, z: -6.1605396}
+  m_LocalRotation: {x: 0.14521311, y: 3.227298e-11, z: -3.8239208e-12, w: 0.9894004}
+  m_LocalPosition: {x: 0, y: 2.2000008, z: -4}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 77063180}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &742538289
 Mesh:
@@ -99984,8 +99985,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1985736202}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.13870105, y: 0, z: 0, w: 0.99033433}
-  m_LocalPosition: {x: -57.232483, y: 49.13271, z: -6.1605396}
+  m_LocalRotation: {x: 0.1452131, y: 3.2409887e-11, z: -4.7567605e-12, w: 0.98940045}
+  m_LocalPosition: {x: -54.5, y: 14.099999, z: -18.61}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -111192,5 +111193,4 @@ SceneRoots:
   - {fileID: 2120156843}
   - {fileID: 1113272910}
   - {fileID: 1985736203}
-  - {fileID: 742129938}
   - {fileID: 77063180}
