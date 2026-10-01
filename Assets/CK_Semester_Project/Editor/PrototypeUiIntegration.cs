@@ -98,8 +98,6 @@ namespace CK.SemesterProject.Editor
                 floorSettings.FindProperty("_showButtons").boolValue = false;
                 floorSettings.ApplyModifiedPropertiesWithoutUndo();
             }
-            Set(hudSettings, "_floorOne", ActionButton(field, "Travel First Floor", "1층", new Vector2(-75f, 260f), new Vector2(130f, 38f), font));
-            Set(hudSettings, "_floorTwo", ActionButton(field, "Travel Second Floor", "2층", new Vector2(75f, 260f), new Vector2(130f, 38f), font));
 
             Transform card = Find<Transform>(field, "06_Student_Card");
             Set(hudSettings, "_fieldName", Label(card, "Runtime Character", new Vector2(-65f, 0f), new Vector2(215f, 62f), 26f, font));
@@ -182,10 +180,6 @@ namespace CK.SemesterProject.Editor
             SetArray(hudSettings, "_skillImages", images);
             Set(hudSettings, "_normalSkill", AssetDatabase.LoadAssetAtPath<Sprite>(SpriteFolder + "Turn_SkillButton_Default.png"));
             Set(hudSettings, "_selectedSkillSprite", AssetDatabase.LoadAssetAtPath<Sprite>(SpriteFolder + "Turn_SkillButton_Selected.png"));
-            Find<Button>(combat, "SkillButton_LockedBoundary").interactable = false;
-            Find<Transform>(combat, "SkillButton_LockedBoundary").Find("Title").GetComponent<TMP_Text>().text = "미등록 스킬";
-            Find<Transform>(combat, "SkillButton_LockedBoundary").Find("SPCost").GetComponent<TMP_Text>().text = "--";
-            Find<Transform>(combat, "SkillButton_LockedBoundary").Find("Level").GetComponent<TMP_Text>().text = "";
             foreach (string detail in new[] { "SkillName", "SkillType", "Description", "PowerValue", "AccuracyValue", "AttributeValue", "RangeValue" })
             {
                 string fieldName = detail == "SkillName" ? "_skillName" : detail == "SkillType" ? "_skillType"
@@ -196,7 +190,6 @@ namespace CK.SemesterProject.Editor
             Find<TMP_Text>(combat, "PowerValueText").text = "";
             Find<TMP_Text>(combat, "DescriptionText").fontSize = 18f;
             Find<TMP_Text>(combat, "PowerLabelText").text = "기본 위력";
-            Find<Transform>(combat, "SkillDetailsPrompt").gameObject.SetActive(false);
             Find<TMP_Text>(combat, "DetailPromptText").text = "Enter로 사용";
             Find<TMP_Text>(combat, "DetailKeyText").text = "";
             Transform turn = Find<Transform>(combat, "PlayerTurnUI");
@@ -289,11 +282,12 @@ namespace CK.SemesterProject.Editor
             {
                 UnityEngine.Object.DestroyImmediate(child.gameObject);
             }
+            RemoveUnavailableControls(field, combat);
             Find<Transform>(field, "background").gameObject.SetActive(false);
             CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
-            foreach (string group in new[] { "Default_State", "Battle_State", "Commands", "DefaultUI", "PlayerTurnUI", "EnemyHPbar" })
+            foreach (string group in new[] { "Default_State", "Battle_State", "DefaultUI", "PlayerTurnUI", "EnemyHPbar" })
             {
                 RectTransform rect = Find<RectTransform>(canvas.transform, group);
                 rect.anchorMin = Vector2.zero;
@@ -317,15 +311,6 @@ namespace CK.SemesterProject.Editor
             Place(field, "06_Student_Card", new Vector2(1, 1), -214, -248);
             Place(field, "09_Story_Panel", Vector2.zero, 230, 535, 400, 180);
             Place(field, "10_Minimap", Vector2.zero, 175, 218, 300, 356);
-            Place(field, "Travel First Floor", new Vector2(.5f, 1), -75, -254);
-            Place(field, "Travel Second Floor", new Vector2(.5f, 1), 75, -254);
-            Place(field, "03_Menu_C", new Vector2(1, 1), -285, -80);
-            Place(field, "04_Menu_J", new Vector2(1, 1), -190, -80);
-            Place(field, "05_Menu_ESC", new Vector2(1, 1), -94, -80);
-            Place(field, "07_Tab_Button", new Vector2(0, 1), 76, -220);
-            Place(field, "08_R_Button", new Vector2(0, 1), 76, -340);
-            Place(field, "11_Interact_E", new Vector2(1, 0), -90, 292);
-            Place(field, "12_Sprint_Shift", new Vector2(1, 0), -140, 152);
             Place(field, "Runtime Character", new Vector2(.5f, .5f), -65, -2, 190, 36);
             Find<TMP_Text>(field, "Runtime Character").color = new Color(.04f, .09f, .2f);
             Place(field, "Runtime Field HP", new Vector2(.5f, .5f), -65, -52, 166, 8);
@@ -434,9 +419,9 @@ namespace CK.SemesterProject.Editor
             }
             Place(combat, "Use Selected Skill", Vector2.zero, 603, 286, 198, 36);
             Place(combat, "HUD Defend", Vector2.zero, 780, 286, 140, 36);
-            foreach (string name in new[] { "Use Selected Skill", "HUD Defend", "Travel First Floor", "Travel Second Floor", "HUD Target 1", "HUD Target 2", "HUD Target 3", "Return To Exploration" })
+            foreach (string name in new[] { "Use Selected Skill", "HUD Defend", "HUD Target 1", "HUD Target 2", "HUD Target 3", "Return To Exploration" })
             {
-                Transform root = name.StartsWith("Travel") ? field : combat;
+                Transform root = combat;
                 Image image = Find<Image>(root, name);
                 image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SpriteFolder + "Turn_SkillButton_Default.png");
                 image.color = Color.white;
@@ -474,6 +459,26 @@ namespace CK.SemesterProject.Editor
             }
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+        }
+
+        private static void RemoveUnavailableControls(Transform field, Transform combat)
+        {
+            // 원본 에셋은 보존하고 데모에 기능이 없는 조작 오브젝트만 제거한다.
+            string[] unavailable = { "Commands", "Travel First Floor", "Travel Second Floor",
+                "SkillButton_LockedBoundary", "SkillDetailsPrompt" };
+            foreach (Transform root in new[] { field, combat })
+            {
+                foreach (Transform item in root.GetComponentsInChildren<Transform>(true)
+                    .Where(item => unavailable.Contains(item.name)).ToArray())
+                {
+                    UnityEngine.Object.DestroyImmediate(item.gameObject);
+                }
+            }
+            Button minimapButton = Find<Transform>(field, "10_Minimap").GetComponent<Button>();
+            if (minimapButton != null)
+            {
+                UnityEngine.Object.DestroyImmediate(minimapButton);
+            }
         }
 
         private static void ReplaceSprite(Transform parent, string name, string asset)

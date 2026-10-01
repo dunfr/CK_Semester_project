@@ -63,8 +63,6 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private Transform _player;
         [SerializeField] private GameObject _fieldRoot;
         [SerializeField] private RawImage _minimap;
-        [SerializeField] private Button _floorOne;
-        [SerializeField] private Button _floorTwo;
         [SerializeField] private Button _execute;
         [SerializeField] private Button _investment;
         [SerializeField] private Button _defend;
@@ -107,13 +105,6 @@ namespace CK.SemesterProject.Tutorial
             _execute.onClick.AddListener(ExecuteSelectedSkill);
             _investment.onClick.AddListener(_battle.CycleInvestment);
             _defend.onClick.AddListener(_battle.Defend);
-            if (_floorTravel != null)
-            {
-                _floorOne.onClick.AddListener(_floorTravel.TravelToFirstFloor);
-                _floorTwo.onClick.AddListener(_floorTravel.TravelToSecondFloor);
-            }
-            _floorOne.gameObject.SetActive(_floorTravel != null);
-            _floorTwo.gameObject.SetActive(_floorTravel != null);
             _mapTexture = new RenderTexture(256, 256, 16);
             var mapCamera = new GameObject("Field Minimap Camera", typeof(Camera));
             _mapCamera = mapCamera.GetComponent<Camera>();
@@ -198,11 +189,6 @@ namespace CK.SemesterProject.Tutorial
             _execute.onClick.RemoveListener(ExecuteSelectedSkill);
             _investment.onClick.RemoveListener(_battle.CycleInvestment);
             _defend.onClick.RemoveListener(_battle.Defend);
-            if (_floorTravel != null)
-            {
-                _floorOne.onClick.RemoveListener(_floorTravel.TravelToFirstFloor);
-                _floorTwo.onClick.RemoveListener(_floorTravel.TravelToSecondFloor);
-            }
             if (_mapTexture != null)
             {
                 _mapTexture.Release();

@@ -41,17 +41,24 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [UnityTest]
-        public IEnumerator FieldVitalsAndFloorButtonsUseRuntimeState()
+        public IEnumerator FieldVitalsAndFloorStateRemainWithoutUnavailableControls()
         {
             _playerState.SetVitals(731, 143);
             yield return null;
             Assert.That(Text("Runtime Field Vitals"), Does.Contain("731/1000").And.Contain("143/200"));
             Component floor = GameObject.Find("Fuchsia Player").GetComponent("FloorTravelButtons");
-            Click("Travel Second Floor");
+            string[] unavailable = { "Travel First Floor", "Travel Second Floor", "03_Menu_C", "04_Menu_J",
+                "05_Menu_ESC", "07_Tab_Button", "08_R_Button", "11_Interact_E", "12_Sprint_Shift",
+                "SkillButton_LockedBoundary", "SkillDetailsPrompt" };
+            Transform[] ui = _hud.GetType().GetField("_fieldRoot", PrivateInstance).GetValue(_hud)
+                is GameObject field ? field.GetComponentInParent<Canvas>().GetComponentsInChildren<Transform>(true) : null;
+            Assert.That(ui, Is.Not.Null);
+            Assert.That(ui.Any(item => unavailable.Contains(item.name)), Is.False);
+            floor.GetType().GetMethod("TravelToSecondFloor").Invoke(floor, null);
             yield return null;
             Assert.That(floor.GetType().GetProperty("CurrentFloor").GetValue(floor), Is.EqualTo(2));
             Assert.That(Text("Runtime Location"), Does.StartWith("2층"));
-            Click("Travel First Floor");
+            floor.GetType().GetMethod("TravelToFirstFloor").Invoke(floor, null);
             yield return null;
             Assert.That(floor.GetType().GetProperty("CurrentFloor").GetValue(floor), Is.EqualTo(1));
         }
