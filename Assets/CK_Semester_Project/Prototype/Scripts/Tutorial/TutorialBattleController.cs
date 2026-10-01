@@ -483,11 +483,14 @@ namespace CK.SemesterProject.Tutorial
             _movementEnabled = _movement.enabled;
             _orbitEnabled = _orbit.enabled;
             _brainEnabled = _brain.enabled;
-            _animatorSpeed = _animator.speed;
             _movement.enabled = false;
-            _animator.SetFloat("Speed", 0);
-            _animator.Update(0f);
-            _animator.speed = 0;
+            if (_animator != null && _animator.runtimeAnimatorController != null)
+            {
+                _animatorSpeed = _animator.speed;
+                _animator.SetFloat("Speed", 0);
+                _animator.Update(0f);
+                _animator.speed = 0;
+            }
             _orbit.enabled = false;
             SetEnemiesPaused(true);
             SetBackgroundEnemiesHidden(true);
@@ -773,7 +776,10 @@ namespace CK.SemesterProject.Tutorial
             _camera.fieldOfView = _cameraFieldOfView;
             _camera.orthographic = _cameraWasOrthographic;
             _brain.enabled = _brainEnabled;
-            _animator.speed = _animatorSpeed;
+            if (_animator != null && _animator.runtimeAnimatorController != null)
+            {
+                _animator.speed = _animatorSpeed;
+            }
             _movement.enabled = _movementEnabled;
             _orbit.enabled = _orbitEnabled;
             SetBackgroundEnemiesHidden(false);
@@ -838,7 +844,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnDisable()
         {
-            if (IsInBattle && _camera != null && _movement != null && _orbit != null && _brain != null && _animator != null)
+            if (IsInBattle && _camera != null && _movement != null && _orbit != null && _brain != null)
             {
                 RestoreExploration();
                 _session = null;
