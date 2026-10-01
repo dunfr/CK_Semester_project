@@ -1,6 +1,7 @@
 # 튜토리얼 그레이박스 데모
 
 브랜치: `feat/tutorial-demo-grayboxing`.
+현재 필드·전투 HUD는 `prototype-ui`의 UI를 사용하며 실제 데이터 연결과 조작은 [UI 통합 안내](PrototypeUiIntegration.md)를 따른다.
 기준: `prototype`의 `c1c1349`에서 생성했다. `feat/map-grayboxing-fuchsia`의 맵·푸시아 모델·이동 스크립트·ProBuilder 의존성을 가져왔으며, 작업 당시 로컬에 있던 최신 맵·카메라·층 이동 버튼 수정도 데모에 복사했다. 원본 작업 폴더의 미커밋 수정은 보존했다.
 
 ## 실행

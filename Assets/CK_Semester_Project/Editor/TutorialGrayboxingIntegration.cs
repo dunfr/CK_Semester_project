@@ -141,6 +141,7 @@ namespace CK.SemesterProject.Editor
             }
             AssetDatabase.SaveAssets();
             EditorSceneManager.SaveScene(scene, OutputScene);
+            PrototypeUiIntegration.ApplyCurrentScene();
             Validate();
             Debug.Log("TUTORIAL_GRAYBOX_BUILD_PASS enemies=" + enemies.Length);
         }

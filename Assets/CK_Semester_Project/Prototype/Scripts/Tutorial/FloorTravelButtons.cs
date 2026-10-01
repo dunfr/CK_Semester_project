@@ -10,6 +10,8 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("2층 이동 지점의 월드 좌표 (m).")]
         private Vector3 _secondFloorPosition;
         [SerializeField] private Font _font;
+        [SerializeField, Tooltip("별도 HUD에 층 이동 버튼이 있으면 기본 디버그 버튼을 숨깁니다.")]
+        private bool _showButtons = true;
 
         private static readonly Rect PanelRect = new Rect(16f, 16f, 256f, 100f);
         private CharacterController _controller;
@@ -19,6 +21,9 @@ namespace CK.SemesterProject.Tutorial
         private Vector3 _firstFloorPosition;
         private GUIStyle _buttonStyle;
         private GUIStyle _labelStyle;
+
+        public int CurrentFloor => Mathf.Abs(transform.position.y - _firstFloorPosition.y)
+            <= Mathf.Abs(transform.position.y - _secondFloorPosition.y) ? 1 : 2;
 
         private void Awake()
         {
@@ -31,6 +36,10 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnGUI()
         {
+            if (!_showButtons)
+            {
+                return;
+            }
             if (_buttonStyle == null)
             {
                 _buttonStyle = new GUIStyle(GUI.skin.button) { font = _font, fontSize = 20 };
@@ -54,7 +63,17 @@ namespace CK.SemesterProject.Tutorial
 
         public bool ContainsScreenPoint(Vector2 screenPosition)
         {
-            return isActiveAndEnabled && PanelRect.Contains(new Vector2(screenPosition.x, Screen.height - screenPosition.y));
+            return _showButtons && isActiveAndEnabled && PanelRect.Contains(new Vector2(screenPosition.x, Screen.height - screenPosition.y));
+        }
+
+        public void TravelToFirstFloor()
+        {
+            TravelTo(_firstFloorPosition);
+        }
+
+        public void TravelToSecondFloor()
+        {
+            TravelTo(_secondFloorPosition);
         }
 
         public void TravelTo(Vector3 destination)

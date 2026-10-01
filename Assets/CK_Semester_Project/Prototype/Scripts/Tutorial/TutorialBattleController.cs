@@ -130,6 +130,26 @@ namespace CK.SemesterProject.Tutorial
 
         public bool IsInBattle => _session != null;
         public BattleSnapshot Snapshot => _session == null ? null : _cachedSnapshot ?? (_cachedSnapshot = _session.GetSnapshot());
+        public IReadOnlyList<SkillData> Skills => _skills ?? Array.Empty<SkillData>();
+        public CombatantData PlayerData => _playerData;
+        public int InvestmentStage => _investment;
+        public string TargetId => _targetId;
+        public bool CanChooseAction => CanInput(Snapshot);
+
+        public int GetInvestmentCost(int stage)
+        {
+            return _session == null ? 0 : _session.Rules.GetStageCost(_playerData, stage);
+        }
+
+        public void SetInvestmentStage(int stage)
+        {
+            if (!CanChooseAction || stage < 0 || stage > 5)
+            {
+                return;
+            }
+            _investment = stage;
+            RefreshUI();
+        }
 
         private void Awake()
         {
@@ -395,7 +415,9 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             Mouse mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && distance <= 2.5f)
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame && distance <= 2.5f
+                && (UnityEngine.EventSystems.EventSystem.current == null
+                    || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
             {
                 BeginBattle(nearest, BattleEntryCondition.PlayerInitiated);
             }

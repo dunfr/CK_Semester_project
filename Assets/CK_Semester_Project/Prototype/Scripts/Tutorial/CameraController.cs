@@ -54,6 +54,8 @@ namespace CK.SemesterProject.Tutorial
             if (Cursor.lockState != CursorLockMode.Locked)
             {
                 if (mouse.leftButton.wasPressedThisFrame
+                    && (UnityEngine.EventSystems.EventSystem.current == null
+                        || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
                     && (_floorTravelButtons == null || !_floorTravelButtons.ContainsScreenPoint(mouse.position.ReadValue())))
                 {
                     SetCursorLocked(true);
