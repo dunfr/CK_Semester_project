@@ -47,3 +47,8 @@ Unity 6000.3.23f1에서 HUD PlayMode 테스트 5개가 모두 통과했다: 필�
 ![기존 필드 UI 수정](Images/ui_original_refined_field.png)
 
 ![기존 전투 UI 수정](Images/ui_original_refined_battle_final.png)
+
+
+## 그레이박스 콘텐츠 연결
+
+기존 STORY 패널의 단계별 목표와 문/엘리베이터 좌클릭 상호작용을 연결했다. 실제 층 높이를 기준으로 구역을 표시하며 기존 LMB 버튼도 문·패널을 우선 실행한다. 목표/피드백 패널은 기존 스킬 버튼 PNG를 재사용한다. 현재 기능과 Inspector 위치, PlayMode 테스트 11개 결과는 [TutorialLevelContent.md](TutorialLevelContent.md)를 참조한다.

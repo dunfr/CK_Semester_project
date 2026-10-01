@@ -87,6 +87,12 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Min(0.01f), Tooltip("전투 중 우클릭 드래그 회전 감도(도/픽셀)")]
         private float _battleMouseSensitivity = 0.15f;
 
+        [SerializeField] private TutorialFieldInteraction _fieldInteraction;
+        [SerializeField, Min(0f), Tooltip("걷기 발소리 반경(m)")]
+        private float _walkNoiseRadius = 3f;
+        [SerializeField, Min(0f), Tooltip("달리기 발소리 반경(m)")]
+        private float _sprintNoiseRadius = 8f;
+
         private float _battleYaw;
         private float _battlePitch;
         private bool _isCameraDragging;
@@ -127,6 +133,13 @@ namespace CK.SemesterProject.Tutorial
         private float _nextFootstep;
         private Vector3 _lastPlayerPosition;
         private UnityEngine.Events.UnityAction[] _skillActions;
+
+        public event Action<BattleOutcome> FieldBattleEnded;
+
+        public void SetRespawnPoint(Vector3 position)
+        {
+            _spawn = position;
+        }
 
         public bool IsInBattle => _session != null;
         public BattleSnapshot Snapshot => _session == null ? null : _cachedSnapshot ?? (_cachedSnapshot = _session.GetSnapshot());
@@ -367,10 +380,14 @@ namespace CK.SemesterProject.Tutorial
 
         private void UpdateExploration()
         {
+            if (_fieldInteraction != null && _fieldInteraction.IsSequenceLocked)
+            {
+                return;
+            }
             Vector3 position = _movement.transform.position;
             if (Time.time >= _nextFootstep && Vector3.Distance(position, _lastPlayerPosition) >= 0.7f)
             {
-                EnemyNoise.Emit(position, 5f, _movement.gameObject);
+                EnemyNoise.Emit(position, _movement.IsSprinting ? _sprintNoiseRadius : _walkNoiseRadius, _movement.gameObject);
                 _lastPlayerPosition = position;
                 _nextFootstep = Time.time + 0.4f;
             }
@@ -390,6 +407,8 @@ namespace CK.SemesterProject.Tutorial
             }
             Mouse mouse = Mouse.current;
             if (mouse != null && mouse.leftButton.wasPressedThisFrame
+                && (_fieldInteraction == null || _fieldInteraction.Current == null)
+                && (_fieldInteraction == null || _fieldInteraction.ConsumedInputFrame != Time.frameCount)
                 && (UnityEngine.EventSystems.EventSystem.current == null
                     || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
             {
@@ -411,7 +430,8 @@ namespace CK.SemesterProject.Tutorial
 
         private EnemyStateMachine FindNearbyFieldEnemy(float range)
         {
-            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown)
+            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown
+                || (_fieldInteraction != null && _fieldInteraction.IsSequenceLocked))
             {
                 return null;
             }
@@ -767,6 +787,7 @@ namespace CK.SemesterProject.Tutorial
             _encounterCooldown = Time.time + 3;
             RestoreExploration(state.Outcome != BattleOutcome.Victory, state.Outcome == BattleOutcome.Victory);
             _battleUI.SetActive(false);
+            FieldBattleEnded?.Invoke(state.Outcome);
             _notice.text = _enemies.All(enemy => enemy == null || !enemy.gameObject.activeSelf) ? "모든 몬스터를 처치했습니다." : "WASD 이동 · 좌클릭 선제 진입 · Space 소리";
         }
 

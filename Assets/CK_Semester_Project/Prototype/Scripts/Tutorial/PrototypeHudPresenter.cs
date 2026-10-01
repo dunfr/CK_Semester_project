@@ -72,6 +72,8 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private GameObject[] _investmentLock;
         [SerializeField] private TurnSlot[] _turnSlots;
 
+        [SerializeField] private TutorialLevelFlow _levelFlow;
+        [SerializeField] private TutorialFieldInteraction _fieldInteraction;
         [SerializeField] private PlayerMovement _movement;
         [SerializeField] private Button _sprint;
         [SerializeField] private Button _fieldAttack;
@@ -170,7 +172,7 @@ namespace CK.SemesterProject.Tutorial
             _sprint.interactable = _movement.isActiveAndEnabled;
             _sprint.targetGraphic.color = _movement.IsSprinting || _movement.IsSprintToggled
                 ? new Color(.35f, 1f, 1f) : Color.white;
-            _fieldAttack.interactable = _battle.CanInitiateNearbyBattle;
+            _fieldAttack.interactable = _fieldInteraction != null ? _fieldInteraction.CanAct : _battle.CanInitiateNearbyBattle;
             bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
             _mapCamera.enabled = renderMap;
             if (renderMap)
@@ -230,7 +232,10 @@ namespace CK.SemesterProject.Tutorial
 
         private void InitiateFieldBattle()
         {
-            _battle.TryInitiateNearbyBattle();
+            if (_fieldInteraction == null || !_fieldInteraction.TryInteract())
+            {
+                _battle.TryInitiateNearbyBattle();
+            }
         }
 
         public void SelectSkill(int index)
@@ -262,7 +267,7 @@ namespace CK.SemesterProject.Tutorial
             _fieldName.text = _battle.PlayerData == null ? state.CharacterId : _battle.PlayerData.DisplayName;
             _fieldMemory.text = "HP " + state.Hp + "/" + state.MaxHp + "   메모리 " + state.Memory + "/" + state.MaxMemory;
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
-            _fieldLocation.text = floor + "층 · 그레이박스";
+            _fieldLocation.text = floor + "층 · " + (_levelFlow != null ? _levelFlow.AreaName : "그레이박스");
             _floorBanner.text = "0" + floor + "F";
         }
 

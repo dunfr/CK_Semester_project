@@ -31,6 +31,9 @@ namespace CK.SemesterProject.Battle.Tests
             _playerState = (PlayerRuntimeState)Type.GetType("CK.SemesterProject.Tutorial.PlayerSessionState, Assembly-CSharp")
                 .GetProperty("Current").GetValue(null);
             _playerState.RestoreFull();
+            // 콘텐츠 시작 연출이 이동을 해제한 뒤 기존 HUD 연결을 검증한다.
+            yield return new WaitForSeconds(2.1f);
+            _hud.GetType().GetField("_bannerStartedAt", PrivateInstance).SetValue(_hud, Time.unscaledTime);
         }
 
         [UnityTearDown]
@@ -54,11 +57,12 @@ namespace CK.SemesterProject.Battle.Tests
                 is GameObject field ? field.GetComponentInParent<Canvas>().GetComponentsInChildren<Transform>(true) : null;
             Assert.That(ui, Is.Not.Null);
             Assert.That(ui.Any(item => unavailable.Contains(item.name)), Is.False);
-            floor.GetType().GetMethod("TravelToSecondFloor").Invoke(floor, null);
+            Component movement = GameObject.Find("Fuchsia Player").GetComponent("PlayerMovement");
+            movement.GetType().GetMethod("Teleport").Invoke(movement, new object[] { new Vector3(-32.5f, 8.7f, -.08f) });
             yield return null;
             Assert.That(floor.GetType().GetProperty("CurrentFloor").GetValue(floor), Is.EqualTo(2));
             Assert.That(Text("Runtime Location"), Does.StartWith("2층"));
-            floor.GetType().GetMethod("TravelToFirstFloor").Invoke(floor, null);
+            movement.GetType().GetMethod("Teleport").Invoke(movement, new object[] { new Vector3(-57.2f, 47.02f, 4.4f) });
             yield return null;
             Assert.That(floor.GetType().GetProperty("CurrentFloor").GetValue(floor), Is.EqualTo(1));
         }
@@ -169,7 +173,7 @@ namespace CK.SemesterProject.Battle.Tests
             RectTransform root = (RectTransform)canvas.transform;
             string[] panels = { "01_Location", "02_Floor_Banner", "06_Student_Card", "09_Story_Panel", "10_Minimap",
                 "CombatHeader", "EnemyNameBanner", "WaveTurnControls", "EnemyCard", "SkillPanel", "SkillDescriptionPanel",
-                "MemoryThrowPanel", "Use Selected Skill", "HUD Defend", "PlayerPortrait", "Runtime Field Vitals", "11_Interact_LMB", "12_Sprint_Shift" };
+                "MemoryThrowPanel", "Use Selected Skill", "HUD Defend", "PlayerPortrait", "Runtime Field Vitals", "11_Interact_LMB", "12_Sprint_Shift", "Runtime Interaction Hint Panel", "Runtime Level Feedback Panel", "Runtime Route Hint Panel" };
             foreach (Vector2 size in new[] { new Vector2(1920, 1080), new Vector2(1920, 1440), new Vector2(2520, 1080) })
             {
                 root.sizeDelta = size;

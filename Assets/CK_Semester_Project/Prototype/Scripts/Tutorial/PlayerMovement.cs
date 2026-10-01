@@ -107,6 +107,26 @@ namespace CK.SemesterProject.Tutorial
                 (keyboard.wKey.isPressed ? 1f : 0f) - (keyboard.sKey.isPressed ? 1f : 0f)), 1f);
         }
 
+        public void Teleport(Vector3 position)
+        {
+            bool wasEnabled = _controller.enabled;
+            _controller.enabled = false;
+            Vector3 delta = position - transform.position;
+            transform.position = position;
+            _verticalSpeed = 0;
+            _controller.enabled = wasEnabled;
+            var follow = GetComponentInChildren<Unity.Cinemachine.CinemachineCamera>();
+            if (follow != null)
+            {
+                follow.PreviousStateIsValid = false;
+            }
+            if (Camera.main != null)
+            {
+                Camera.main.transform.position += delta;
+            }
+            Physics.SyncTransforms();
+        }
+
         private void OnDisable()
         {
             _verticalSpeed = 0f;

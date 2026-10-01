@@ -76,6 +76,16 @@ namespace CK.SemesterProject.Tutorial
             ApplyOrbit();
         }
 
+        public void FaceDirection(Vector3 direction)
+        {
+            if (direction.sqrMagnitude > 0.001f)
+            {
+                _yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+                ApplyOrbit();
+                _skipMouseDelta = true;
+            }
+        }
+
         private void ApplyOrbit()
         {
             _follow.FollowOffset = Vector3.up * _targetHeight
