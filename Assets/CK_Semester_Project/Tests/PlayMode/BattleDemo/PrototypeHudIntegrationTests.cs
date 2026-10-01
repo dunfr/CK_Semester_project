@@ -116,6 +116,8 @@ namespace CK.SemesterProject.Battle.Tests
         {
             Assert.That(BeginBattle(), Is.True, "실제 맵에서 단독 전투 배치를 확보해야 합니다.");
             yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
             Assert.That((bool)_battle.GetType().GetProperty("CanChooseAction").GetValue(_battle), Is.True);
             BattleSnapshot before = Snapshot();
             Click("SkillButton_QuickSlash");
@@ -147,6 +149,8 @@ namespace CK.SemesterProject.Battle.Tests
             _playerState.SetVitals(1000, 10);
             Assert.That(BeginBattle(), Is.True);
             yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
             _battle.GetType().GetMethod("SetInvestmentStage").Invoke(_battle, new object[] { 5 });
             yield return null;
             Component execute = GameObject.Find("Use Selected Skill").GetComponent("Button");
@@ -213,7 +217,38 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(map.enabled, Is.False);
         }
 
-        private bool BeginBattle(bool useFieldUi = false)
+        [UnityTest]
+        public IEnumerator EnemyClickOpensCommandUiOnlyAfterTargeting()
+        {
+            Assert.That(BeginBattle(false, false), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            Transform commands = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .SelectMany(canvas => canvas.GetComponentsInChildren<Transform>(true))
+                .Single(item => item.name == "PlayerTurnUI");
+            Assert.That(commands.gameObject.activeSelf, Is.False);
+            Assert.That(GameObject.Find("EnemyName_TMP"), Is.Not.Null);
+            Assert.That(GameObject.Find("PlayerStatusPanel"), Is.Not.Null);
+            Vector2 emptyPoint = new Vector2(4, 4);
+            Assert.That(_battle.GetType().GetMethod("TrySelectBattleTargetAtScreenPoint")
+                .Invoke(_battle, new object[] { emptyPoint }), Is.False);
+            Assert.That(commands.gameObject.activeSelf, Is.False);
+            Transform enemy = GameObject.Find("emey AI").transform;
+            Vector3 point = Camera.main.WorldToScreenPoint(enemy.GetComponentInChildren<Collider>().bounds.center);
+            Assert.That(_battle.GetType().GetMethod("TrySelectBattleTargetAtScreenPoint")
+                .Invoke(_battle, new object[] { (Vector2)point }), Is.True);
+            yield return null;
+            Assert.That(commands.gameObject.activeSelf, Is.True);
+            Assert.That(GameObject.Find("SkillPanel"), Is.Not.Null);
+            Assert.That(GameObject.Find("MemoryThrowPanel"), Is.Not.Null);
+            Assert.That(GameObject.Find("EnemyCard"), Is.Not.Null);
+            _battle.GetType().GetMethod("CancelBattle").Invoke(_battle, null);
+            yield return null;
+            Assert.That(BeginBattle(false, false), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            Assert.That(commands.gameObject.activeSelf, Is.False, "새 전투에서 타깃 선택 상태가 초기화되어야 합니다.");
+        }
+
+        private bool BeginBattle(bool useFieldUi = false, bool selectTarget = true)
         {
             MonoBehaviour enemy = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
                 .Single(item => item.GetType().Name == "EnemyStateMachine" && item.name == "emey AI");
@@ -250,6 +285,10 @@ namespace CK.SemesterProject.Battle.Tests
                 }
                 if (entered)
                 {
+                    if (selectTarget)
+                    {
+                        _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+                    }
                     return true;
                 }
             }

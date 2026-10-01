@@ -147,6 +147,7 @@ namespace CK.SemesterProject.Tutorial
         public CombatantData PlayerData => _playerData;
         public int InvestmentStage => _investment;
         public string TargetId => _targetId;
+        public bool HasSelectedBattleTarget { get; private set; }
         public bool CanChooseAction => CanInput(Snapshot);
 
         public int GetInvestmentCost(int stage)
@@ -249,6 +250,14 @@ namespace CK.SemesterProject.Tutorial
             if (_cameraTime < _cameraEntrySeconds)
             {
                 return;
+            }
+            Mouse targetingMouse = Mouse.current;
+            if (CanInput(Snapshot) && Application.isFocused && targetingMouse != null
+                && targetingMouse.leftButton.wasPressedThisFrame
+                && (UnityEngine.EventSystems.EventSystem.current == null
+                    || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
+            {
+                TrySelectBattleTargetAtScreenPoint(targetingMouse.position.ReadValue());
             }
             _elapsed += Time.deltaTime;
             BattleSnapshot snapshot = Snapshot;
@@ -532,6 +541,7 @@ namespace CK.SemesterProject.Tutorial
                 _enemyCenter += slot / formation.EnemySlots.Length;
             }
             _targetId = GetMonsterId(0);
+            HasSelectedBattleTarget = false;
             _encounter = enemy;
             _investment = 0;
             _elapsed = 0;
@@ -597,6 +607,30 @@ namespace CK.SemesterProject.Tutorial
                 weaknessChain: new[] { BattleElement.Afterimage, BattleElement.Imprint, BattleElement.Oblivion, BattleElement.Afterimage });
         }
 
+        public bool TrySelectBattleTargetAtScreenPoint(Vector2 screenPoint)
+        {
+            if (!CanInput(Snapshot))
+            {
+                return false;
+            }
+            RaycastHit hit;
+            if (!Physics.Raycast(_camera.ScreenPointToRay(screenPoint), out hit, _camera.farClipPlane,
+                ~0, QueryTriggerInteraction.Ignore))
+            {
+                return false;
+            }
+            for (int index = 0; index < _encounterMembers.Length; index++)
+            {
+                if (hit.transform.IsChildOf(_encounterMembers[index].transform)
+                    && Snapshot.Combatants.Any(unit => unit.InstanceId == GetMonsterId(index) && unit.Hp > 0))
+                {
+                    SelectTarget(index);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public void SelectTarget(int index)
         {
             if (!CanInput(Snapshot) || index < 0 || index >= _encounterMembers.Length)
@@ -607,6 +641,7 @@ namespace CK.SemesterProject.Tutorial
             if (Snapshot.Combatants.Any(unit => unit.InstanceId == id && unit.Hp > 0))
             {
                 _targetId = id;
+                HasSelectedBattleTarget = true;
                 RefreshUI();
             }
         }
@@ -784,6 +819,7 @@ namespace CK.SemesterProject.Tutorial
                 _playerState.RestoreFull();
             }
             _session = null;
+            HasSelectedBattleTarget = false;
             _encounterCooldown = Time.time + 3;
             RestoreExploration(state.Outcome != BattleOutcome.Victory, state.Outcome == BattleOutcome.Victory);
             _battleUI.SetActive(false);
@@ -797,6 +833,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 RestoreExploration();
                 _session = null;
+                HasSelectedBattleTarget = false;
                 _cachedSnapshot = null;
                 _battleUI.SetActive(false);
             }
@@ -906,6 +943,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 RestoreExploration();
                 _session = null;
+                HasSelectedBattleTarget = false;
                 _battleUI.SetActive(false);
             }
         }

@@ -306,7 +306,7 @@ namespace CK.SemesterProject.Editor
             ReplaceSprite(field, "10_Minimap", "map");
             ReplaceSprite(combat, "WaveTurnControls", "round");
             ReplaceSprite(combat, "MemoryThrowPanel", "investment");
-            ReplaceSprite(combat, "EnemyCard", "enemycard");
+            Find<Image>(combat, "EnemyCard").sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/CK_Semester_Project/Prototype/Temp/Graphics/UI/10-01/Refined/ui_enemycard_no_portrait_panel.png");
             Place(field, "01_Location", new Vector2(0, 1), 190, -88);
             Place(field, "02_Floor_Banner", new Vector2(.5f, 1), 0, -158);
             Place(field, "06_Student_Card", new Vector2(1, 1), -214, -248);
@@ -387,7 +387,7 @@ namespace CK.SemesterProject.Editor
                 Place(combat, name, new Vector2(0, 1), 94, -140 - index * 78);
                 Find<Transform>(combat, name).localScale = Vector3.one * .65f;
                 Transform portrait = Find<Transform>(combat, name).Find("Portrait");
-                portrait.gameObject.SetActive(true);
+                portrait.gameObject.SetActive(index == 0);
                 if (index == 0)
                 {
                     portrait.GetComponent<Image>().sprite = Find<Image>(combat, "PlayerPortrait").sprite;

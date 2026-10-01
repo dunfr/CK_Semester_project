@@ -28,3 +28,10 @@ Use case: precise-object-edit. Edit target existing game enemy card sprite. Keep
 Built-in imagegen edit. Input: `Default_State/11_Interact_E.png`. Output: `Refined/ui_field_attack_lmb_btn.png`. 원본 보존, Sprite alpha 경계 임포트.
 
 Prompt: Edit this exact existing sci-fi game UI asset. Preserve its circular navy button, cyan luminous outline, white cube icon, style, proportions and transparent background. Only replace the lower right white keyboard key cap with a slightly wider white cap containing a clear small computer mouse pictogram with the LEFT mouse button highlighted dark blue, plus compact exact text 'LMB'. Remove the letter E entirely. No other additions. Keep tightly bounded transparent game sprite.
+
+
+## 적 카드 샘플 일러스트 제거
+
+Built-in imagegen edit. Input: `Refined/ui_enemycard_blank.png`. Output: `Refined/ui_enemycard_no_portrait_panel.png`. 원본은 보존하며 외곽 투명도를 유지했다.
+
+Prompt: Edit this existing Unity game enemy card UI asset. Remove the entire illustrated anime character, including ghosted silhouette, hair, face, body, and weapon in the upper interior. Seamlessly replace only that artwork with the same dark navy blue subtle gradient already on the left interior. Preserve exact wide card composition, angular cyan/red frame, divider lines, top-right cyan T key badge, empty spaces, and transparent exterior. No new illustration, text, symbols, or objects. Clean blank card interior suitable for displaying runtime enemy data. Retain original aspect ratio and edges.

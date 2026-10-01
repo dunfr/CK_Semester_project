@@ -92,6 +92,7 @@ namespace CK.SemesterProject.Tutorial
         private int _previousFloor = -1;
         private bool _couldChoose;
         private string _previousTarget;
+        private bool _previousTargetSelected;
         private Camera _mapCamera;
         private RenderTexture _mapTexture;
         private float _nextMapFrame;
@@ -148,7 +149,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void Update()
         {
-            if (_battle.CanChooseAction && Application.isFocused && Keyboard.current != null)
+            if (_battle.HasSelectedBattleTarget && _battle.CanChooseAction && Application.isFocused && Keyboard.current != null)
             {
                 if (Keyboard.current.fKey.wasPressedThisFrame)
                 {
@@ -193,7 +194,8 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             if (state != _previousSnapshot || _couldChoose != _battle.CanChooseAction
-                || _previousStage != _battle.InvestmentStage || _previousTarget != _battle.TargetId)
+                || _previousStage != _battle.InvestmentStage || _previousTarget != _battle.TargetId
+                || _previousTargetSelected != _battle.HasSelectedBattleTarget)
             {
                 RefreshBattle();
             }
@@ -250,7 +252,7 @@ namespace CK.SemesterProject.Tutorial
 
         public void ExecuteSelectedSkill()
         {
-            if (_battle.CanChooseAction)
+            if (_battle.HasSelectedBattleTarget && _battle.CanChooseAction)
             {
                 _battle.UseSkill(_selectedSkill);
             }
@@ -281,11 +283,12 @@ namespace CK.SemesterProject.Tutorial
             _previousSnapshot = state;
             _previousStage = _battle.InvestmentStage;
             _previousTarget = _battle.TargetId;
+            _previousTargetSelected = _battle.HasSelectedBattleTarget;
             _couldChoose = _battle.CanChooseAction;
             CombatantState player = state.Combatants.First(unit => unit.InstanceId == "player");
             CombatantState[] enemies = state.Combatants.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
             CombatantState target = enemies.FirstOrDefault(unit => unit.InstanceId == _battle.TargetId) ?? enemies[0];
-            _playerTurn.SetActive(_couldChoose);
+            _playerTurn.SetActive(_couldChoose && _battle.HasSelectedBattleTarget);
             SetBar(_playerHp, player.Hp, player.Data.MaxHp);
             SetBar(_playerMemory, player.Memory, player.Data.MaxMemory);
             SetBar(_enemyHp, target.Hp, target.Data.MaxHp);
