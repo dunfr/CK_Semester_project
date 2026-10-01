@@ -84,6 +84,7 @@ namespace CK.SemesterProject.Tutorial
         private string _previousTarget;
         private Camera _mapCamera;
         private RenderTexture _mapTexture;
+        private float _nextMapFrame;
 
         public int SelectedSkill => _selectedSkill;
 
@@ -116,6 +117,9 @@ namespace CK.SemesterProject.Tutorial
             _mapTexture = new RenderTexture(256, 256, 16);
             var mapCamera = new GameObject("Field Minimap Camera", typeof(Camera));
             _mapCamera = mapCamera.GetComponent<Camera>();
+            _mapCamera.enabled = false;
+            _mapCamera.allowHDR = false;
+            _mapCamera.allowMSAA = false;
             _mapCamera.orthographic = true;
             _mapCamera.orthographicSize = 9f;
             _mapCamera.nearClipPlane = 0.1f;
@@ -150,8 +154,13 @@ namespace CK.SemesterProject.Tutorial
 
         private void LateUpdate()
         {
-            _mapCamera.enabled = _fieldRoot.activeInHierarchy;
-            _mapCamera.transform.position = _player.position + Vector3.up * 15f;
+            bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
+            _mapCamera.enabled = renderMap;
+            if (renderMap)
+            {
+                _mapCamera.transform.position = _player.position + Vector3.up * 15f;
+                _nextMapFrame = Time.unscaledTime + 0.1f;
+            }
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
             if (floor != _previousFloor || _fieldName.text.Length == 0)
             {
@@ -235,7 +244,7 @@ namespace CK.SemesterProject.Tutorial
             _fieldMemory.text = "HP " + state.Hp + "/" + state.MaxHp + "   메모리 " + state.Memory + "/" + state.MaxMemory;
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
             _fieldLocation.text = floor + "층 · 그레이박스";
-            _floorBanner.text = "0" + floor + "F   |   튜토리얼 구역";
+            _floorBanner.text = "0" + floor + "F";
         }
 
         private void RefreshBattle()
@@ -269,7 +278,7 @@ namespace CK.SemesterProject.Tutorial
                 + "  연쇄 " + target.ChainStep + "/4\n약점 순서: "
                 + string.Join(" → ", target.Data.WeaknessChain.Select(TutorialMonster.GetElementName));
             _round.text = "ROUND " + state.Round.ToString("00") + "   TURN " + state.TurnId.ToString("00");
-            _investmentCost.text = "투자 " + _battle.InvestmentStage + "/5 · 비용 " + _battle.GetInvestmentCost(_battle.InvestmentStage) + "  [F]";
+            _investmentCost.text = "투자 " + _battle.InvestmentStage + "/5 · 비용 " + _battle.GetInvestmentCost(_battle.InvestmentStage);
             for (int index = 0; index < _investmentGlow.Length; index++)
             {
                 _investmentGlow[index].SetActive(index < _battle.InvestmentStage);

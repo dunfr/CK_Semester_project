@@ -14,7 +14,6 @@ namespace CK.SemesterProject.Editor
     {
         private const string UiScene = "Assets/CK_Semester_Project/Prototype/Scenes/TutorialDemo.unity";
         private const string SpriteFolder = "Assets/CK_Semester_Project/Prototype/Temp/Graphics/UI/10-01/Battle_State/";
-        private static readonly Color PanelColor = new Color(0.003f, 0.007f, 0.016f, 1f);
 
         public static void ApplyCurrentScene()
         {
@@ -103,16 +102,16 @@ namespace CK.SemesterProject.Editor
             Set(hudSettings, "_floorTwo", ActionButton(field, "Travel Second Floor", "2층", new Vector2(75f, 260f), new Vector2(130f, 38f), font));
 
             Transform card = Find<Transform>(field, "06_Student_Card");
-            Set(hudSettings, "_fieldName", Label(card, "Runtime Character", new Vector2(-65f, 0f), new Vector2(215f, 62f), 26f, font, true));
-            TMP_Text fieldVitals = Label(card, "Runtime Field Vitals", new Vector2(0f, -66f), new Vector2(350f, 34f), 18f, font, true);
+            Set(hudSettings, "_fieldName", Label(card, "Runtime Character", new Vector2(-65f, 0f), new Vector2(215f, 62f), 26f, font));
+            TMP_Text fieldVitals = Label(card, "Runtime Field Vitals", new Vector2(0f, -66f), new Vector2(350f, 34f), 18f, font);
             Set(hudSettings, "_fieldMemory", fieldVitals);
             Slider fieldHp = CreateHp(card, Find<Slider>(combat, "PlayerHP_Slider"), new Vector2(-25f, -44f), new Vector2(290f, 9f));
             Set(hudSettings, "_fieldHp", fieldHp);
             Set(settings, "_fieldHpBar", fieldHp);
             Set(settings, "_fieldVitals", fieldVitals);
-            Set(hudSettings, "_fieldLocation", Label(Find<Transform>(field, "01_Location"), "Runtime Location", Vector2.zero, new Vector2(300f, 70f), 27f, font, true));
-            Set(hudSettings, "_floorBanner", Label(Find<Transform>(field, "02_Floor_Banner"), "Runtime Floor", Vector2.zero, new Vector2(690f, 90f), 32f, font, true));
-            Label(Find<Transform>(field, "09_Story_Panel"), "Runtime Tutorial", new Vector2(0f, -10f), new Vector2(400f, 150f), 24f, font, true).text
+            Set(hudSettings, "_fieldLocation", Label(Find<Transform>(field, "01_Location"), "Runtime Location", Vector2.zero, new Vector2(300f, 70f), 27f, font));
+            Set(hudSettings, "_floorBanner", Label(Find<Transform>(field, "02_Floor_Banner"), "Runtime Floor", Vector2.zero, new Vector2(690f, 90f), 32f, font));
+            Label(Find<Transform>(field, "09_Story_Panel"), "Runtime Tutorial", new Vector2(0f, -10f), new Vector2(400f, 150f), 24f, font).text
                 = "튜토리얼 데모\n몬스터에 접근해 전투를 시작하세요";
             Transform minimap = Find<Transform>(field, "10_Minimap");
             var map = new GameObject("Runtime Minimap", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
@@ -122,7 +121,7 @@ namespace CK.SemesterProject.Editor
             mapRect.sizeDelta = new Vector2(230f, 230f);
             map.GetComponent<RawImage>().raycastTarget = false;
             Set(hudSettings, "_minimap", map.GetComponent<RawImage>());
-            Label(map.transform, "Player Marker", Vector2.zero, new Vector2(30f, 30f), 22f, font, false).text = "▲";
+            Label(map.transform, "Player Marker", Vector2.zero, new Vector2(30f, 30f), 22f, font).text = "▲";
 
             Set(hudSettings, "_enemyName", Find<TMP_Text>(combat, "EnemyName_TMP"));
             Set(hudSettings, "_enemyCardName", Find<TMP_Text>(combat, "EnemyCardName_TMP"));
@@ -133,7 +132,7 @@ namespace CK.SemesterProject.Editor
             enemyCardName.rectTransform.anchoredPosition = new Vector2(-50f, 80f);
             enemyCardName.fontSize = 27f;
             Transform enemyCard = Find<Transform>(combat, "EnemyCard");
-            Set(hudSettings, "_enemyDetails", Label(enemyCard, "Runtime Enemy Details", Vector2.zero, new Vector2(430f, 235f), 19f, font, true));
+            Set(hudSettings, "_enemyDetails", Label(enemyCard, "Runtime Enemy Details", Vector2.zero, new Vector2(430f, 235f), 19f, font));
             enemyCardName.transform.SetAsLastSibling();
             Find<Slider>(combat, "EnemyCardHP_Slider").transform.SetAsLastSibling();
             Find<Slider>(combat, "EnemyCardHP_Slider").GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -80f);
@@ -143,8 +142,8 @@ namespace CK.SemesterProject.Editor
             Set(hudSettings, "_playerHp", Find<Slider>(combat, "PlayerHP_Slider"));
             Set(hudSettings, "_playerMemory", Find<Slider>(combat, "PlayerSP_Slider"));
             Transform playerStatus = Find<Transform>(combat, "PlayerStatusPanel");
-            Set(hudSettings, "_playerVitals", Label(playerStatus, "Runtime Vitals", new Vector2(0f, -60f), new Vector2(510f, 33f), 20f, font, true));
-            Label(Find<Transform>(combat, "PlayerSP_Label"), "Memory Label", Vector2.zero, new Vector2(48f, 25f), 15f, font, true).text = "MEM";
+            Set(hudSettings, "_playerVitals", Label(playerStatus, "Runtime Vitals", new Vector2(0f, -60f), new Vector2(510f, 33f), 20f, font));
+            Label(Find<Transform>(combat, "PlayerSP_Label"), "Memory Label", Vector2.zero, new Vector2(48f, 25f), 15f, font).text = "MEM";
             Transform counter = Find<Transform>(combat, "MemoryCounter");
             Set(hudSettings, "_memoryCurrent", counter.Find("MemoryCurrentValue").GetComponent<TMP_Text>());
             Set(hudSettings, "_memoryCapacity", counter.Find("MemoryCapacityValue").GetComponent<TMP_Text>());
@@ -153,7 +152,7 @@ namespace CK.SemesterProject.Editor
             counter.Find("MemorySeparator").GetComponent<RectTransform>().anchoredPosition = new Vector2(47f, 0f);
             counter.Find("MemoryCapacityValue").GetComponent<RectTransform>().sizeDelta = new Vector2(56f, 25f);
             counter.Find("MemoryCapacityValue").GetComponent<RectTransform>().anchoredPosition = new Vector2(83f, 0f);
-            Set(hudSettings, "_round", Label(Find<Transform>(combat, "WaveTurnControls"), "Runtime Round", new Vector2(-55f, 2f), new Vector2(285f, 48f), 22f, font, true));
+            Set(hudSettings, "_round", Label(Find<Transform>(combat, "WaveTurnControls"), "Runtime Round", new Vector2(-55f, 2f), new Vector2(285f, 48f), 22f, font));
             Transform skillPanel = Find<Transform>(combat, "SkillPanel");
             Set(hudSettings, "_skillMemory", skillPanel.Find("MemoryCurrentValue").GetComponent<TMP_Text>());
             skillPanel.Find("MemoryCurrentValue").GetComponent<RectTransform>().sizeDelta = new Vector2(65f, 26f);
@@ -208,9 +207,9 @@ namespace CK.SemesterProject.Editor
             investmentButton.targetGraphic = investment.GetComponent<Image>();
             investmentButton.targetGraphic.raycastTarget = true;
             Set(hudSettings, "_investment", investmentButton);
-            Set(hudSettings, "_investmentCost", Label(investment, "Runtime Investment", new Vector2(0f, 60f), new Vector2(280f, 30f), 18f, font, true));
-            TMP_Text slotCover = Label(investment, "Runtime Slot Track", new Vector2(0f, -15f), new Vector2(218f, 51f), 18f, font, true);
-            investment.Find("Runtime Slot Track Backdrop").SetSiblingIndex(0);
+            Set(hudSettings, "_investmentCost", Label(investment, "Runtime Investment", new Vector2(0f, 60f), new Vector2(280f, 30f), 18f, font));
+            TMP_Text slotCover = Label(investment, "Runtime Slot Track", new Vector2(0f, -15f), new Vector2(218f, 51f), 18f, font);
+
             slotCover.text = "";
             GameObject fifth = UnityEngine.Object.Instantiate(investment.Find("MemorySlot_04").gameObject, investment);
             fifth.name = "MemorySlot_05";
@@ -251,7 +250,7 @@ namespace CK.SemesterProject.Editor
                 slot.GetComponent<RectTransform>().anchoredPosition = new Vector2(-854f, 364f - index * 80f);
                 slot.transform.localScale = Vector3.one * 0.72f;
                 slot.transform.Find("Portrait").gameObject.SetActive(false);
-                TMP_Text actor = Label(slot.transform, "Runtime Actor", new Vector2(-7f, 7f), new Vector2(100f, 63f), 19f, font, false);
+                TMP_Text actor = Label(slot.transform, "Runtime Actor", new Vector2(-7f, 7f), new Vector2(100f, 63f), 19f, font);
                 slot.transform.Find("IndexText").gameObject.SetActive(false);
                 SerializedProperty row = slots.GetArrayElementAtIndex(index);
                 row.FindPropertyRelative("_root").objectReferenceValue = slot;
@@ -272,9 +271,231 @@ namespace CK.SemesterProject.Editor
             MoveLegacyOutput(settings, "_continueButton", combat, new Vector2(0f, -400f), new Vector2(270f, 48f));
             hudSettings.ApplyModifiedPropertiesWithoutUndo();
             settings.ApplyModifiedPropertiesWithoutUndo();
+            RefineCurrentScene();
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
             Debug.Log("PROTOTYPE_UI_CONNECT_PASS " + scene.path);
+        }
+
+        // 기존 UI 프레임과 아이콘을 재사용하고 앵커·텍스트 자리만 정리한다.
+        public static void RefineCurrentScene()
+        {
+            var battle = UnityEngine.Object.FindFirstObjectByType<TutorialBattleController>();
+            var settings = new SerializedObject(battle);
+            Transform field = ((GameObject)settings.FindProperty("_fieldUI").objectReferenceValue).transform;
+            Transform combat = ((GameObject)settings.FindProperty("_battleUI").objectReferenceValue).transform;
+            Canvas canvas = field.GetComponentInParent<Canvas>();
+            foreach (Transform child in canvas.GetComponentsInChildren<Transform>(true).Where(item => item.name.EndsWith("Backdrop")).ToArray())
+            {
+                UnityEngine.Object.DestroyImmediate(child.gameObject);
+            }
+            Find<Transform>(field, "background").gameObject.SetActive(false);
+            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+            foreach (string group in new[] { "Default_State", "Battle_State", "Commands", "DefaultUI", "PlayerTurnUI", "EnemyHPbar" })
+            {
+                RectTransform rect = Find<RectTransform>(canvas.transform, group);
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = rect.offsetMax = Vector2.zero;
+            }
+            RectTransform overlay = Find<RectTransform>(field, "02_Decorative_HUD_Overlay");
+            overlay.anchorMin = Vector2.zero;
+            overlay.anchorMax = Vector2.one;
+            overlay.offsetMin = overlay.offsetMax = Vector2.zero;
+            ReplaceSprite(field, "06_Student_Card", "card");
+            ReplaceSprite(field, "02_Floor_Banner", "floor");
+            ReplaceSprite(field, "01_Location", "location");
+            ReplaceSprite(field, "09_Story_Panel", "story");
+            ReplaceSprite(field, "10_Minimap", "map");
+            ReplaceSprite(combat, "WaveTurnControls", "round");
+            ReplaceSprite(combat, "MemoryThrowPanel", "investment");
+            ReplaceSprite(combat, "EnemyCard", "enemycard");
+            Place(field, "01_Location", new Vector2(0, 1), 190, -88);
+            Place(field, "02_Floor_Banner", new Vector2(.5f, 1), 0, -158);
+            Place(field, "06_Student_Card", new Vector2(1, 1), -214, -248);
+            Place(field, "09_Story_Panel", Vector2.zero, 230, 535, 400, 180);
+            Place(field, "10_Minimap", Vector2.zero, 175, 218, 300, 356);
+            Place(field, "Travel First Floor", new Vector2(.5f, 1), -75, -254);
+            Place(field, "Travel Second Floor", new Vector2(.5f, 1), 75, -254);
+            Place(field, "03_Menu_C", new Vector2(1, 1), -285, -80);
+            Place(field, "04_Menu_J", new Vector2(1, 1), -190, -80);
+            Place(field, "05_Menu_ESC", new Vector2(1, 1), -94, -80);
+            Place(field, "07_Tab_Button", new Vector2(0, 1), 76, -220);
+            Place(field, "08_R_Button", new Vector2(0, 1), 76, -340);
+            Place(field, "11_Interact_E", new Vector2(1, 0), -90, 292);
+            Place(field, "12_Sprint_Shift", new Vector2(1, 0), -140, 152);
+            Place(field, "Runtime Character", new Vector2(.5f, .5f), -65, -2, 190, 36);
+            Find<TMP_Text>(field, "Runtime Character").color = new Color(.04f, .09f, .2f);
+            Place(field, "Runtime Field HP", new Vector2(.5f, .5f), -65, -52, 166, 8);
+            Slider hp = Find<Slider>(field, "Runtime Field HP");
+            hp.fillRect.SetParent(hp.transform, false);
+            hp.fillRect.gameObject.SetActive(true);
+            foreach (Transform child in hp.GetComponentsInChildren<Transform>(true).Where(t => t != hp.transform && t != hp.fillRect).ToArray())
+            {
+                if (!hp.fillRect.IsChildOf(child) && !child.IsChildOf(hp.fillRect))
+                {
+                    child.gameObject.SetActive(false);
+                }
+            }
+            hp.fillRect.anchorMin = Vector2.zero;
+            hp.fillRect.anchorMax = Vector2.one;
+            hp.fillRect.offsetMin = hp.fillRect.offsetMax = Vector2.zero;
+            foreach (Image fill in hp.fillRect.GetComponentsInChildren<Image>(true))
+            {
+                fill.gameObject.SetActive(true);
+                fill.rectTransform.anchorMin = Vector2.zero;
+                fill.rectTransform.anchorMax = Vector2.one;
+                fill.rectTransform.offsetMin = fill.rectTransform.offsetMax = Vector2.zero;
+            }
+            Place(field, "Runtime Field Vitals", new Vector2(.5f, .5f), -8, -104, 354, 28);
+            Place(field, "Runtime Location", new Vector2(.5f, .5f), 25, 0, 230, 58);
+            Place(field, "Runtime Floor", new Vector2(.5f, .5f), -260, 0, 120, 64);
+            Find<TMP_Text>(field, "Runtime Floor").fontSize = 40;
+            if (Find<Transform>(field, "02_Floor_Banner").Find("Banner Area") == null)
+            {
+                Label(Find<Transform>(field, "02_Floor_Banner"), "Banner Area", new Vector2(72, 0), new Vector2(254, 58), 27,
+                    Find<TMP_Text>(field, "Runtime Floor").font).text = "튜토리얼 구역";
+            }
+            Place(field, "Runtime Tutorial", new Vector2(.5f, .5f), 12, -4, 342, 64);
+            Find<TMP_Text>(field, "Runtime Tutorial").fontSize = 21;
+            Place(field, "Runtime Minimap", new Vector2(.5f, .5f), 0, 17, 265, 265);
+            RawImage map = Find<RawImage>(field, "Runtime Minimap");
+            const string materialPath = "Assets/CK_Semester_Project/Prototype/Data/TutorialMinimap.mat";
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+            if (material == null)
+            {
+                material = new Material(Shader.Find("UI/TutorialCircularMinimap"));
+                AssetDatabase.CreateAsset(material, materialPath);
+            }
+            map.material = material;
+            Place(combat, "CombatHeader", new Vector2(0, 1), 255, -52);
+            Place(combat, "EnemyNameBanner", new Vector2(.5f, 1), 0, -76);
+            Place(combat, "WaveTurnControls", new Vector2(1, 1), -226, -58);
+            Place(combat, "Runtime Round", new Vector2(.5f, .5f), -63, 10, 266, 30);
+            Find<TMP_Text>(combat, "Runtime Round").fontSize = 19;
+            Place(combat, "EnemyHP_Track", new Vector2(.5f, 1), 0, -153);
+            Place(combat, "EnemyHP_Slider", new Vector2(.5f, 1), 0, -153);
+            Place(combat, "EnemyStatusIcon", new Vector2(.5f, 1), -150, -153);
+            Place(combat, "PlayerStatusPanel", Vector2.zero, 568, 135);
+            Place(combat, "MemoryCounter", new Vector2(.5f, .5f), 135, 52, 250, 44);
+            Transform counter = Find<Transform>(combat, "MemoryCounter");
+            Place(counter, "MemoryCurrentValue", new Vector2(.5f, .5f), 40, 0, 40, 25);
+            Place(counter, "MemorySeparator", new Vector2(.5f, .5f), 69, 0, 12, 25);
+            Place(counter, "MemoryCapacityValue", new Vector2(.5f, .5f), 99, 0, 44, 25);
+            foreach (TMP_Text value in counter.GetComponentsInChildren<TMP_Text>(true))
+            {
+                value.fontSize = 17;
+            }
+            Place(combat, "Runtime Vitals", new Vector2(.5f, .5f), 0, -64, 530, 30);
+            for (int index = 0; index < 4; index++)
+            {
+                string name = "TurnOrderSlot0" + (index + 1);
+                TMP_Text[] actors = Find<Transform>(combat, name).GetComponentsInChildren<TMP_Text>(true)
+                    .Where(text => text.name == "Runtime Actor").ToArray();
+                foreach (TMP_Text duplicate in actors.Take(actors.Length - 1))
+                {
+                    UnityEngine.Object.DestroyImmediate(duplicate.gameObject);
+                }
+                Place(combat, name, new Vector2(0, 1), 94, -140 - index * 78);
+                Find<Transform>(combat, name).localScale = Vector3.one * .65f;
+                Transform portrait = Find<Transform>(combat, name).Find("Portrait");
+                portrait.gameObject.SetActive(true);
+                if (index == 0)
+                {
+                    portrait.GetComponent<Image>().sprite = Find<Image>(combat, "PlayerPortrait").sprite;
+                }
+                Place(Find<Transform>(combat, name), "Runtime Actor", new Vector2(.5f, .5f), 104, 2, 125, 60);
+                Find<TMP_Text>(Find<Transform>(combat, name), "Runtime Actor").fontSize = 20;
+            }
+            Place(combat, "EnemyCard", new Vector2(1, 1), -268, -285);
+            Place(combat, "Runtime Enemy Details", new Vector2(.5f, .5f), -101, -13, 252, 146);
+            Find<TMP_Text>(combat, "Runtime Enemy Details").alignment = TextAlignmentOptions.MidlineLeft;
+            Find<TMP_Text>(combat, "Runtime Enemy Details").fontSize = 17;
+            Place(combat, "EnemyCardName_TMP", new Vector2(.5f, .5f), -96, 84, 270, 36);
+            Place(combat, "EnemyCardHP_Slider", new Vector2(.5f, .5f), 0, -109, 388, 12);
+            Place(combat, "EnemyCardHP_Track", new Vector2(.5f, .5f), 0, -109, 400, 18);
+            Place(combat, "SkillPanel", Vector2.zero, 254, 475);
+            Place(Find<Transform>(combat, "SkillPanel"), "MemoryCurrentValue", new Vector2(.5f, .5f), 155, 143, 38, 26);
+            Find<TMP_Text>(Find<Transform>(combat, "SkillPanel"), "MemoryCurrentValue").fontSize = 17;
+            Place(combat, "SkillDescriptionPanel", Vector2.zero, 676, 464);
+            Find<TMP_Text>(combat, "PowerLabelText").text = "위력";
+            Find<TMP_Text>(combat, "DetailKeyText").text = "ENT";
+            Find<TMP_Text>(combat, "DetailKeyText").fontSize = 8;
+            Find<TMP_Text>(combat, "DetailKeyText").color = new Color(.03f, .1f, .25f);
+            Find<TMP_Text>(combat, "DetailPromptText").text = "Enter로 사용";
+            Place(combat, "MemoryThrowPanel", Vector2.zero, 656, 686, 300, 116);
+            Place(combat, "Runtime Investment", new Vector2(.5f, .5f), -8, 25, 230, 26);
+            Find<TMP_Text>(combat, "Runtime Investment").fontSize = 17;
+            for (int index = 0; index < 5; index++)
+            {
+                Place(Find<Transform>(combat, "MemoryThrowPanel"), "MemorySlot_0" + (index + 1), new Vector2(.5f, .5f), -104 + index * 52, -18);
+            }
+            Place(combat, "Use Selected Skill", Vector2.zero, 603, 286, 198, 36);
+            Place(combat, "HUD Defend", Vector2.zero, 780, 286, 140, 36);
+            foreach (string name in new[] { "Use Selected Skill", "HUD Defend", "Travel First Floor", "Travel Second Floor", "HUD Target 1", "HUD Target 2", "HUD Target 3", "Return To Exploration" })
+            {
+                Transform root = name.StartsWith("Travel") ? field : combat;
+                Image image = Find<Image>(root, name);
+                image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SpriteFolder + "Turn_SkillButton_Default.png");
+                image.color = Color.white;
+                foreach (TMP_Text text in image.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    text.fontSize = 19;
+                    text.enableAutoSizing = true;
+                    text.fontSizeMin = 15;
+                    text.fontSizeMax = 19;
+                }
+            }
+            foreach (Transform child in Find<Transform>(combat, "SkillPanel").GetComponentsInChildren<Transform>(true).Where(t => t.name == "SPCost"))
+            {
+                RectTransform rect = (RectTransform)child;
+                rect.anchoredPosition = new Vector2(130, -1);
+                rect.sizeDelta = new Vector2(94, 32);
+                child.GetComponent<TMP_Text>().fontSize = 18;
+            }
+            Find<Image>(combat, "PlayerSP_Label").enabled = false;
+            Find<Transform>(combat, "Runtime Slot Track").gameObject.SetActive(false);
+            Find<RectTransform>(combat, "Encounter Notice").anchorMin = Find<RectTransform>(combat, "Encounter Notice").anchorMax = new Vector2(.5f, 0);
+            Find<RectTransform>(combat, "Encounter Notice").anchoredPosition = new Vector2(0, 28);
+            foreach (Graphic graphic in canvas.GetComponentsInChildren<Graphic>(true))
+            {
+                graphic.raycastTarget = false;
+            }
+            foreach (TMP_Text text in canvas.GetComponentsInChildren<TMP_Text>(true))
+            {
+                text.fontStyle = FontStyles.Bold;
+            }
+            foreach (Button button in canvas.GetComponentsInChildren<Button>(true).Where(b => b.interactable && b.targetGraphic != null))
+            {
+                button.targetGraphic.raycastTarget = true;
+                button.navigation = new Navigation { mode = Navigation.Mode.None };
+            }
+            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+        }
+
+        private static void ReplaceSprite(Transform parent, string name, string asset)
+        {
+            Image image = Find<Image>(parent, name);
+            image.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/CK_Semester_Project/Prototype/Temp/Graphics/UI/10-01/Refined/ui_" + asset + "_blank.png");
+            if (image.sprite == null)
+            {
+                throw new InvalidOperationException("UI 편집 에셋 누락: " + asset);
+            }
+        }
+
+        private static void Place(Transform parent, string name, Vector2 anchor, float x, float y, float width = 0, float height = 0)
+        {
+            RectTransform rect = Find<RectTransform>(parent, name);
+            rect.anchorMin = rect.anchorMax = anchor;
+            rect.pivot = new Vector2(.5f, .5f);
+            rect.anchoredPosition = new Vector2(x, y);
+            if (width > 0)
+            {
+                rect.sizeDelta = new Vector2(width, height);
+            }
         }
 
         private static void MoveLegacyOutput(SerializedObject settings, string field, Transform parent, Vector2 position, Vector2 size)
@@ -311,21 +532,13 @@ namespace CK.SemesterProject.Editor
             image.color = new Color(0.04f, 0.15f, 0.23f, 0.95f);
             Button button = item.GetComponent<Button>();
             button.targetGraphic = image;
-            Label(item.transform, "Label", Vector2.zero, size, 22f, font, false).text = text;
+            Label(item.transform, "Label", Vector2.zero, size, 22f, font).text = text;
             return button;
         }
 
-        private static TMP_Text Label(Transform parent, string name, Vector2 position, Vector2 size, float fontSize, TMP_FontAsset font, bool cover)
+        private static TMP_Text Label(Transform parent, string name, Vector2 position, Vector2 size, float fontSize, TMP_FontAsset font)
         {
-            if (cover)
-            {
-                var background = new GameObject(name + " Backdrop", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-                background.transform.SetParent(parent, false);
-                background.GetComponent<RectTransform>().anchoredPosition = position;
-                background.GetComponent<RectTransform>().sizeDelta = size;
-                background.GetComponent<Image>().color = PanelColor;
-                background.GetComponent<Image>().raycastTarget = false;
-            }
+
             var item = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
             item.transform.SetParent(parent, false);
             TMP_Text label = item.GetComponent<TMP_Text>();
