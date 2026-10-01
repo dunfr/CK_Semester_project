@@ -58,8 +58,8 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private TMP_Text[] _skillNames;
         [SerializeField] private TMP_Text[] _skillCosts;
         [SerializeField] private Image[] _skillImages;
-
-
+        [SerializeField] private Sprite _normalSkill;
+        [SerializeField] private Sprite _selectedSkillSprite;
         [SerializeField] private Transform _player;
         [SerializeField] private GameObject _fieldRoot;
         [SerializeField] private RawImage _minimap;
@@ -84,7 +84,6 @@ namespace CK.SemesterProject.Tutorial
         private string _previousTarget;
         private Camera _mapCamera;
         private RenderTexture _mapTexture;
-        private float _nextMapFrame;
 
         public int SelectedSkill => _selectedSkill;
 
@@ -117,10 +116,6 @@ namespace CK.SemesterProject.Tutorial
             _mapTexture = new RenderTexture(256, 256, 16);
             var mapCamera = new GameObject("Field Minimap Camera", typeof(Camera));
             _mapCamera = mapCamera.GetComponent<Camera>();
-            _mapCamera.enabled = false;
-            _mapCamera.allowHDR = false;
-            _mapCamera.allowMSAA = false;
-            _mapCamera.useOcclusionCulling = false;
             _mapCamera.orthographic = true;
             _mapCamera.orthographicSize = 9f;
             _mapCamera.nearClipPlane = 0.1f;
@@ -155,14 +150,8 @@ namespace CK.SemesterProject.Tutorial
 
         private void LateUpdate()
         {
-            // 필드에서만 10Hz로 렌더링하고 마지막 텍스처를 재사용한다.
-            bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
-            _mapCamera.enabled = renderMap;
-            if (renderMap)
-            {
-                _mapCamera.transform.position = _player.position + Vector3.up * 15f;
-                _nextMapFrame = Time.unscaledTime + 0.1f;
-            }
+            _mapCamera.enabled = _fieldRoot.activeInHierarchy;
+            _mapCamera.transform.position = _player.position + Vector3.up * 15f;
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
             if (floor != _previousFloor || _fieldName.text.Length == 0)
             {
@@ -293,8 +282,7 @@ namespace CK.SemesterProject.Tutorial
                 int cost = skill.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage);
                 _skillCosts[index].text = "MEM " + cost;
                 _skills[index].interactable = _couldChoose;
-                _skillImages[index].color = index == _selectedSkill
-                    ? new Color(0.08f, 0.4f, 0.55f) : new Color(0.07f, 0.17f, 0.26f);
+                _skillImages[index].sprite = index == _selectedSkill ? _selectedSkillSprite : _normalSkill;
                 _skillCosts[index].color = cost > player.Memory ? new Color(1f, 0.4f, 0.4f) : Color.cyan;
             }
             SkillData selected = _battle.Skills[_selectedSkill];

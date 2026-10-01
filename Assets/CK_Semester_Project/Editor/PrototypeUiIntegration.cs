@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using CK.SemesterProject.Tutorial;
 using TMPro;
@@ -11,11 +12,10 @@ namespace CK.SemesterProject.Editor
 {
     public static class PrototypeUiIntegration
     {
-        private static readonly Color PanelColor = new Color(0.025f, 0.06f, 0.105f, 0.94f);
-        private static readonly Color AccentColor = new Color(0.2f, 0.85f, 1f);
-        private static TMP_FontAsset _font;
+        private const string UiScene = "Assets/CK_Semester_Project/Prototype/Scenes/TutorialDemo.unity";
+        private const string SpriteFolder = "Assets/CK_Semester_Project/Prototype/Temp/Graphics/UI/10-01/Battle_State/";
+        private static readonly Color PanelColor = new Color(0.003f, 0.007f, 0.016f, 1f);
 
-        [MenuItem("CK/Tutorial/Connect Prototype UI")]
         public static void ApplyCurrentScene()
         {
             Scene scene = SceneManager.GetActiveScene();
@@ -23,304 +23,331 @@ namespace CK.SemesterProject.Editor
                 .SelectMany(root => root.GetComponentsInChildren<TutorialBattleController>(true)).Single();
             var settings = new SerializedObject(battle);
             PlayerMovement player = (PlayerMovement)settings.FindProperty("_movement").objectReferenceValue;
-            GameObject oldCanvas = (GameObject)settings.FindProperty("_fieldUI").objectReferenceValue;
-            while (oldCanvas.GetComponent<Canvas>() == null)
+            GameObject canvas;
+            if (scene.path == UiScene)
             {
-                oldCanvas = oldCanvas.transform.parent.gameObject;
+                canvas = scene.GetRootGameObjects().Single(root => root.name == "Canvas");
             }
-            Transform canvasParent = oldCanvas.transform.parent;
-            _font = ((TMP_Text)settings.FindProperty("_notice").objectReferenceValue).font;
-            foreach (string output in new[] { "_notice", "_continueButton" })
+            else
             {
-                ((Component)settings.FindProperty(output).objectReferenceValue).transform.SetParent(battle.transform, false);
+                GameObject oldCanvas = ((GameObject)settings.FindProperty("_fieldUI").objectReferenceValue);
+                while (oldCanvas.GetComponent<Canvas>() == null)
+                {
+                    oldCanvas = oldCanvas.transform.parent.gameObject;
+                }
+                Transform parent = oldCanvas.transform.parent;
+                foreach (string output in new[] { "_notice", "_continueButton" })
+                {
+                    Component item = (Component)settings.FindProperty(output).objectReferenceValue;
+                    item.transform.SetParent(battle.transform, false);
+                }
+                Scene source = EditorSceneManager.OpenScene(UiScene, OpenSceneMode.Additive);
+                canvas = UnityEngine.Object.Instantiate(source.GetRootGameObjects().Single(root => root.name == "Canvas"));
+                canvas.name = "Canvas";
+                canvas.transform.SetParent(null);
+                SceneManager.MoveGameObjectToScene(canvas, scene);
+                EditorSceneManager.CloseScene(source, true);
+                SceneManager.SetActiveScene(scene);
+                canvas.transform.SetParent(parent, false);
+                UnityEngine.Object.DestroyImmediate(oldCanvas);
             }
-            // 코어가 참조하는 호환용 컨트롤은 별도 Canvas에 남긴다.
-            Transform legacy = ((Button)settings.FindProperty("_skillButtons").GetArrayElementAtIndex(0).objectReferenceValue).transform.parent;
-            if (legacy.IsChildOf(oldCanvas.transform))
+            Transform field = canvas.transform.Find("Default_State");
+            Transform combat = canvas.transform.Find("Battle_State");
+            field.gameObject.SetActive(true);
+            combat.gameObject.SetActive(false);
+            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+            scaler.matchWidthOrHeight = 0.5f;
+            TMP_FontAsset font = Find<TMP_Text>(combat, "EnemyName_TMP").font;
+            // 장식 그림이 투명한 영역에서도 클릭을 가로채지 않도록 입력은 버튼으로 제한한다.
+            foreach (Graphic graphic in canvas.GetComponentsInChildren<Graphic>(true))
             {
-                legacy.SetParent(battle.transform, false);
+                graphic.raycastTarget = false;
             }
-            legacy.gameObject.SetActive(false);
-            UnityEngine.Object.DestroyImmediate(oldCanvas);
+            foreach (Button button in canvas.GetComponentsInChildren<Button>(true))
+            {
+                if (button.targetGraphic != null)
+                {
+                    button.targetGraphic.raycastTarget = true;
+                }
+            }
+            foreach (Button button in field.GetComponentsInChildren<Button>(true))
+            {
+                // 원본에서 아직 동작이 연결되지 않은 메뉴/달리기 등은 조작 가능한 것처럼 표시하지 않는다.
+                button.interactable = false;
+                button.targetGraphic.raycastTarget = false;
+            }
+
             PrototypeHudPresenter previous = battle.GetComponent<PrototypeHudPresenter>();
             if (previous != null)
             {
                 UnityEngine.Object.DestroyImmediate(previous);
             }
-
-            var canvas = new GameObject("Canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            canvas.transform.SetParent(canvasParent, false);
-            canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
-            Transform field = Stretch(canvas.transform, "Default_State");
-            Transform combat = Stretch(canvas.transform, "Battle_State");
-            Transform turn = Stretch(combat, "PlayerTurnUI");
-            var hud = battle.gameObject.AddComponent<PrototypeHudPresenter>();
-            var bindings = new SerializedObject(hud);
-            Set(bindings, "_battle", battle);
-            Set(bindings, "_player", player.transform);
-            Set(bindings, "_fieldRoot", field.gameObject);
-            Set(bindings, "_playerTurn", turn.gameObject);
-            FloorTravelButtons travel = player.GetComponent<FloorTravelButtons>();
-            Set(bindings, "_floorTravel", travel);
-            if (travel != null)
+            PrototypeHudPresenter hud = battle.gameObject.AddComponent<PrototypeHudPresenter>();
+            var hudSettings = new SerializedObject(hud);
+            Set(hudSettings, "_battle", battle);
+            Set(hudSettings, "_floorTravel", player.GetComponent<FloorTravelButtons>());
+            Set(hudSettings, "_player", player.transform);
+            Set(hudSettings, "_fieldRoot", field.gameObject);
+            Set(hudSettings, "_playerTurn", Find<Transform>(combat, "PlayerTurnUI").gameObject);
+            FloorTravelButtons floorTravel = player.GetComponent<FloorTravelButtons>();
+            if (floorTravel != null)
             {
-                var travelSettings = new SerializedObject(travel);
-                travelSettings.FindProperty("_showButtons").boolValue = false;
-                travelSettings.ApplyModifiedPropertiesWithoutUndo();
+                var floorSettings = new SerializedObject(floorTravel);
+                floorSettings.FindProperty("_showButtons").boolValue = false;
+                floorSettings.ApplyModifiedPropertiesWithoutUndo();
             }
+            Set(hudSettings, "_floorOne", ActionButton(field, "Travel First Floor", "1층", new Vector2(-75f, 260f), new Vector2(130f, 38f), font));
+            Set(hudSettings, "_floorTwo", ActionButton(field, "Travel Second Floor", "2층", new Vector2(75f, 260f), new Vector2(130f, 38f), font));
 
-            Transform location = Panel(field, "Field Location", new Vector2(0, 1), new Vector2(28, -28), new Vector2(390, 146));
-            Text(location, "Location Header", "EXPLORATION / TUTORIAL", 20, -22, 350, 22, 18, AccentColor);
-            BindText(bindings, "_fieldLocation", location, "Runtime Location", 20, -54, 350, 36, 30);
-            BindText(bindings, "_floorBanner", location, "Runtime Floor", 20, -101, 350, 26, 18);
-            Transform card = Panel(field, "Field Player", new Vector2(1, 1), new Vector2(-28, -28), new Vector2(380, 146));
-            BindText(bindings, "_fieldName", card, "Runtime Character", 20, -20, 340, 38, 28);
-            Slider fieldHp = Bar(card, "Runtime Field HP", 20, -72, 340, 10, AccentColor);
-            Set(bindings, "_fieldHp", fieldHp);
-            TMP_Text fieldVitals = BindText(bindings, "_fieldMemory", card, "Runtime Field Vitals", 20, -96, 340, 28, 19);
+            Transform card = Find<Transform>(field, "06_Student_Card");
+            Set(hudSettings, "_fieldName", Label(card, "Runtime Character", new Vector2(-65f, 0f), new Vector2(215f, 62f), 26f, font, true));
+            TMP_Text fieldVitals = Label(card, "Runtime Field Vitals", new Vector2(0f, -66f), new Vector2(350f, 34f), 18f, font, true);
+            Set(hudSettings, "_fieldMemory", fieldVitals);
+            Slider fieldHp = CreateHp(card, Find<Slider>(combat, "PlayerHP_Slider"), new Vector2(-25f, -44f), new Vector2(290f, 9f));
+            Set(hudSettings, "_fieldHp", fieldHp);
             Set(settings, "_fieldHpBar", fieldHp);
             Set(settings, "_fieldVitals", fieldVitals);
-            Transform guide = Panel(field, "Field Guide", new Vector2(0, 0), new Vector2(28, 296), new Vector2(390, 118));
-            Text(guide, "Guide Header", "튜토리얼 데모", 20, -18, 350, 30, 23, AccentColor);
-            Text(guide, "Guide Text", "몬스터에 접근해 전투를 시작하세요", 20, -61, 350, 36, 20);
-            Transform mapPanel = Panel(field, "Field Map", new Vector2(0, 0), new Vector2(28, 28), new Vector2(248, 248));
-            RectTransform mapRect = Rect(mapPanel, "Runtime Minimap", 10, -10, 228, 228);
-            RawImage map = mapRect.gameObject.AddComponent<RawImage>();
-            map.raycastTarget = false;
-            Set(bindings, "_minimap", map);
-            TMP_Text marker = Text(mapRect, "Player Marker", "▲", 99, -99, 30, 30, 24, AccentColor);
-            marker.alignment = TextAlignmentOptions.Center;
-            Transform floorButtons = Panel(field, "Floor Travel", new Vector2(1, 0), new Vector2(-28, 28), new Vector2(290, 94));
-            Text(floorButtons, "Travel Header", "층 이동", 16, -12, 258, 22, 18, AccentColor);
-            Set(bindings, "_floorOne", ActionButton(floorButtons, "Travel First Floor", "1층", 16, -43, 122, 36));
-            Set(bindings, "_floorTwo", ActionButton(floorButtons, "Travel Second Floor", "2층", 152, -43, 122, 36));
+            Set(hudSettings, "_fieldLocation", Label(Find<Transform>(field, "01_Location"), "Runtime Location", Vector2.zero, new Vector2(300f, 70f), 27f, font, true));
+            Set(hudSettings, "_floorBanner", Label(Find<Transform>(field, "02_Floor_Banner"), "Runtime Floor", Vector2.zero, new Vector2(690f, 90f), 32f, font, true));
+            Label(Find<Transform>(field, "09_Story_Panel"), "Runtime Tutorial", new Vector2(0f, -10f), new Vector2(400f, 150f), 24f, font, true).text
+                = "튜토리얼 데모\n몬스터에 접근해 전투를 시작하세요";
+            Transform minimap = Find<Transform>(field, "10_Minimap");
+            var map = new GameObject("Runtime Minimap", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+            map.transform.SetParent(minimap, false);
+            RectTransform mapRect = map.GetComponent<RectTransform>();
+            mapRect.anchoredPosition = new Vector2(0f, -10f);
+            mapRect.sizeDelta = new Vector2(230f, 230f);
+            map.GetComponent<RawImage>().raycastTarget = false;
+            Set(hudSettings, "_minimap", map.GetComponent<RawImage>());
+            Label(map.transform, "Player Marker", Vector2.zero, new Vector2(30f, 30f), 22f, font, false).text = "▲";
 
-            Transform enemyHeader = Panel(combat, "Enemy Header", new Vector2(.5f, 1), new Vector2(0, -28), new Vector2(480, 116));
-            BindText(bindings, "_enemyName", enemyHeader, "EnemyName_TMP", 20, -18, 440, 42, 30);
-            Set(bindings, "_enemyHp", Bar(enemyHeader, "EnemyHP_Slider", 20, -80, 440, 12, new Color(1, .25f, .35f)));
-            Transform rounds = Panel(combat, "Battle Round", new Vector2(1, 1), new Vector2(-28, -28), new Vector2(360, 68));
-            BindText(bindings, "_round", rounds, "Runtime Round", 18, -18, 324, 32, 23);
-            Transform enemyCard = Panel(combat, "EnemyCard", new Vector2(1, 1), new Vector2(-28, -120), new Vector2(400, 285));
-            BindText(bindings, "_enemyCardName", enemyCard, "EnemyCardName_TMP", 20, -18, 360, 34, 25);
-            BindText(bindings, "_enemyDetails", enemyCard, "Runtime Enemy Details", 20, -66, 360, 128, 20);
-            Set(bindings, "_enemyCardHp", Bar(enemyCard, "EnemyCardHP_Slider", 20, -208, 360, 8, new Color(1, .25f, .35f)));
-            var targets = new Button[3];
-            var targetNames = new TMP_Text[3];
-            for (int index = 0; index < 3; index++)
-            {
-                targets[index] = ActionButton(enemyCard, "HUD Target " + (index + 1), "", 20 + index * 122, -232, 116, 36);
-                targetNames[index] = targets[index].GetComponentInChildren<TMP_Text>();
-                targetNames[index].fontSize = 16;
-            }
-            SetArray(bindings, "_targets", targets);
-            SetArray(bindings, "_targetNames", targetNames);
-            Transform order = Panel(combat, "Turn Order", new Vector2(0, 1), new Vector2(28, -28), new Vector2(260, 326));
-            Text(order, "Order Header", "행동 순서", 18, -16, 224, 30, 21, AccentColor);
-            SerializedProperty slots = bindings.FindProperty("_turnSlots");
-            slots.arraySize = 4;
-            for (int index = 0; index < 4; index++)
-            {
-                RectTransform slot = Rect(order, "TurnOrderSlot0" + (index + 1), 14, -58 - index * 64, 232, 56);
-                Image highlight = slot.gameObject.AddComponent<Image>();
-                highlight.color = new Color(.08f, .3f, .42f, .9f);
-                highlight.raycastTarget = false;
-                TMP_Text actor = Text(slot, "Runtime Actor", "", 10, -7, 212, 30, 19);
-                Slider hp = Bar(slot, "Actor HP", 10, -44, 212, 5, AccentColor);
-                SerializedProperty row = slots.GetArrayElementAtIndex(index);
-                row.FindPropertyRelative("_root").objectReferenceValue = slot.gameObject;
-                RectTransform glow = Rect(slot, "Highlight", 0, 0, 3, 56);
-                Image glowImage = glow.gameObject.AddComponent<Image>();
-                glowImage.color = AccentColor;
-                glowImage.raycastTarget = false;
-                row.FindPropertyRelative("_highlight").objectReferenceValue = glow.gameObject;
-                row.FindPropertyRelative("_hp").objectReferenceValue = hp;
-                row.FindPropertyRelative("_name").objectReferenceValue = actor;
-            }
-            Transform vitals = Panel(combat, "Player Status", new Vector2(0, 0), new Vector2(28, 72), new Vector2(770, 108));
-            Text(vitals, "HP Label", "HP", 20, -18, 42, 22, 18, AccentColor);
-            Set(bindings, "_playerHp", Bar(vitals, "PlayerHP_Slider", 70, -20, 400, 12, AccentColor));
-            Text(vitals, "Memory Label", "MEM", 20, -44, 44, 22, 16, new Color(.75f, .5f, 1));
-            Set(bindings, "_playerMemory", Bar(vitals, "PlayerSP_Slider", 70, -46, 400, 10, new Color(.75f, .5f, 1)));
-            BindText(bindings, "_playerVitals", vitals, "Runtime Vitals", 20, -76, 730, 24, 18);
-            Text(vitals, "Memory Counter Header", "메모리", 500, -18, 100, 24, 18);
-            BindText(bindings, "_memoryCurrent", vitals, "MemoryCurrentValue", 604, -18, 60, 24, 20);
-            Text(vitals, "Memory Separator", "/", 666, -18, 20, 24, 20);
-            BindText(bindings, "_memoryCapacity", vitals, "MemoryCapacityValue", 690, -18, 60, 24, 20);
+            Set(hudSettings, "_enemyName", Find<TMP_Text>(combat, "EnemyName_TMP"));
+            Set(hudSettings, "_enemyCardName", Find<TMP_Text>(combat, "EnemyCardName_TMP"));
+            Find<TMP_Text>(combat, "EnemyName_TMP").rectTransform.sizeDelta = new Vector2(450f, 45f);
+            Find<TMP_Text>(combat, "EnemyName_TMP").fontSize = 28f;
+            TMP_Text enemyCardName = Find<TMP_Text>(combat, "EnemyCardName_TMP");
+            enemyCardName.rectTransform.sizeDelta = new Vector2(285f, 40f);
+            enemyCardName.rectTransform.anchoredPosition = new Vector2(-50f, 80f);
+            enemyCardName.fontSize = 27f;
+            Transform enemyCard = Find<Transform>(combat, "EnemyCard");
+            Set(hudSettings, "_enemyDetails", Label(enemyCard, "Runtime Enemy Details", Vector2.zero, new Vector2(430f, 235f), 19f, font, true));
+            enemyCardName.transform.SetAsLastSibling();
+            Find<Slider>(combat, "EnemyCardHP_Slider").transform.SetAsLastSibling();
+            Find<Slider>(combat, "EnemyCardHP_Slider").GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -80f);
+            Set(hudSettings, "_enemyHp", Find<Slider>(combat, "EnemyHP_Slider"));
+            Set(hudSettings, "_enemyCardHp", Find<Slider>(combat, "EnemyCardHP_Slider"));
+            Find<Transform>(combat, "EnemyHPbar").gameObject.SetActive(true);
+            Set(hudSettings, "_playerHp", Find<Slider>(combat, "PlayerHP_Slider"));
+            Set(hudSettings, "_playerMemory", Find<Slider>(combat, "PlayerSP_Slider"));
+            Transform playerStatus = Find<Transform>(combat, "PlayerStatusPanel");
+            Set(hudSettings, "_playerVitals", Label(playerStatus, "Runtime Vitals", new Vector2(0f, -60f), new Vector2(510f, 33f), 20f, font, true));
+            Label(Find<Transform>(combat, "PlayerSP_Label"), "Memory Label", Vector2.zero, new Vector2(48f, 25f), 15f, font, true).text = "MEM";
+            Transform counter = Find<Transform>(combat, "MemoryCounter");
+            Set(hudSettings, "_memoryCurrent", counter.Find("MemoryCurrentValue").GetComponent<TMP_Text>());
+            Set(hudSettings, "_memoryCapacity", counter.Find("MemoryCapacityValue").GetComponent<TMP_Text>());
+            counter.Find("MemoryCurrentValue").GetComponent<RectTransform>().sizeDelta = new Vector2(56f, 25f);
+            counter.Find("MemoryCurrentValue").GetComponent<RectTransform>().anchoredPosition = new Vector2(14f, 0f);
+            counter.Find("MemorySeparator").GetComponent<RectTransform>().anchoredPosition = new Vector2(47f, 0f);
+            counter.Find("MemoryCapacityValue").GetComponent<RectTransform>().sizeDelta = new Vector2(56f, 25f);
+            counter.Find("MemoryCapacityValue").GetComponent<RectTransform>().anchoredPosition = new Vector2(83f, 0f);
+            Set(hudSettings, "_round", Label(Find<Transform>(combat, "WaveTurnControls"), "Runtime Round", new Vector2(-55f, 2f), new Vector2(285f, 48f), 22f, font, true));
+            Transform skillPanel = Find<Transform>(combat, "SkillPanel");
+            Set(hudSettings, "_skillMemory", skillPanel.Find("MemoryCurrentValue").GetComponent<TMP_Text>());
+            skillPanel.Find("MemoryCurrentValue").GetComponent<RectTransform>().sizeDelta = new Vector2(65f, 26f);
+            skillPanel.Find("MemoryCurrentValue").GetComponent<RectTransform>().anchoredPosition = new Vector2(132f, 143f);
+            skillPanel.Find("MemoryCurrentValue").GetComponent<TMP_Text>().fontSize = 19f;
 
-            Transform skillsPanel = Panel(turn, "SkillPanel", new Vector2(0, 0), new Vector2(28, 204), new Vector2(340, 294));
-            Text(skillsPanel, "Skill Header", "스킬", 18, -16, 150, 30, 23, AccentColor);
-            Text(skillsPanel, "Skill Memory Header", "MEM", 210, -20, 55, 24, 17);
-            BindText(bindings, "_skillMemory", skillsPanel, "SkillMemory", 270, -20, 52, 24, 19);
+            string[] skillNames = { "SkillButton_NormalAttack", "SkillButton_QuickSlash", "SkillButton_PinkTrail" };
             var skills = new Button[3];
-            var skillNames = new TMP_Text[3];
+            var names = new TMP_Text[3];
             var costs = new TMP_Text[3];
             var images = new Image[3];
-            string[] names = { "SkillButton_NormalAttack", "SkillButton_QuickSlash", "SkillButton_PinkTrail" };
-            for (int index = 0; index < 3; index++)
+            for (int index = 0; index < skills.Length; index++)
             {
-                skills[index] = ActionButton(skillsPanel, names[index], "", 16, -66 - index * 70, 308, 58);
-                UnityEngine.Object.DestroyImmediate(skills[index].GetComponentInChildren<TMP_Text>().gameObject);
-                skillNames[index] = Text(skills[index].transform, "Title", "", 14, -15, 184, 30, 22);
-                costs[index] = Text(skills[index].transform, "SPCost", "", 202, -17, 96, 26, 18, AccentColor);
-                images[index] = skills[index].GetComponent<Image>();
+                Transform item = Find<Transform>(combat, skillNames[index]);
+                skills[index] = item.GetComponent<Button>();
+                names[index] = item.Find("Title").GetComponent<TMP_Text>();
+                names[index].fontSize = 21f;
+                costs[index] = item.Find("SPCost").GetComponent<TMP_Text>();
+                costs[index].fontSize = 18f;
+                costs[index].rectTransform.sizeDelta = new Vector2(84f, 34f);
+                images[index] = item.GetComponent<Image>();
+                item.Find("Level").GetComponent<TMP_Text>().text = "";
             }
-            SetArray(bindings, "_skills", skills);
-            SetArray(bindings, "_skillNames", skillNames);
-            SetArray(bindings, "_skillCosts", costs);
-            SetArray(bindings, "_skillImages", images);
-            Transform detail = Panel(turn, "Skill Details", new Vector2(0, 0), new Vector2(388, 204), new Vector2(410, 398));
-            BindText(bindings, "_skillName", detail, "SkillNameText", 20, -18, 370, 36, 27);
-            BindText(bindings, "_skillType", detail, "SkillTypeText", 20, -60, 370, 26, 18);
-            BindText(bindings, "_skillDescription", detail, "DescriptionText", 20, -104, 370, 86, 21);
-            string[] properties = { "_skillPower", "_skillAccuracy", "_skillElement", "_skillTarget" };
-            string[] labels = { "기본 위력", "명중", "속성", "대상" };
-            string[] valueNames = { "PowerValueText", "AccuracyValueText", "AttributeValueText", "RangeValueText" };
-            for (int index = 0; index < properties.Length; index++)
+            SetArray(hudSettings, "_skills", skills);
+            SetArray(hudSettings, "_skillNames", names);
+            SetArray(hudSettings, "_skillCosts", costs);
+            SetArray(hudSettings, "_skillImages", images);
+            Set(hudSettings, "_normalSkill", AssetDatabase.LoadAssetAtPath<Sprite>(SpriteFolder + "Turn_SkillButton_Default.png"));
+            Set(hudSettings, "_selectedSkillSprite", AssetDatabase.LoadAssetAtPath<Sprite>(SpriteFolder + "Turn_SkillButton_Selected.png"));
+            Find<Button>(combat, "SkillButton_LockedBoundary").interactable = false;
+            Find<Transform>(combat, "SkillButton_LockedBoundary").Find("Title").GetComponent<TMP_Text>().text = "미등록 스킬";
+            Find<Transform>(combat, "SkillButton_LockedBoundary").Find("SPCost").GetComponent<TMP_Text>().text = "--";
+            Find<Transform>(combat, "SkillButton_LockedBoundary").Find("Level").GetComponent<TMP_Text>().text = "";
+            foreach (string detail in new[] { "SkillName", "SkillType", "Description", "PowerValue", "AccuracyValue", "AttributeValue", "RangeValue" })
             {
-                Text(detail, "Stat Label " + index, labels[index], 20, -210 - index * 30, 120, 26, 18, AccentColor);
-                BindText(bindings, properties[index], detail, valueNames[index], 150, -210 - index * 30, 240, 26, 19);
+                string fieldName = detail == "SkillName" ? "_skillName" : detail == "SkillType" ? "_skillType"
+                    : detail == "Description" ? "_skillDescription" : detail == "PowerValue" ? "_skillPower"
+                    : detail == "AccuracyValue" ? "_skillAccuracy" : detail == "AttributeValue" ? "_skillElement" : "_skillTarget";
+                Set(hudSettings, fieldName, Find<TMP_Text>(combat, detail + "Text"));
             }
-            Set(bindings, "_execute", ActionButton(detail, "Use Selected Skill", "사용 [Enter]", 20, -346, 222, 36));
-            Set(bindings, "_defend", ActionButton(detail, "HUD Defend", "방어", 256, -346, 134, 36));
-            Transform investmentPanel = Panel(turn, "Investment Panel", new Vector2(0, 0), new Vector2(28, 518), new Vector2(340, 84));
-            Button investment = ActionButton(investmentPanel, "MemoryThrowPanel", "", 8, -8, 324, 68);
-            UnityEngine.Object.DestroyImmediate(investment.GetComponentInChildren<TMP_Text>().gameObject);
-            Set(bindings, "_investment", investment);
-            BindText(bindings, "_investmentCost", investment.transform, "Runtime Investment", 10, -7, 304, 26, 18);
-            var glowSlots = new GameObject[5];
+            Find<TMP_Text>(combat, "PowerValueText").text = "";
+            Find<TMP_Text>(combat, "DescriptionText").fontSize = 18f;
+            Find<TMP_Text>(combat, "PowerLabelText").text = "기본 위력";
+            Find<Transform>(combat, "SkillDetailsPrompt").gameObject.SetActive(false);
+            Find<TMP_Text>(combat, "DetailPromptText").text = "Enter로 사용";
+            Find<TMP_Text>(combat, "DetailKeyText").text = "";
+            Transform turn = Find<Transform>(combat, "PlayerTurnUI");
+            Set(hudSettings, "_execute", ActionButton(turn, "Use Selected Skill", "사용 [Enter]", new Vector2(-315f, -361f), new Vector2(190f, 28f), font));
+            Set(hudSettings, "_defend", ActionButton(turn, "HUD Defend", "방어", new Vector2(-105f, -361f), new Vector2(150f, 28f), font));
+            Transform investment = Find<Transform>(combat, "MemoryThrowPanel");
+            Button investmentButton = investment.gameObject.AddComponent<Button>();
+            investmentButton.targetGraphic = investment.GetComponent<Image>();
+            investmentButton.targetGraphic.raycastTarget = true;
+            Set(hudSettings, "_investment", investmentButton);
+            Set(hudSettings, "_investmentCost", Label(investment, "Runtime Investment", new Vector2(0f, 60f), new Vector2(280f, 30f), 18f, font, true));
+            TMP_Text slotCover = Label(investment, "Runtime Slot Track", new Vector2(0f, -15f), new Vector2(218f, 51f), 18f, font, true);
+            investment.Find("Runtime Slot Track Backdrop").SetSiblingIndex(0);
+            slotCover.text = "";
+            GameObject fifth = UnityEngine.Object.Instantiate(investment.Find("MemorySlot_04").gameObject, investment);
+            fifth.name = "MemorySlot_05";
+            var glow = new GameObject[5];
             var locks = new GameObject[5];
             for (int index = 0; index < 5; index++)
             {
-                RectTransform slot = Rect(investment.transform, "MemorySlot_0" + (index + 1), 12 + index * 60, -43, 52, 14);
-                Image track = slot.gameObject.AddComponent<Image>();
-                track.color = new Color(.12f, .22f, .32f);
-                track.raycastTarget = false;
-                RectTransform glow = Rect(slot, "Glow", 0, 0, 52, 14);
-                glow.gameObject.AddComponent<Image>().color = AccentColor;
-                glow.GetComponent<Image>().raycastTarget = false;
-                glowSlots[index] = glow.gameObject;
-                locks[index] = Text(slot, "Lock", "×", 0, 0, 52, 14, 14).gameObject;
-                locks[index].GetComponent<TMP_Text>().alignment = TextAlignmentOptions.Center;
+                Transform slot = investment.Find("MemorySlot_0" + (index + 1));
+                slot.GetComponent<RectTransform>().anchoredPosition = new Vector2(-85f + index * 42f, -15f);
+                slot.localScale = Vector3.one * 0.75f;
+                glow[index] = slot.Find("Glow").gameObject;
+                locks[index] = slot.Find("Lock").gameObject;
+                slot.Find("Star").gameObject.SetActive(true);
+                slot.Find("Star").GetComponent<Image>().color = new Color(0.4f, 0.7f, 0.9f, 0.2f);
             }
-            SetArray(bindings, "_investmentGlow", glowSlots);
-            SetArray(bindings, "_investmentLock", locks);
-            foreach (string output in new[] { "_notice", "_continueButton" })
+            SetArray(hudSettings, "_investmentGlow", glow);
+            SetArray(hudSettings, "_investmentLock", locks);
+
+            var targets = new Button[3];
+            var targetTexts = new TMP_Text[3];
+            for (int index = 0; index < 3; index++)
             {
-                Component item = (Component)settings.FindProperty(output).objectReferenceValue;
-                RectTransform rect = (RectTransform)item.transform;
-                rect.SetParent(combat, false);
-                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(.5f, 0);
-                rect.anchoredPosition = new Vector2(0, output == "_notice" ? 20 : 76);
-                rect.sizeDelta = output == "_notice" ? new Vector2(1100, 32) : new Vector2(300, 48);
+                targets[index] = ActionButton(enemyCard, "HUD Target " + (index + 1), "대상 " + (index + 1),
+                    new Vector2(-140f + index * 140f, -150f), new Vector2(135f, 35f), font);
+                targetTexts[index] = targets[index].GetComponentInChildren<TMP_Text>();
+                targetTexts[index].fontSize = 17f;
             }
-            Transform noticePanel = Panel(combat, "Battle Notice", new Vector2(.5f, 0), new Vector2(0, 12), new Vector2(1100, 44));
-            TMP_Text notice = (TMP_Text)settings.FindProperty("_notice").objectReferenceValue;
-            notice.transform.SetParent(noticePanel, false);
-            notice.rectTransform.anchorMin = notice.rectTransform.anchorMax = notice.rectTransform.pivot = new Vector2(.5f, .5f);
-            notice.rectTransform.anchoredPosition = Vector2.zero;
-            notice.rectTransform.sizeDelta = new Vector2(1060, 32);
-            notice.raycastTarget = false;
+            SetArray(hudSettings, "_targets", targets);
+            SetArray(hudSettings, "_targetNames", targetTexts);
+            SerializedProperty slots = hudSettings.FindProperty("_turnSlots");
+            slots.arraySize = 4;
+            Transform turnRoot = Find<Transform>(combat, "DefaultUI");
+            for (int index = 0; index < 4; index++)
+            {
+                GameObject slot = index < 2 ? Find<Transform>(combat, "TurnOrderSlot0" + (index + 1)).gameObject
+                    : UnityEngine.Object.Instantiate(Find<Transform>(combat, "TurnOrderSlot02").gameObject, turnRoot);
+                slot.name = "TurnOrderSlot0" + (index + 1);
+                slot.GetComponent<RectTransform>().anchoredPosition = new Vector2(-854f, 364f - index * 80f);
+                slot.transform.localScale = Vector3.one * 0.72f;
+                slot.transform.Find("Portrait").gameObject.SetActive(false);
+                TMP_Text actor = Label(slot.transform, "Runtime Actor", new Vector2(-7f, 7f), new Vector2(100f, 63f), 19f, font, false);
+                slot.transform.Find("IndexText").gameObject.SetActive(false);
+                SerializedProperty row = slots.GetArrayElementAtIndex(index);
+                row.FindPropertyRelative("_root").objectReferenceValue = slot;
+                row.FindPropertyRelative("_highlight").objectReferenceValue = slot.transform.Find("Highlight").gameObject;
+                row.FindPropertyRelative("_hp").objectReferenceValue = slot.GetComponentInChildren<Slider>(true);
+                row.FindPropertyRelative("_name").objectReferenceValue = actor;
+            }
+            foreach (Slider slider in canvas.GetComponentsInChildren<Slider>(true))
+            {
+                slider.interactable = false;
+            }
+            // 기존 조작 패널의 연결은 코어 호환용으로 유지하되 화면에는 새 HUD만 표시한다.
+            Transform legacy = ((Button)settings.FindProperty("_skillButtons").GetArrayElementAtIndex(0).objectReferenceValue).transform.parent;
+            legacy.gameObject.SetActive(false);
             Set(settings, "_fieldUI", field.gameObject);
             Set(settings, "_battleUI", combat.gameObject);
-            bindings.ApplyModifiedPropertiesWithoutUndo();
+            MoveLegacyOutput(settings, "_notice", combat, new Vector2(0f, -515f), new Vector2(850f, 35f));
+            MoveLegacyOutput(settings, "_continueButton", combat, new Vector2(0f, -400f), new Vector2(270f, 48f));
+            hudSettings.ApplyModifiedPropertiesWithoutUndo();
             settings.ApplyModifiedPropertiesWithoutUndo();
-            combat.gameObject.SetActive(false);
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
+            Debug.Log("PROTOTYPE_UI_CONNECT_PASS " + scene.path);
         }
 
-        private static RectTransform Stretch(Transform parent, string name)
+        private static void MoveLegacyOutput(SerializedObject settings, string field, Transform parent, Vector2 position, Vector2 size)
         {
-            RectTransform rect = Rect(parent, name, 0, 0, 0, 0);
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = rect.offsetMax = Vector2.zero;
-            return rect;
-        }
-
-        private static Transform Panel(Transform parent, string name, Vector2 anchor, Vector2 position, Vector2 size)
-        {
-            RectTransform rect = Rect(parent, name, 0, 0, size.x, size.y);
-            rect.anchorMin = rect.anchorMax = rect.pivot = anchor;
-            rect.anchoredPosition = position;
-            Image image = rect.gameObject.AddComponent<Image>();
-            image.color = PanelColor;
-            image.raycastTarget = false;
-            RectTransform edge = Rect(rect, "Accent", 0, 0, size.x, 2);
-            edge.gameObject.AddComponent<Image>().color = AccentColor;
-            edge.GetComponent<Image>().raycastTarget = false;
-            return rect;
-        }
-
-        private static RectTransform Rect(Transform parent, string name, float x, float y, float width, float height)
-        {
-            var item = new GameObject(name, typeof(RectTransform));
+            Component item = (Component)settings.FindProperty(field).objectReferenceValue;
             item.transform.SetParent(parent, false);
             RectTransform rect = item.GetComponent<RectTransform>();
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
-            rect.anchoredPosition = new Vector2(x, y);
-            rect.sizeDelta = new Vector2(width, height);
-            return rect;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
         }
 
-        private static TMP_Text Text(Transform parent, string name, string value, float x, float y, float width, float height, float size, Color? color = null)
+        private static Slider CreateHp(Transform parent, Slider template, Vector2 position, Vector2 size)
         {
-            RectTransform rect = Rect(parent, name, x, y, width, height);
-            TMP_Text text = rect.gameObject.AddComponent<TextMeshProUGUI>();
-            text.font = _font;
-            text.text = value;
-            text.fontSize = size;
-            text.color = color ?? new Color(.9f, .95f, 1);
-            text.alignment = TextAlignmentOptions.MidlineLeft;
-            text.textWrappingMode = TextWrappingModes.Normal;
-            text.overflowMode = TextOverflowModes.Ellipsis;
-            text.raycastTarget = false;
-            return text;
+            Slider slider = UnityEngine.Object.Instantiate(template, parent);
+            slider.name = "Runtime Field HP";
+            RectTransform rect = slider.GetComponent<RectTransform>();
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+            slider.fillRect.anchorMin = Vector2.zero;
+            slider.fillRect.anchorMax = Vector2.one;
+            slider.fillRect.sizeDelta = Vector2.zero;
+            return slider;
         }
 
-        private static TMP_Text BindText(SerializedObject settings, string field, Transform parent, string name, float x, float y, float width, float height, float size)
+        private static Button ActionButton(Transform parent, string name, string text, Vector2 position, Vector2 size, TMP_FontAsset font)
         {
-            TMP_Text text = Text(parent, name, "", x, y, width, height, size);
-            Set(settings, field, text);
-            return text;
-        }
-
-        private static Button ActionButton(Transform parent, string name, string value, float x, float y, float width, float height)
-        {
-            RectTransform rect = Rect(parent, name, x, y, width, height);
-            Image image = rect.gameObject.AddComponent<Image>();
-            image.color = new Color(.07f, .17f, .26f);
-            Button button = rect.gameObject.AddComponent<Button>();
+            var item = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            item.transform.SetParent(parent, false);
+            RectTransform rect = item.GetComponent<RectTransform>();
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+            Image image = item.GetComponent<Image>();
+            image.color = new Color(0.04f, 0.15f, 0.23f, 0.95f);
+            Button button = item.GetComponent<Button>();
             button.targetGraphic = image;
-            ColorBlock colors = button.colors;
-            colors.highlightedColor = new Color(.55f, .9f, 1);
-            colors.pressedColor = new Color(.3f, .7f, .9f);
-            colors.disabledColor = new Color(.4f, .4f, .4f, .7f);
-            button.colors = colors;
-            TMP_Text text = Text(rect, "Label", value, 8, -4, width - 16, height - 8, 21);
-            text.alignment = TextAlignmentOptions.Center;
+            Label(item.transform, "Label", Vector2.zero, size, 22f, font, false).text = text;
             return button;
         }
 
-        private static Slider Bar(Transform parent, string name, float x, float y, float width, float height, Color color)
+        private static TMP_Text Label(Transform parent, string name, Vector2 position, Vector2 size, float fontSize, TMP_FontAsset font, bool cover)
         {
-            RectTransform rect = Rect(parent, name, x, y, width, height);
-            Image background = rect.gameObject.AddComponent<Image>();
-            background.color = new Color(.13f, .2f, .28f);
-            background.raycastTarget = false;
-            RectTransform fill = Stretch(rect, "Fill");
-            Image image = fill.gameObject.AddComponent<Image>();
-            image.color = color;
-            image.raycastTarget = false;
-            Slider slider = rect.gameObject.AddComponent<Slider>();
-            slider.fillRect = fill;
-            slider.interactable = false;
-            slider.navigation = new Navigation { mode = Navigation.Mode.None };
-            return slider;
+            if (cover)
+            {
+                var background = new GameObject(name + " Backdrop", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                background.transform.SetParent(parent, false);
+                background.GetComponent<RectTransform>().anchoredPosition = position;
+                background.GetComponent<RectTransform>().sizeDelta = size;
+                background.GetComponent<Image>().color = PanelColor;
+                background.GetComponent<Image>().raycastTarget = false;
+            }
+            var item = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            item.transform.SetParent(parent, false);
+            TMP_Text label = item.GetComponent<TMP_Text>();
+            label.rectTransform.anchoredPosition = position;
+            label.rectTransform.sizeDelta = size;
+            label.font = font;
+            label.fontSize = fontSize;
+            label.color = new Color(0.85f, 0.96f, 1f);
+            label.alignment = TextAlignmentOptions.Center;
+            label.raycastTarget = false;
+            return label;
+        }
+
+        private static T Find<T>(Transform parent, string name) where T : Component
+        {
+            Transform item = parent.GetComponentsInChildren<Transform>(true).Single(child => child.name == name);
+            T component = item.GetComponent<T>();
+            if (component == null)
+            {
+                throw new InvalidOperationException(name + ": 필요한 " + typeof(T).Name + "가 없습니다.");
+            }
+            return component;
         }
 
         private static void Set(SerializedObject settings, string field, UnityEngine.Object value)

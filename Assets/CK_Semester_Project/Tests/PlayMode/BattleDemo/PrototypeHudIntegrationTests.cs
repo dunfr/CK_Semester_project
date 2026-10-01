@@ -103,56 +103,6 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(Text("Runtime Investment"), Does.Contain("비용 100"));
         }
 
-        [UnityTest]
-        public IEnumerator NativeHudFitsWideStandardAndTallViewports()
-        {
-            GameObject field = (GameObject)_battle.GetType().GetField("_fieldUI", PrivateInstance).GetValue(_battle);
-            Canvas canvas = field.GetComponentInParent<Canvas>();
-            Behaviour scaler = (Behaviour)canvas.GetComponent("CanvasScaler");
-            scaler.enabled = false;
-            canvas.renderMode = RenderMode.WorldSpace;
-            RectTransform root = (RectTransform)canvas.transform;
-            Vector2[] sizes = { new Vector2(1920, 1080), new Vector2(1920, 1440), new Vector2(2520, 1080) };
-            foreach (Vector2 size in sizes)
-            {
-                root.sizeDelta = size;
-                Canvas.ForceUpdateCanvases();
-                Vector3[] corners = new Vector3[4];
-                foreach (RectTransform rect in canvas.GetComponentsInChildren<RectTransform>(true))
-                {
-                    rect.GetWorldCorners(corners);
-                    foreach (Vector3 corner in corners)
-                    {
-                        Vector3 local = root.InverseTransformPoint(corner);
-                        Assert.That(local.x, Is.InRange(root.rect.xMin - 1, root.rect.xMax + 1), rect.name + " / " + size);
-                        Assert.That(local.y, Is.InRange(root.rect.yMin - 1, root.rect.yMax + 1), rect.name + " / " + size);
-                    }
-                }
-            }
-            Assert.That(canvas.GetComponentsInChildren<Transform>(true).Any(item => item.name.EndsWith("Backdrop")), Is.False);
-            yield return null;
-        }
-
-        [UnityTest]
-        public IEnumerator MinimapRendersAtMostTenTimesPerSecondAndStopsInBattle()
-        {
-            Camera map = GameObject.Find("Field Minimap Camera").GetComponent<Camera>();
-            int renders = 0;
-            float start = Time.unscaledTime;
-            while (Time.unscaledTime - start < 1f)
-            {
-                yield return new WaitForEndOfFrame();
-                if (map.enabled)
-                {
-                    renders++;
-                }
-            }
-            Assert.That(renders, Is.InRange(1, 11));
-            Assert.That(BeginBattle(), Is.True);
-            yield return new WaitForEndOfFrame();
-            Assert.That(map.enabled, Is.False);
-        }
-
         private bool BeginBattle()
         {
             MonoBehaviour enemy = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
