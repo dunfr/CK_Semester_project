@@ -21,3 +21,10 @@ Use case: precise-object-edit. Edit target: existing transparent sci-fi game UI 
 `Turn_EnemyCard_Blank.png` → `ui_enemycard_blank.png`:
 
 Use case: precise-object-edit. Edit target existing game enemy card sprite. Keep the original angular cyan/red frame, top-right dark-haired girl portrait and small top-right detail T tab. Remove every baked placeholder in the body: Lv. ??, UNKNOWN icon/tag, black horizontal rectangle, Korean weakness/resistance/immunity labels and all symbols/dashes in the lower row. Reconstruct those areas seamlessly as the original clean dark navy gradient panel, no patches or cover boxes. Keep portrait exactly and leave generous blank name/stats areas left of portrait and along bottom. Transparent outside the card. Same original design, aspect ratio, tight framing. Do not redesign or add text.
+
+
+## 좌클릭 필드 버튼
+
+Built-in imagegen edit. Input: `Default_State/11_Interact_E.png`. Output: `Refined/ui_field_attack_lmb_btn.png`. 원본 보존, Sprite alpha 경계 임포트.
+
+Prompt: Edit this exact existing sci-fi game UI asset. Preserve its circular navy button, cyan luminous outline, white cube icon, style, proportions and transparent background. Only replace the lower right white keyboard key cap with a slightly wider white cap containing a clear small computer mouse pictogram with the LEFT mouse button highlighted dark blue, plus compact exact text 'LMB'. Remove the letter E entirely. No other additions. Keep tightly bounded transparent game sprite.

@@ -37,7 +37,7 @@ namespace CK.SemesterProject.Tutorial
         private int _collisionMemoryBonus = 1;
         [SerializeField, Range(1, 3), Tooltip("전투 참여 몬스터 수. 접촉한 몬스터와 가까운 살아 있는 필드 몬스터를 선택합니다. 부족하면 현재 수로 진입합니다.")]
         private int _encounterSize = 1;
-        [SerializeField, Tooltip("필드 E/접촉 자동 진입 사용. 조합 선택 테스트 씬에서는 끕니다.")]
+        [SerializeField, Tooltip("필드 좌클릭/접촉 자동 진입 사용. 조합 선택 테스트 씬에서는 끕니다.")]
         private bool _automaticEncounters = true;
         [SerializeField, Tooltip("튜토리얼 플레이어 이동 컴포넌트")]
         private PlayerMovement _movement;
@@ -383,12 +383,41 @@ namespace CK.SemesterProject.Tutorial
             {
                 EnemyNoise.Emit(position, 12f, _movement.gameObject);
             }
-            if (Time.time < _encounterCooldown)
+            EnemyStateMachine nearest = FindNearbyFieldEnemy(2.5f);
+            if (nearest == null)
             {
                 return;
             }
+            Mouse mouse = Mouse.current;
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame
+                && (UnityEngine.EventSystems.EventSystem.current == null
+                    || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
+            {
+                TryInitiateNearbyBattle();
+            }
+            else if (Vector3.Distance(nearest.transform.position, position) <= 1.15f)
+            {
+                BeginBattle(nearest, BattleEntryCondition.MonsterCollision);
+            }
+        }
+
+        public bool CanInitiateNearbyBattle => FindNearbyFieldEnemy(2.5f) != null;
+
+        public bool TryInitiateNearbyBattle()
+        {
+            EnemyStateMachine enemy = FindNearbyFieldEnemy(2.5f);
+            return enemy != null && BeginBattle(enemy, BattleEntryCondition.PlayerInitiated);
+        }
+
+        private EnemyStateMachine FindNearbyFieldEnemy(float range)
+        {
+            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown)
+            {
+                return null;
+            }
+            Vector3 position = _movement.transform.position;
             EnemyStateMachine nearest = null;
-            float nearestDistanceSquared = float.PositiveInfinity;
+            float nearestDistanceSquared = range * range;
             foreach (EnemyStateMachine enemy in _enemies)
             {
                 if (enemy == null || !enemy.isActiveAndEnabled)
@@ -396,35 +425,21 @@ namespace CK.SemesterProject.Tutorial
                     continue;
                 }
                 float distanceSquared = (enemy.transform.position - position).sqrMagnitude;
-                if (distanceSquared < nearestDistanceSquared)
+                if (distanceSquared > nearestDistanceSquared)
                 {
-                    nearest = enemy;
-                    nearestDistanceSquared = distanceSquared;
+                    continue;
                 }
+                Vector3 start = position + Vector3.up * 0.8f;
+                Vector3 end = enemy.transform.position + Vector3.up * 0.8f;
+                if (Physics.Linecast(start, end, out RaycastHit obstacle, ~0, QueryTriggerInteraction.Ignore)
+                    && !obstacle.transform.IsChildOf(enemy.transform) && !obstacle.transform.IsChildOf(_movement.transform))
+                {
+                    continue;
+                }
+                nearest = enemy;
+                nearestDistanceSquared = distanceSquared;
             }
-            if (nearest == null)
-            {
-                return;
-            }
-            float distance = Vector3.Distance(nearest.transform.position, position);
-            Vector3 start = position + Vector3.up * 0.8f;
-            Vector3 end = nearest.transform.position + Vector3.up * 0.8f;
-            if (Physics.Linecast(start, end, out RaycastHit obstacle, ~0, QueryTriggerInteraction.Ignore)
-                && !obstacle.transform.IsChildOf(nearest.transform) && !obstacle.transform.IsChildOf(_movement.transform))
-            {
-                return;
-            }
-            Mouse mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && distance <= 2.5f
-                && (UnityEngine.EventSystems.EventSystem.current == null
-                    || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
-            {
-                BeginBattle(nearest, BattleEntryCondition.PlayerInitiated);
-            }
-            else if (distance <= 1.15f)
-            {
-                BeginBattle(nearest, BattleEntryCondition.MonsterCollision);
-            }
+            return nearest;
         }
 
         public bool BeginBattle(EnemyStateMachine enemy, BattleEntryCondition entry,

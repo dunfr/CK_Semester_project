@@ -48,7 +48,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(Text("Runtime Field Vitals"), Does.Contain("731/1000").And.Contain("143/200"));
             Component floor = GameObject.Find("Fuchsia Player").GetComponent("FloorTravelButtons");
             string[] unavailable = { "Travel First Floor", "Travel Second Floor", "03_Menu_C", "04_Menu_J",
-                "05_Menu_ESC", "07_Tab_Button", "08_R_Button", "11_Interact_E", "12_Sprint_Shift",
+                "05_Menu_ESC", "07_Tab_Button", "08_R_Button", "11_Interact_E",
                 "SkillButton_LockedBoundary", "SkillDetailsPrompt" };
             Transform[] ui = _hud.GetType().GetField("_fieldRoot", PrivateInstance).GetValue(_hud)
                 is GameObject field ? field.GetComponentInParent<Canvas>().GetComponentsInChildren<Transform>(true) : null;
@@ -61,6 +61,50 @@ namespace CK.SemesterProject.Battle.Tests
             floor.GetType().GetMethod("TravelToFirstFloor").Invoke(floor, null);
             yield return null;
             Assert.That(floor.GetType().GetProperty("CurrentFloor").GetValue(floor), Is.EqualTo(1));
+        }
+
+        [UnityTest]
+        public IEnumerator AreaBannerFadesAndSprintButtonResetsOnDisable()
+        {
+            CanvasGroup banner = GameObject.Find("02_Floor_Banner").GetComponent<CanvasGroup>();
+            Assert.That(banner.alpha, Is.EqualTo(1f));
+            Assert.That(banner.blocksRaycasts, Is.False);
+            _hud.GetType().GetField("_bannerStartedAt", PrivateInstance).SetValue(_hud, Time.unscaledTime - 3.1f);
+            yield return null;
+            Assert.That(banner.alpha, Is.InRange(0.35f, 0.65f));
+            _hud.GetType().GetField("_bannerStartedAt", PrivateInstance).SetValue(_hud, Time.unscaledTime - 4f);
+            yield return null;
+            Assert.That(banner.gameObject.activeSelf, Is.False);
+            Component movement = GameObject.Find("Fuchsia Player").GetComponent("PlayerMovement");
+            Click("12_Sprint_Shift");
+            Assert.That(movement.GetType().GetProperty("IsSprintToggled").GetValue(movement), Is.True);
+            Click("12_Sprint_Shift");
+            Assert.That(movement.GetType().GetProperty("IsSprintToggled").GetValue(movement), Is.False);
+            Click("12_Sprint_Shift");
+            ((Behaviour)movement).enabled = false;
+            Assert.That(movement.GetType().GetProperty("IsSprintToggled").GetValue(movement), Is.False);
+            ((Behaviour)movement).enabled = true;
+            Assert.That(GameObject.Find("11_Interact_LMB"), Is.Not.Null);
+        }
+
+        [UnityTest]
+        public IEnumerator SprintMovesFasterAndLeftClickUiStartsNearbyBattle()
+        {
+            Component movement = GameObject.Find("Fuchsia Player").GetComponent("PlayerMovement");
+            MethodInfo move = movement.GetType().GetMethod("Move", PrivateInstance);
+            Vector3 start = movement.transform.position;
+            move.Invoke(movement, new object[] { Vector2.up, false });
+            float walkDistance = Vector3.ProjectOnPlane(movement.transform.position - start, Vector3.up).magnitude;
+            start = movement.transform.position;
+            move.Invoke(movement, new object[] { Vector2.up, true });
+            float sprintDistance = Vector3.ProjectOnPlane(movement.transform.position - start, Vector3.up).magnitude;
+            Assert.That(walkDistance, Is.GreaterThan(0f));
+            Assert.That(sprintDistance / walkDistance, Is.EqualTo(1.8f).Within(.05f));
+            move.Invoke(movement, new object[] { Vector2.zero, true });
+            Assert.That(movement.GetType().GetProperty("IsSprinting").GetValue(movement), Is.False);
+            Assert.That(BeginBattle(true), Is.True, "좌클릭 UI로 실제 필드 전투가 시작되어야 합니다.");
+            yield return null;
+            Assert.That(Snapshot(), Is.Not.Null);
         }
 
         [UnityTest]
@@ -125,7 +169,7 @@ namespace CK.SemesterProject.Battle.Tests
             RectTransform root = (RectTransform)canvas.transform;
             string[] panels = { "01_Location", "02_Floor_Banner", "06_Student_Card", "09_Story_Panel", "10_Minimap",
                 "CombatHeader", "EnemyNameBanner", "WaveTurnControls", "EnemyCard", "SkillPanel", "SkillDescriptionPanel",
-                "MemoryThrowPanel", "Use Selected Skill", "HUD Defend", "PlayerPortrait", "Runtime Field Vitals" };
+                "MemoryThrowPanel", "Use Selected Skill", "HUD Defend", "PlayerPortrait", "Runtime Field Vitals", "11_Interact_LMB", "12_Sprint_Shift" };
             foreach (Vector2 size in new[] { new Vector2(1920, 1080), new Vector2(1920, 1440), new Vector2(2520, 1080) })
             {
                 root.sizeDelta = size;
@@ -165,7 +209,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(map.enabled, Is.False);
         }
 
-        private bool BeginBattle()
+        private bool BeginBattle(bool useFieldUi = false)
         {
             MonoBehaviour enemy = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
                 .Single(item => item.GetType().Name == "EnemyStateMachine" && item.name == "emey AI");
@@ -185,8 +229,21 @@ namespace CK.SemesterProject.Battle.Tests
                 player.enabled = true;
                 Physics.SyncTransforms();
                 _battle.GetType().GetMethod("CancelBattle").Invoke(_battle, null);
-                bool entered = (bool)_battle.GetType().GetMethod("BeginBattle").Invoke(_battle,
-                    new object[] { enemy, BattleEntryCondition.PlayerInitiated, members });
+                bool entered;
+                if (useFieldUi)
+                {
+                    if (!(bool)_battle.GetType().GetProperty("CanInitiateNearbyBattle").GetValue(_battle))
+                    {
+                        continue;
+                    }
+                    Click("11_Interact_LMB");
+                    entered = Snapshot() != null;
+                }
+                else
+                {
+                    entered = (bool)_battle.GetType().GetMethod("BeginBattle").Invoke(_battle,
+                        new object[] { enemy, BattleEntryCondition.PlayerInitiated, members });
+                }
                 if (entered)
                 {
                     return true;

@@ -12,6 +12,22 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Min(0f)] private float _rotationSpeed = 540f;
         [SerializeField, Min(0f)] private float _gravity = 20f;
 
+        [SerializeField, Min(1f), Tooltip("달리기 시 기본 이동 속도 배율.")]
+        private float _sprintMultiplier = 1.8f;
+        private bool _isSprintToggled;
+
+        public bool IsSprinting { get; private set; }
+        public bool IsSprintToggled => _isSprintToggled;
+        public float CurrentMoveSpeed => IsSprinting ? _moveSpeed * _sprintMultiplier : _moveSpeed;
+
+        public void ToggleSprint()
+        {
+            if (isActiveAndEnabled)
+            {
+                _isSprintToggled = !_isSprintToggled;
+            }
+        }
+
         private static readonly int SpeedId = Animator.StringToHash("Speed");
         private static readonly int DirectionId = Animator.StringToHash("Direction");
         private CharacterController _controller;
@@ -34,7 +50,14 @@ namespace CK.SemesterProject.Tutorial
 
         private void Update()
         {
-            Vector2 input = ReadMovement();
+            bool isShiftHeld = Keyboard.current != null
+                && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
+            Move(ReadMovement(), isShiftHeld);
+        }
+
+        private void Move(Vector2 input, bool isShiftHeld)
+        {
+            IsSprinting = input.sqrMagnitude > 0.001f && (_isSprintToggled || isShiftHeld);
             Vector3 forward = _cameraTransform != null ? _cameraTransform.forward : Vector3.forward;
             forward = Vector3.ProjectOnPlane(forward, Vector3.up).normalized;
             if (forward.sqrMagnitude < 0.001f)
@@ -57,7 +80,7 @@ namespace CK.SemesterProject.Tutorial
 
             _verticalSpeed -= _gravity * Time.deltaTime;
             CollisionFlags collisions = _controller.Move(
-                (direction * _moveSpeed + Vector3.up * _verticalSpeed) * Time.deltaTime);
+                (direction * CurrentMoveSpeed + Vector3.up * _verticalSpeed) * Time.deltaTime);
             if ((collisions & CollisionFlags.Below) != 0 && _verticalSpeed < 0f)
             {
                 _verticalSpeed = -2f;
@@ -66,7 +89,7 @@ namespace CK.SemesterProject.Tutorial
             // 뼈대 없는 모델도 같은 이동을 사용하며, 기존 UnityChan 애니메이션은 유지합니다.
             if (_animator != null && _animator.runtimeAnimatorController != null)
             {
-                _animator.SetFloat(SpeedId, input.magnitude, 0.1f, Time.deltaTime);
+                _animator.SetFloat(SpeedId, input.magnitude * (IsSprinting ? _sprintMultiplier : 1f), 0.1f, Time.deltaTime);
                 _animator.SetFloat(DirectionId, 0f);
             }
         }
@@ -87,6 +110,8 @@ namespace CK.SemesterProject.Tutorial
         private void OnDisable()
         {
             _verticalSpeed = 0f;
+            IsSprinting = false;
+            _isSprintToggled = false;
         }
     }
 }

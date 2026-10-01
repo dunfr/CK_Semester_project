@@ -72,6 +72,16 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private GameObject[] _investmentLock;
         [SerializeField] private TurnSlot[] _turnSlots;
 
+        [SerializeField] private PlayerMovement _movement;
+        [SerializeField] private Button _sprint;
+        [SerializeField] private Button _fieldAttack;
+        [SerializeField] private CanvasGroup _areaBanner;
+        [SerializeField, Min(0f), Tooltip("시작 시 구역 배너를 유지하는 초.")]
+        private float _bannerHoldSeconds = 2.5f;
+        [SerializeField, Min(0.01f), Tooltip("구역 배너가 사라지는 데 걸리는 초.")]
+        private float _bannerFadeSeconds = 1.2f;
+        private float _bannerStartedAt;
+
         private UnityAction[] _selectActions;
         private UnityAction[] _targetActions;
         private BattleSnapshot _previousSnapshot;
@@ -102,6 +112,12 @@ namespace CK.SemesterProject.Tutorial
                 _targetActions[index] = () => _battle.SelectTarget(targetIndex);
                 _targets[index].onClick.AddListener(_targetActions[index]);
             }
+            _bannerStartedAt = Time.unscaledTime;
+            _areaBanner.alpha = 1f;
+            _areaBanner.interactable = false;
+            _areaBanner.blocksRaycasts = false;
+            _sprint.onClick.AddListener(_movement.ToggleSprint);
+            _fieldAttack.onClick.AddListener(InitiateFieldBattle);
             _execute.onClick.AddListener(ExecuteSelectedSkill);
             _investment.onClick.AddListener(_battle.CycleInvestment);
             _defend.onClick.AddListener(_battle.Defend);
@@ -145,6 +161,16 @@ namespace CK.SemesterProject.Tutorial
 
         private void LateUpdate()
         {
+            float fadeElapsed = Time.unscaledTime - _bannerStartedAt - _bannerHoldSeconds;
+            _areaBanner.alpha = 1f - Mathf.Clamp01(fadeElapsed / _bannerFadeSeconds);
+            if (_areaBanner.alpha <= 0f)
+            {
+                _areaBanner.gameObject.SetActive(false);
+            }
+            _sprint.interactable = _movement.isActiveAndEnabled;
+            _sprint.targetGraphic.color = _movement.IsSprinting || _movement.IsSprintToggled
+                ? new Color(.35f, 1f, 1f) : Color.white;
+            _fieldAttack.interactable = _battle.CanInitiateNearbyBattle;
             bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
             _mapCamera.enabled = renderMap;
             if (renderMap)
@@ -186,6 +212,8 @@ namespace CK.SemesterProject.Tutorial
             {
                 _targets[index].onClick.RemoveListener(_targetActions[index]);
             }
+            _sprint.onClick.RemoveListener(_movement.ToggleSprint);
+            _fieldAttack.onClick.RemoveListener(InitiateFieldBattle);
             _execute.onClick.RemoveListener(ExecuteSelectedSkill);
             _investment.onClick.RemoveListener(_battle.CycleInvestment);
             _defend.onClick.RemoveListener(_battle.Defend);
@@ -198,6 +226,11 @@ namespace CK.SemesterProject.Tutorial
             {
                 Destroy(_mapCamera.gameObject);
             }
+        }
+
+        private void InitiateFieldBattle()
+        {
+            _battle.TryInitiateNearbyBattle();
         }
 
         public void SelectSkill(int index)

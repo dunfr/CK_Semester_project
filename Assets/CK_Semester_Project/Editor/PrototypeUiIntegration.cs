@@ -283,6 +283,7 @@ namespace CK.SemesterProject.Editor
                 UnityEngine.Object.DestroyImmediate(child.gameObject);
             }
             RemoveUnavailableControls(field, combat);
+            EnsureFieldControls(field, battle);
             Find<Transform>(field, "background").gameObject.SetActive(false);
             CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
             scaler.referenceResolution = new Vector2(1920, 1080);
@@ -459,6 +460,59 @@ namespace CK.SemesterProject.Editor
             }
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+        }
+
+        private static void EnsureFieldControls(Transform field, TutorialBattleController battle)
+        {
+            string[] names = { "11_Interact_LMB", "12_Sprint_Shift" };
+            if (names.Any(name => !field.GetComponentsInChildren<Transform>(true).Any(item => item.name == name)))
+            {
+                Scene source = EditorSceneManager.OpenScene(UiScene, OpenSceneMode.Additive);
+                Transform[] original = source.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<Transform>(true)).ToArray();
+                for (int index = 0; index < names.Length; index++)
+                {
+                    if (!field.GetComponentsInChildren<Transform>(true).Any(item => item.name == names[index]))
+                    {
+                        string sourceName = index == 0 ? "11_Interact_E" : names[index];
+                        GameObject item = UnityEngine.Object.Instantiate(original.Single(child => child.name == sourceName).gameObject, field);
+                        item.name = names[index];
+                    }
+                }
+                EditorSceneManager.CloseScene(source, true);
+            }
+            Place(field, names[0], new Vector2(1, 0), -92, 252, 108, 116);
+            Place(field, names[1], new Vector2(1, 0), -140, 112, 160, 160);
+            Image attackImage = Find<Image>(field, names[0]);
+            attackImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/CK_Semester_Project/Prototype/Temp/Graphics/UI/10-01/Refined/ui_field_attack_lmb_btn.png");
+            if (attackImage.sprite == null)
+            {
+                throw new InvalidOperationException("좌클릭 UI 에셋 누락");
+            }
+            var settings = new SerializedObject(battle);
+            var hudSettings = new SerializedObject(battle.GetComponent<PrototypeHudPresenter>());
+            PlayerMovement movement = (PlayerMovement)settings.FindProperty("_movement").objectReferenceValue;
+            Set(hudSettings, "_movement", movement);
+            Set(hudSettings, "_sprint", Find<Button>(field, names[1]));
+            Set(hudSettings, "_fieldAttack", Find<Button>(field, names[0]));
+            foreach (string name in names)
+            {
+                Button button = Find<Button>(field, name);
+                button.interactable = true;
+                button.targetGraphic = button.GetComponent<Image>();
+                button.onClick.RemoveAllListeners();
+            }
+            Transform banner = Find<Transform>(field, "02_Floor_Banner");
+            CanvasGroup group = banner.GetComponent<CanvasGroup>();
+            if (group == null)
+            {
+                group = banner.gameObject.AddComponent<CanvasGroup>();
+            }
+            banner.gameObject.SetActive(true);
+            group.alpha = 1f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+            Set(hudSettings, "_areaBanner", group);
+            hudSettings.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void RemoveUnavailableControls(Transform field, Transform combat)
