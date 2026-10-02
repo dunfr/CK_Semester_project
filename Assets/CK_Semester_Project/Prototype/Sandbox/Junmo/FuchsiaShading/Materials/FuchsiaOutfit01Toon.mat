@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FuchsiaOutfit01Toon
-  m_Shader: {fileID: 4800000, guid: 3e5f669be5a3d4d469787b88f629c08f, type: 3}
+  m_Shader: {fileID: 4800000, guid: 4621c50c3a05c2d4d9f12a25efe7919c, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -17,7 +17,8 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
+  stringTagMap:
+    RenderType: Opaque
   disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
@@ -35,14 +36,23 @@ Material:
     m_Floats:
     - _AmbientStrength: 0.1
     - _Cull: 0
-    - _DeepShadeStep: 0.17
+    - _DeepShadeStep: 0.24
+    - _HighlightFeather: 0.015
+    - _HighlightSize: 0.055
+    - _HighlightStrength: 0
+    - _ReceiveShadowStrength: 1
+    - _RimPower: 5
+    - _RimStrength: 0
     - _ShadeFeather: 0.035
-    - _ShadeStep: 0.48
+    - _ShadeStep: 0.57
+    - _ShadingStrength: 1
     - _UseEmission: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _DeepShadeColor: {r: 0.64, g: 0.66, b: 0.78, a: 1}
+    - _DeepShadeColor: {r: 0.52, g: 0.54, b: 0.63, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _ShadeColor: {r: 0.85, g: 0.85, b: 0.93, a: 1}
+    - _HighlightColor: {r: 0.85, g: 0.86, b: 0.96, a: 1}
+    - _RimColor: {r: 0.75, g: 0.85, b: 1, a: 1}
+    - _ShadeColor: {r: 0.77, g: 0.78, b: 0.84, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

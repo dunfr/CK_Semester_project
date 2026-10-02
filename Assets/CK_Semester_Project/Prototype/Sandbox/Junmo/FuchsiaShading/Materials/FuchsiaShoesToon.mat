@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: FuchsiaFaceToon
-  m_Shader: {fileID: 4800000, guid: 779f9767c3617354bad431d3b817bf81, type: 3}
+  m_Name: FuchsiaShoesToon
+  m_Shader: {fileID: 4800000, guid: 4621c50c3a05c2d4d9f12a25efe7919c, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -25,7 +25,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 2963e57c56067c54e89c2eaa791cf783, type: 3}
+        m_Texture: {fileID: 2800000, guid: f21f7e7ebcb643a4abdf5e6da144c5eb, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
@@ -36,23 +36,23 @@ Material:
     m_Floats:
     - _AmbientStrength: 0.1
     - _Cull: 0
-    - _DeepShadeStep: 0.25
+    - _DeepShadeStep: 0.24
     - _HighlightFeather: 0.015
     - _HighlightSize: 0.055
     - _HighlightStrength: 0
-    - _ReceiveShadowStrength: 0.2
+    - _ReceiveShadowStrength: 1
     - _RimPower: 5
     - _RimStrength: 0
-    - _ShadeFeather: 0.1
-    - _ShadeStep: 0.58
-    - _ShadingStrength: 0.65
+    - _ShadeFeather: 0.035
+    - _ShadeStep: 0.57
+    - _ShadingStrength: 1
     - _UseEmission: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _DeepShadeColor: {r: 0.9, g: 0.82, b: 0.83, a: 1}
+    - _DeepShadeColor: {r: 0.52, g: 0.54, b: 0.63, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _HighlightColor: {r: 0.85, g: 0.86, b: 0.96, a: 1}
     - _RimColor: {r: 0.75, g: 0.85, b: 1, a: 1}
-    - _ShadeColor: {r: 0.96, g: 0.91, b: 0.9, a: 1}
+    - _ShadeColor: {r: 0.77, g: 0.78, b: 0.84, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
