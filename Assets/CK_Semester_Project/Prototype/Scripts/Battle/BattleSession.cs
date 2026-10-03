@@ -7,6 +7,9 @@ namespace CK.SemesterProject.Battle
     public sealed class BattleSession
     {
         private readonly Dictionary<string, int> _actionsTaken = new Dictionary<string, int>();
+        private readonly HashSet<string> _damagedByPlayer = new HashSet<string>();
+        private string _lastAfterimageHitId;
+        private string _attackImprintId;
 
         public int GetActionCount(string actorId) => _actionsTaken.TryGetValue(actorId, out int count) ? count : 0;
 
@@ -42,7 +45,8 @@ namespace CK.SemesterProject.Battle
         public BattleSnapshot GetSnapshot()
         {
             return new BattleSnapshot(_phase, _outcome, _entryCondition, _round, _turnId,
-                _currentActorId, _roster.Select(id => _combatants[id]), _turnOrder);
+                _currentActorId, _roster.Select(id => _combatants[id]), _turnOrder,
+                _damagedByPlayer, _lastAfterimageHitId, _attackImprintId);
         }
 
         public BattleSnapshot Start(IEnumerable<BattleParticipant> participants,
@@ -94,6 +98,12 @@ namespace CK.SemesterProject.Battle
                         && participant.InitialRageEnergy >= BattleCombatRules.OverheatThreshold));
             }
             _entryCondition = entryCondition;
+            CombatantState[] monsters = _combatants.Values.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
+            CombatantState[] imprints = monsters.Where(unit => unit.Data.Element == BattleElement.Imprint).ToArray();
+            if (monsters.Length == 3 && imprints.Length == 2)
+            {
+                _attackImprintId = imprints[_random.Next(imprints.Length)].InstanceId;
+            }
             _outcome = EvaluateOutcome();
             if (_outcome != BattleOutcome.None)
             {
@@ -147,6 +157,20 @@ namespace CK.SemesterProject.Battle
             foreach (BattleStateChange change in changes)
             {
                 _combatants[change.After.InstanceId] = change.After;
+                if (_combatants[request.ActorId].Data.Team == BattleTeam.Player
+                    && change.After.Data.Team == BattleTeam.Monster && change.After.Hp < change.Before.Hp)
+                {
+                    _damagedByPlayer.Add(change.After.InstanceId);
+                    if (change.After.Data.Element == BattleElement.Afterimage)
+                    {
+                        _lastAfterimageHitId = change.After.InstanceId;
+                    }
+                    if (change.After.Data.Element == BattleElement.Imprint
+                        && (_attackImprintId == null || _combatants[_attackImprintId].IsDead))
+                    {
+                        _attackImprintId = change.After.InstanceId;
+                    }
+                }
             }
             CompleteAction(request, false, changes, hit);
             result = PendingResult;
@@ -218,7 +242,7 @@ namespace CK.SemesterProject.Battle
                 }
             }
             int investment = request.MemoryInvestment;
-            if (_resolver is BattleActionResolver && !_rules.TryGetInvestment(actor.Data, request, out investment, out _, out _))
+            if (_resolver is BattleActionResolver && !_rules.TryGetInvestment(actor.Data, request, out investment, out _, out _, GetSnapshot()))
             {
                 return BattleActionError.InvalidMemoryInvestment;
             }

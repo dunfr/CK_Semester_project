@@ -68,7 +68,7 @@ namespace CK.SemesterProject.Battle
                 return BattleActionError.None;
             }
             if (!_rules.TryGetInvestment(actor.Data, request, out int investmentCost,
-                out double investmentMultiplier, out int defenseReduction))
+                out double investmentMultiplier, out int defenseReduction, snapshot))
             {
                 return BattleActionError.InvalidMemoryInvestment;
             }

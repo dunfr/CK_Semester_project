@@ -7,7 +7,8 @@ namespace CK.SemesterProject.Battle
     public static class MonsterProfileAi
     {
         public static bool TryChooseAction(BattleSession session, BattleSnapshot snapshot, CombatantState actor,
-            int seed, out BattleActionRequest request)
+            int seed, out BattleActionRequest request, MonsterTacticsTable tactics = null,
+            bool allowDefense = true, bool useTrio = true)
         {
             request = null;
             MonsterBehaviorProfile profile = actor.Data.MonsterProfile;
@@ -17,13 +18,17 @@ namespace CK.SemesterProject.Battle
             {
                 return false;
             }
+            if (useTrio && MonsterTrioAi.Applies(snapshot))
+            {
+                return MonsterTrioAi.TryChooseAction(session, snapshot, actor, player, seed, out request);
+            }
             CombatantState[] alive = snapshot.Combatants.Where(unit => !unit.IsDead && unit.Data.Team == BattleTeam.Monster).ToArray();
             BattleElement partner = alive.Length == 2 ? alive.First(unit => unit.InstanceId != actor.InstanceId).Data.Element : BattleElement.None;
-            MonsterTacticsTable table = profile.ForPartner(partner);
+            MonsterTacticsTable table = tactics ?? profile.ForPartner(partner);
             var random = new Random(DecisionSeed(seed, actor.InstanceId, snapshot.TurnId));
             bool duel = snapshot.Combatants.Count(unit => unit.Data.Team == BattleTeam.Monster) == 1
                 && snapshot.Combatants.Count(unit => unit.Data.Team == BattleTeam.Player) == 1;
-            bool canDefend = !MonsterAi.IsPlayerOverheated(snapshot);
+            bool canDefend = allowDefense && !MonsterAi.IsPlayerOverheated(snapshot);
             int openingDefenseAction = session.EntryInitiatorId == actor.InstanceId ? 1 : 0;
             if (canDefend && profile.Element == BattleElement.Afterimage && duel
                 && session.GetActionCount(actor.InstanceId) == openingDefenseAction)
@@ -88,7 +93,7 @@ namespace CK.SemesterProject.Battle
             return difference >= 2 ? Math.Min(player, self) + 1 : Math.Min(player, self);
         }
 
-        private static int Band(int value, int initial, IReadOnlyList<int> thresholds)
+        internal static int Band(int value, int initial, IReadOnlyList<int> thresholds)
         {
             double percentage = initial <= 0 ? 0 : 100.0 * value / initial;
             for (int i = 0; i < thresholds.Count; i++)
@@ -101,7 +106,7 @@ namespace CK.SemesterProject.Battle
             return thresholds.Count;
         }
 
-        private static int DecisionSeed(int seed, string actorId, long turn)
+        internal static int DecisionSeed(int seed, string actorId, long turn)
         {
             unchecked
             {
@@ -113,7 +118,7 @@ namespace CK.SemesterProject.Battle
             }
         }
 
-        private static bool TryDefend(BattleSession session, BattleSnapshot snapshot, CombatantState actor,
+        internal static bool TryDefend(BattleSession session, BattleSnapshot snapshot, CombatantState actor,
             MonsterInvestmentRange range, Random random, out BattleActionRequest request)
         {
             request = null;
@@ -139,7 +144,7 @@ namespace CK.SemesterProject.Battle
             return true;
         }
 
-        private static bool TryAttack(BattleSession session, BattleSnapshot snapshot, CombatantState actor,
+        internal static bool TryAttack(BattleSession session, BattleSnapshot snapshot, CombatantState actor,
             CombatantState target, MonsterInvestmentRange range, Random random, out BattleActionRequest request)
         {
             request = null;

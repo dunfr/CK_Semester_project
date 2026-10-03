@@ -126,3 +126,80 @@ MonoBehaviour:
     _rageFour: []
     _chainOne: []
     _chainTwo: []
+  _trioFinisherHpPercent: 40
+  _trioSurvivorHpPercent: 75
+  _trioSurvivorDefenseChance: 0.5
+  _trioAttackWeights: 320000001e00000014000000
+  _trioWaitingAttack:
+  - _min: 2
+    _max: 3
+    _defenseChance: 1
+  - _min: 2
+    _max: 4
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1
+  - _min: 4
+    _max: 5
+    _defenseChance: 1
+  _trioDefenseForward:
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.5
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.5
+  - _min: 1
+    _max: 1
+    _defenseChance: 0.6
+  - _min: 1
+    _max: 1
+    _defenseChance: 0.7
+  _trioDefenseReverse:
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 1
+    _max: 1
+    _defenseChance: 0.25
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.5
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.6
+  - _min: 3
+    _max: 3
+    _defenseChance: 0.7
+  _trioSurvivorDefense:
+  - _min: 1
+    _max: 2
+    _defenseChance: 1
+  - _min: 2
+    _max: 3
+    _defenseChance: 1
+  - _min: 2
+    _max: 4
+    _defenseChance: 1
+  - _min: 2
+    _max: 3
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1

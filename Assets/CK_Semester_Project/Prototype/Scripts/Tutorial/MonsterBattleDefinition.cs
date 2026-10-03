@@ -92,6 +92,23 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("생존 동료가 망각인 2기 전투")]
         private Tactics _withOblivion;
 
+        [SerializeField, Range(0, 100), Tooltip("3기 조합의 각인 최대 투자 공격: 플레이어 HP 이하 비율")]
+        private int _trioFinisherHpPercent = 40;
+        [SerializeField, Range(0, 100), Tooltip("잔상 2기 생존 방어: 자신의 HP 이하 비율")]
+        private int _trioSurvivorHpPercent = 75;
+        [SerializeField, Range(0f, 1f), Tooltip("잔상 2기 생존 시 방어 확률")]
+        private float _trioSurvivorDefenseChance = 0.5f;
+        [SerializeField, Tooltip("잔상 확률 공격: 1·2·3단계 가중치")]
+        private int[] _trioAttackWeights = { 50, 30, 20 };
+        [SerializeField, Tooltip("대기형 각인 행동 1~5 투자 범위")]
+        private InvestmentRange[] _trioWaitingAttack = new MonsterTrioRules().WaitingAttack.Select(row => new InvestmentRange(row)).ToArray();
+        [SerializeField, Tooltip("잔상 방어: 메모리 내림차순 표, 행동 1~6")]
+        private InvestmentRange[] _trioDefenseForward = new MonsterTrioRules().DefenseForward.Select(row => new InvestmentRange(row)).ToArray();
+        [SerializeField, Tooltip("잔상 방어: 메모리 오름차순 표, 행동 1~6")]
+        private InvestmentRange[] _trioDefenseReverse = new MonsterTrioRules().DefenseReverse.Select(row => new InvestmentRange(row)).ToArray();
+        [SerializeField, Tooltip("잔상 2기 생존 방어: 행동 1~6 투자 범위")]
+        private InvestmentRange[] _trioSurvivorDefense = new MonsterTrioRules().SurvivorDefense.Select(row => new InvestmentRange(row)).ToArray();
+
         public BattleElement Element => _element;
 
         public void InitializeDefaults(BattleElement element)
@@ -118,7 +135,11 @@ namespace CK.SemesterProject.Tutorial
         public CombatantData CreateData()
         {
             var profile = new MonsterBehaviorProfile(_element, _costPercent, _multipliers,
-                _playerThresholds, _selfThresholds, _solo.Create(), _withImprint.Create(), _withAfterimage.Create(), _withOblivion.Create());
+                _playerThresholds, _selfThresholds, _solo.Create(), _withImprint.Create(), _withAfterimage.Create(), _withOblivion.Create(),
+                new MonsterTrioRules(_trioFinisherHpPercent, _trioSurvivorHpPercent, _trioSurvivorDefenseChance,
+                    _trioAttackWeights, _trioWaitingAttack.Select(row => row.Create()).ToArray(),
+                    _trioDefenseForward.Select(row => row.Create()).ToArray(), _trioDefenseReverse.Select(row => row.Create()).ToArray(),
+                    _trioSurvivorDefense.Select(row => row.Create()).ToArray()));
             var attack = new SkillData(_id + "_attack", "공격", _power, _element, accuracy: _accuracy);
             return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
                 new[] { attack }, _element, weaknessChain: _weaknessChain, monsterProfile: profile);
