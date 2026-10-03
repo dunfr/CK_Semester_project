@@ -13,9 +13,9 @@ namespace CK.SemesterProject.Tutorial
     {
         [SerializeField, Tooltip("전투 진행 컴포넌트")]
         private TutorialBattleController _controller;
-        [SerializeField, Tooltip("각인 2기, 잔상 2기, 망각 2기 순서")]
+        [SerializeField, Tooltip("각인 A/B, 잔상 A/B, 망각 A/B, 각인 C, 잔상 C, 망각 C 순서")]
         private EnemyStateMachine[] _monsters;
-        [SerializeField, Tooltip("단독 3개, 동일 속성 3개, 혼합 속성 3개 조합 버튼")]
+        [SerializeField, Tooltip("기존 1~2기 조합 9개, 3기 조합 10개")]
         private Button[] _presets;
         [SerializeField, Tooltip("일반, 플레이어 선제, 몬스터 선제 선택 버튼")]
         private Button[] _entryButtons;
@@ -31,7 +31,10 @@ namespace CK.SemesterProject.Tutorial
         {
             new[] { 0 }, new[] { 2 }, new[] { 4 },
             new[] { 0, 1 }, new[] { 2, 3 }, new[] { 4, 5 },
-            new[] { 0, 2 }, new[] { 2, 4 }, new[] { 4, 0 }
+            new[] { 0, 2 }, new[] { 2, 4 }, new[] { 4, 0 },
+            new[] { 0, 2, 4 }, new[] { 0, 1, 2 }, new[] { 0, 1, 4 },
+            new[] { 2, 3, 0 }, new[] { 2, 3, 4 }, new[] { 4, 5, 2 }, new[] { 4, 5, 0 },
+            new[] { 0, 1, 6 }, new[] { 2, 3, 7 }, new[] { 4, 5, 8 }
         };
         private Pose[] _homes;
         private UnityAction[] _presetActions;
@@ -40,21 +43,21 @@ namespace CK.SemesterProject.Tutorial
 
         private void Start()
         {
-            if (_controller == null || _monsters == null || _monsters.Length != 6
-                || _presets == null || _presets.Length != 9 || _entryButtons == null || _entryButtons.Length != 3
+            if (_controller == null || _monsters == null || _monsters.Length != 9
+                || _presets == null || _presets.Length != _rosters.Length || _entryButtons == null || _entryButtons.Length != 3
                 || _reset == null || _selection == null || _entryLabel == null || _fieldCamera == null)
             {
                 Debug.LogError("MonsterAiTestPanel: 테스트 씬 참조가 누락되었습니다.", this);
                 enabled = false;
                 return;
             }
-            _homes = new Pose[6];
+            _homes = new Pose[_monsters.Length];
             for (int i = 0; i < _monsters.Length; i++)
             {
                 _homes[i] = new Pose(_monsters[i].transform.position, _monsters[i].transform.rotation);
             }
             _fieldCamera.enabled = false;
-            _presetActions = new UnityAction[9];
+            _presetActions = new UnityAction[_rosters.Length];
             for (int i = 0; i < _presets.Length; i++)
             {
                 int index = i;

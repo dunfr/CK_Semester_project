@@ -10,45 +10,44 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8d2ea9e0f6c022a41b1e60e46f559e65, type: 3}
-  m_Name: AfterimageB
+  m_Name: ImprintC
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.MonsterBattleDefinition
-  _id: test_afterimage_1
-  _displayName: "\uC794\uC0C1 B"
-  _element: 1
+  _id: test_imprint_2
+  _displayName: "\uAC01\uC778 C"
+  _element: 2
   _maxHp: 600
-  _memory: 260
+  _memory: 180
   _power: 90
   _accuracy: 1
-  _weaknessChain: 03000000010000000200000003000000
-  _costPercent: 00000000050000000a0000000f000000140000001e000000
+  _weaknessChain: 01000000020000000300000001000000
+  _costPercent: 000000000a000000140000001e00000028000000320000003c00000046000000
   _multipliers:
   - 1
-  - 1.05
   - 1.1
   - 1.2
-  - 1.25
-  - 1.4
-  _playerThresholds: 550000004600000032000000230000000f000000
-  _selfThresholds: 5a00000046000000320000002300000014000000
+  - 1.35
+  - 1.5
+  - 1.7
+  - 1.75
+  - 1.8
+  _playerThresholds: 5a0000004b000000320000001e000000
+  _selfThresholds: 5a000000460000003200000023000000
   _solo:
     _attack:
-    - _min: 1
+    - _min: 5
+      _max: 7
+      _defenseChance: 1
+    - _min: 4
+      _max: 7
+      _defenseChance: 1
+    - _min: 3
+      _max: 6
+      _defenseChance: 1
+    - _min: 2
       _max: 5
       _defenseChance: 1
-    - _min: 1
-      _max: 2
-      _defenseChance: 1
-    - _min: 2
-      _max: 4
-      _defenseChance: 1
-    - _min: 2
-      _max: 3
-      _defenseChance: 1
-    - _min: 1
-      _max: 4
-      _defenseChance: 1
-    - _min: 1
-      _max: 1
+    - _min: 6
+      _max: 7
       _defenseChance: 1
     _rageThree: []
     _rageFour: []
@@ -56,23 +55,20 @@ MonoBehaviour:
     _chainTwo: []
   _withImprint:
     _attack:
-    - _min: 1
-      _max: 2
+    - _min: 5
+      _max: 7
       _defenseChance: 1
-    - _min: 1
-      _max: 2
+    - _min: 4
+      _max: 7
       _defenseChance: 1
-    - _min: 1
-      _max: 3
+    - _min: 3
+      _max: 6
       _defenseChance: 1
-    - _min: 1
-      _max: 2
+    - _min: 2
+      _max: 5
       _defenseChance: 1
-    - _min: 1
-      _max: 4
-      _defenseChance: 1
-    - _min: 1
-      _max: 1
+    - _min: 6
+      _max: 7
       _defenseChance: 1
     _rageThree: []
     _rageFour: []
@@ -80,23 +76,20 @@ MonoBehaviour:
     _chainTwo: []
   _withAfterimage:
     _attack:
-    - _min: 1
+    - _min: 5
+      _max: 7
+      _defenseChance: 1
+    - _min: 4
+      _max: 7
+      _defenseChance: 1
+    - _min: 3
+      _max: 6
+      _defenseChance: 1
+    - _min: 2
       _max: 5
       _defenseChance: 1
-    - _min: 1
-      _max: 2
-      _defenseChance: 1
-    - _min: 2
-      _max: 4
-      _defenseChance: 1
-    - _min: 2
-      _max: 3
-      _defenseChance: 1
-    - _min: 1
-      _max: 4
-      _defenseChance: 1
-    - _min: 1
-      _max: 1
+    - _min: 6
+      _max: 7
       _defenseChance: 1
     _rageThree: []
     _rageFour: []
@@ -104,23 +97,20 @@ MonoBehaviour:
     _chainTwo: []
   _withOblivion:
     _attack:
-    - _min: 1
-      _max: 5
+    - _min: 6
+      _max: 7
       _defenseChance: 1
-    - _min: 1
-      _max: 4
+    - _min: 5
+      _max: 7
       _defenseChance: 1
-    - _min: 1
-      _max: 3
+    - _min: 4
+      _max: 6
       _defenseChance: 1
-    - _min: 1
-      _max: 2
+    - _min: 2
+      _max: 6
       _defenseChance: 1
-    - _min: 1
-      _max: 2
-      _defenseChance: 1
-    - _min: 1
-      _max: 1
+    - _min: 6
+      _max: 7
       _defenseChance: 1
     _rageThree: []
     _rageFour: []
