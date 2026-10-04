@@ -28,7 +28,7 @@ namespace CK.SemesterProject.Battle
             var random = new Random(DecisionSeed(seed, actor.InstanceId, snapshot.TurnId));
             bool duel = snapshot.Combatants.Count(unit => unit.Data.Team == BattleTeam.Monster) == 1
                 && snapshot.Combatants.Count(unit => unit.Data.Team == BattleTeam.Player) == 1;
-            bool canDefend = allowDefense && !MonsterAi.IsPlayerOverheated(snapshot);
+            bool canDefend = allowDefense && session.Rules.CanMonsterDefend(actor, snapshot.Combatants);
             int openingDefenseAction = session.EntryInitiatorId == actor.InstanceId ? 1 : 0;
             if (canDefend && profile.Element == BattleElement.Afterimage && duel
                 && session.GetActionCount(actor.InstanceId) == openingDefenseAction)

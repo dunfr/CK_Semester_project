@@ -7,6 +7,7 @@ namespace CK.SemesterProject.Battle
     public sealed class BattleSession
     {
         private readonly Dictionary<string, int> _actionsTaken = new Dictionary<string, int>();
+        private readonly List<BattleHistoryEntry> _history = new List<BattleHistoryEntry>();
         private readonly HashSet<string> _damagedByPlayer = new HashSet<string>();
         private string _lastAfterimageHitId;
         private string _attackImprintId;
@@ -31,12 +32,14 @@ namespace CK.SemesterProject.Battle
         private bool _isBonusAction;
         private bool _resumeActorAfterPresentation;
 
+        public IReadOnlyList<BattleHistoryEntry> History { get; }
         public BattleActionResult PendingResult { get; private set; }
         public BattleRules Rules => _rules;
         public string EntryInitiatorId { get; private set; }
 
         public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null, BattleRules rules = null)
         {
+            History = _history.AsReadOnly();
             _rules = (resolver as BattleActionResolver)?.Rules ?? rules ?? new BattleRules();
             _resolver = resolver ?? new BattleActionResolver(_rules, randomSeed);
             _random = randomSeed.HasValue ? new Random(randomSeed.Value) : new Random();
@@ -229,7 +232,8 @@ namespace CK.SemesterProject.Battle
                 return BattleActionError.InvalidActor;
             }
             CombatantState actor = _combatants[_currentActorId];
-            if (actor.Data.MonsterProfile?.Element == BattleElement.Imprint && request.Kind == BattleActionKind.Defend)
+            if (actor.Data.Team == BattleTeam.Monster && request.Kind == BattleActionKind.Defend
+                && !_rules.CanMonsterDefend(actor, _combatants.Values))
             {
                 return BattleActionError.InvalidAction;
             }
@@ -327,7 +331,8 @@ namespace CK.SemesterProject.Battle
                     effect.IsDefending ?? before.IsDefending, Clamp((long)before.RageEnergy + effect.RageDelta, 100),
                     effect.ChainStep ?? before.ChainStep, effect.ImprintDamage ?? before.ImprintDamage,
                     _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold, before.HasMemoryLoss,
-                    effect.DefenseDamageMultiplier ?? before.DefenseDamageMultiplier);
+                    effect.DefenseDamageMultiplier ?? before.DefenseDamageMultiplier,
+                    effect.HasAfterimageRecovery ?? before.HasAfterimageRecovery);
                 changes.Add(new BattleStateChange(before, after));
             }
             return changes;
@@ -351,7 +356,8 @@ namespace CK.SemesterProject.Battle
                     {
                         _combatants[id] = new CombatantState(id, unit.Data, unit.Hp, unit.Memory,
                             unit.SkippedTurns, unit.IsDefending, unit.RageEnergy, unit.ChainStep,
-                            unit.ImprintDamage, unit.IsOverheated, hasMemoryLoss: true, defenseDamageMultiplier: unit.DefenseDamageMultiplier);
+                            unit.ImprintDamage, unit.IsOverheated, hasMemoryLoss: true, defenseDamageMultiplier: unit.DefenseDamageMultiplier,
+                            hasAfterimageRecovery: unit.HasAfterimageRecovery);
                     }
                     _remaining.Add(id);
                 }
@@ -399,7 +405,8 @@ namespace CK.SemesterProject.Battle
             var after = new CombatantState(actor.InstanceId, actor.Data, hp,
                 actor.HasMemoryLoss && hp > 0 ? Clamp((long)actor.Memory + actor.Data.InitialMemory, actor.Data.MaxMemory) : actor.Memory,
                 hp == 0 ? 0 : Math.Max(0, actor.SkippedTurns - 1), false,
-                overheated ? 0 : actor.RageEnergy, actor.ChainStep, 0);
+                overheated ? 0 : actor.RageEnergy, actor.ChainStep, 0,
+                hasAfterimageRecovery: !skipped && actor.HasAfterimageRecovery);
             if (!actor.IsDefending && actor.ImprintDamage == 0 && !skipped)
             {
                 return;
@@ -448,6 +455,7 @@ namespace CK.SemesterProject.Battle
             }
             PendingResult = new BattleActionResult(_turnId, request, wasSkipped, _outcome, changes,
                 hit, isTurnStartEffect);
+            _history.Add(new BattleHistoryEntry(PendingResult, _combatants[request.ActorId], _rules, GetSnapshot()));
         }
 
         private BattleOutcome EvaluateOutcome()

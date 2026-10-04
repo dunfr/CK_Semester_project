@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using NUnit.Framework;
 
@@ -138,11 +138,11 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [Test]
-        public void AfterimageRecoveryAndOblivionStealAreImmediateAndCapped()
+        public void AfterimageArmsRecoveryAndOblivionStealIsCapped()
         {
             BattleSession session = Start(new[] { new SkillData("hit", "Hit", 0, BattleElement.Afterimage) });
             Attack(session);
-            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(53));
+            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(50));
             session = Start(new[] { new SkillData("hit", "Hit", 0, BattleElement.Oblivion) }, monsterMemory: 1);
             Attack(session);
             Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(51));
@@ -450,6 +450,138 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() => new BattleCombatRules(imprintRatio: -1));
             Assert.Throws<ArgumentOutOfRangeException>(() => new CombatantData("x", "X", BattleTeam.Monster,
                 100, 10, 5, Array.Empty<SkillData>(), weaknessChain: new[] { BattleElement.Afterimage }));
+        }
+
+        [Test]
+        public void AfterimageNextDefenseRecoversTenOnlyOnce()
+        {
+            BattleSession session = Start(new[] { new SkillData("hit", "Hit", 0, BattleElement.Afterimage) });
+            Attack(session);
+            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(50));
+            Assert.That(session.GetSnapshot().Combatants[0].HasAfterimageRecovery, Is.True);
+            ReturnToPlayer(session);
+            int before = session.GetSnapshot().Combatants[0].Memory;
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p",
+                BattleActionKind.Defend), out _, out _), Is.True);
+            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(before + 10));
+            Assert.That(session.GetSnapshot().Combatants[0].HasAfterimageRecovery, Is.False);
+            ReturnToPlayer(session);
+            before = session.GetSnapshot().Combatants[0].Memory;
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p",
+                BattleActionKind.Defend), out _, out _), Is.True);
+            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(before));
+        }
+
+        [TestCase(BattleActionKind.Wait)]
+        [TestCase(BattleActionKind.Skill)]
+        public void AfterimageOtherNextActionExpiresRecovery(BattleActionKind kind)
+        {
+            BattleSession session = Start(new[] { new SkillData("hit", "Hit", 0, BattleElement.Afterimage),
+                new SkillData("plain", "Plain", 0) });
+            Attack(session);
+            ReturnToPlayer(session);
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p", kind,
+                kind == BattleActionKind.Skill ? "plain" : null, kind == BattleActionKind.Skill ? "m" : null),
+                out _, out _), Is.True);
+            Assert.That(session.GetSnapshot().Combatants[0].HasAfterimageRecovery, Is.False);
+        }
+
+        [TestCase(BattleTeam.Player, 50, 20, 5)]
+        [TestCase(BattleTeam.Monster, 50, 20, 5)]
+        [TestCase(BattleTeam.Monster, 99, 20, 1)]
+        [TestCase(BattleTeam.Monster, 50, 2, 2)]
+        [TestCase(BattleTeam.Monster, 100, 20, 0)]
+        public void OblivionTransfersSameMemoryToEitherTeam(BattleTeam team, int memory, int targetMemory, int stolen)
+        {
+            var attack = new SkillData("steal", "Steal", 0, BattleElement.Oblivion);
+            var actor = new CombatantData("a", "Actor", team, 1000, 100, memory, new[] { attack });
+            var target = new CombatantData("t", "Target", team == BattleTeam.Player ? BattleTeam.Monster : BattleTeam.Player,
+                1000, 100, targetMemory, new[] { attack });
+            var session = new BattleSession();
+            session.Start(new[] { new BattleParticipant("a", actor), new BattleParticipant("t", target) },
+                team == BattleTeam.Player ? BattleEntryCondition.PlayerInitiated : BattleEntryCondition.MonsterCollision, "a");
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "a", BattleActionKind.Skill,
+                "steal", "t"), out _, out _), Is.True);
+            Assert.That(session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "a").Memory, Is.EqualTo(memory + stolen));
+            Assert.That(session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "t").Memory, Is.EqualTo(targetMemory - stolen));
+            Assert.That(session.History.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void MonsterImprintDamagesPlayerAtNextActionAndIsRecordedOnce()
+        {
+            var attack = new SkillData("imprint", "Imprint", 100, BattleElement.Imprint, criticalChance: 0);
+            var player = new CombatantData("p", "Player", BattleTeam.Player, 1000, 100, 50, new[] { attack });
+            var monster = new CombatantData("m", "Monster", BattleTeam.Monster, 1000, 100, 10, new[] { attack });
+            var session = new BattleSession();
+            session.Start(new[] { new BattleParticipant("p", player), new BattleParticipant("m", monster) },
+                BattleEntryCondition.MonsterCollision, "m");
+            Attack(session, "imprint");
+            Assert.That(session.GetSnapshot().Combatants[0].ImprintDamage, Is.EqualTo(10));
+            Finish(session);
+            Assert.That(session.PendingResult.IsTurnStartEffect, Is.True);
+            Assert.That(session.PendingResult.Changes.Single().HpDelta, Is.EqualTo(-10));
+            Assert.That(session.History.Count, Is.EqualTo(2));
+            StringAssert.Contains("각인 피해 10", session.History[1].ToString());
+            Finish(session);
+            Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("p"));
+            Assert.That(session.GetSnapshot().Combatants[0].ImprintDamage, Is.Zero);
+            Assert.That(session.History.Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void HistoryRecordsDefenseReductionAndGrossMemoryCost()
+        {
+            BattleSession session = Start(new[] { new SkillData("hit", "Hit", 100, memoryCost: 10) },
+                enemySkill: new SkillData("enemy", "Enemy", 100));
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p",
+                BattleActionKind.Defend, memoryInvestment: 3), out _, out _), Is.True);
+            Assert.That(session.History[0].MemorySpent, Is.EqualTo(3));
+            Finish(session);
+            Attack(session, "enemy");
+            Assert.That(session.History[1].PreventedDamage, Is.EqualTo(50));
+            StringAssert.Contains("방어 감소 50", session.History[1].ToString());
+        }
+
+        [Test]
+        public void PlayerDefenseProtectsFromThreeInvestedCriticalHitsAndExpiresAtOwnAction()
+        {
+            var skill = new SkillData("hit", "Hit", 100, criticalChance: 1);
+            var player = new CombatantData("p", "Player", BattleTeam.Player, 1000, 100, 100, new[] { skill });
+            var monster = new CombatantData("m", "Monster", BattleTeam.Monster, 1000, 100, 100, new[] { skill });
+            var session = new BattleSession(randomSeed: 1);
+            session.Start(new[] { new BattleParticipant("p", player, initialRageEnergy: 80),
+                new BattleParticipant("a", monster, initialMemory: 90),
+                new BattleParticipant("b", monster, initialMemory: 80),
+                new BattleParticipant("c", monster, initialMemory: 70) });
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p",
+                BattleActionKind.Defend, investmentStage: 2), out _, out _), Is.True);
+            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(80));
+            Assert.That(session.GetSnapshot().Combatants[0].RageEnergy, Is.EqualTo(65));
+            Finish(session);
+            for (int i = 0; i < 3; i++)
+            {
+                BattleSnapshot state = session.GetSnapshot();
+                Assert.That(state.CurrentActorId, Is.Not.EqualTo("p"));
+                Assert.That(session.TrySubmit(new BattleActionRequest(state.TurnId, state.CurrentActorId,
+                    BattleActionKind.Skill, "hit", "p", investmentStage: 2), out BattleActionResult result, out _), Is.True);
+                Assert.That(result.Hit.IsCritical, Is.True);
+                Assert.That(result.Hit.Damage, Is.EqualTo(72));
+                Assert.That(result.Hit.DefenseMultiplier, Is.EqualTo(0.5));
+                Assert.That(session.GetSnapshot().Combatants[0].IsDefending, Is.True);
+                Finish(session);
+            }
+            Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("p"));
+            Assert.That(session.GetSnapshot().Combatants[0].Hp, Is.EqualTo(784));
+            Assert.That(session.GetSnapshot().Combatants[0].IsDefending, Is.False);
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p",
+                BattleActionKind.Wait), out _, out _), Is.True);
+            Finish(session);
+            BattleSnapshot next = session.GetSnapshot();
+            Assert.That(session.TrySubmit(new BattleActionRequest(next.TurnId, next.CurrentActorId,
+                BattleActionKind.Skill, "hit", "p"), out BattleActionResult unguarded, out _), Is.True);
+            Assert.That(unguarded.Hit.Damage, Is.EqualTo(120));
+            Assert.That(unguarded.Hit.DefenseMultiplier, Is.EqualTo(1));
         }
     }
 }

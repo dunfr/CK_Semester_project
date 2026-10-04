@@ -65,6 +65,10 @@ namespace CK.SemesterProject.Battle
             CombatantState actor = snapshot.Combatants.First(state => state.InstanceId == request.ActorId);
             if (request.Kind == BattleActionKind.Wait)
             {
+                if (actor.HasAfterimageRecovery)
+                {
+                    effects = new[] { new BattleEffect(actor.InstanceId, hasAfterimageRecovery: false) };
+                }
                 return BattleActionError.None;
             }
             if (!_rules.TryGetInvestment(actor.Data, request, out int investmentCost,
@@ -79,11 +83,13 @@ namespace CK.SemesterProject.Battle
             if (request.Kind == BattleActionKind.Defend)
             {
                 int reduction = Math.Min(actor.RageEnergy, defenseReduction);
-                effects = new[] { new BattleEffect(actor.InstanceId, memoryDelta: -investmentCost,
+                int defenseRecovery = actor.HasAfterimageRecovery && _rules.Mechanics.EnableElementEffects
+                    ? Math.Min(_rules.Mechanics.AfterimageRecovery, Math.Max(0, actor.Data.MaxMemory - (actor.Memory - investmentCost))) : 0;
+                effects = new[] { new BattleEffect(actor.InstanceId, memoryDelta: -investmentCost + defenseRecovery,
                     isDefending: true, rageDelta: -reduction,
                     defenseDamageMultiplier: actor.Data.MonsterProfile?.Element == BattleElement.Afterimage
                         ? Math.Max(0, _rules.DefenseDamageMultiplier - 2 * (investmentMultiplier - 1))
-                        : _rules.DefenseDamageMultiplier) };
+                        : _rules.DefenseDamageMultiplier, hasAfterimageRecovery: false) };
                 return BattleActionError.None;
             }
             SkillData skill = actor.Data.Skills.First(data => data.Id == request.SkillId);
@@ -119,10 +125,7 @@ namespace CK.SemesterProject.Battle
 
             int remaining = actor.Memory - (int)cost;
             long recovery = isHit ? skill.MemoryRecovery : 0;
-            if (elementEffects && skill.Element == BattleElement.Afterimage)
-            {
-                recovery += mechanics.AfterimageRecovery;
-            }
+            bool afterimage = elementEffects && skill.Element == BattleElement.Afterimage;
             int recovered = (int)Math.Min(recovery, Math.Max(0L, (long)actor.Data.MaxMemory - remaining));
             remaining += recovered;
             long steal = isHit ? skill.MemorySteal : 0;
@@ -142,14 +145,16 @@ namespace CK.SemesterProject.Battle
             if (actor.InstanceId == target.InstanceId)
             {
                 effects = new[] { new BattleEffect(actor.InstanceId, -roundedDamage, actorDelta,
-                    skipped, rageDelta: rageGain, chainStep: nextChain, imprintDamage: imprint) };
+                    skipped, rageDelta: rageGain, chainStep: nextChain, imprintDamage: imprint,
+                    hasAfterimageRecovery: afterimage) };
             }
             else
             {
                 var changes = new List<BattleEffect>();
-                if (actorDelta != 0 || rageGain != 0)
+                if (actorDelta != 0 || rageGain != 0 || afterimage || actor.HasAfterimageRecovery)
                 {
-                    changes.Add(new BattleEffect(actor.InstanceId, memoryDelta: actorDelta, rageDelta: rageGain));
+                    changes.Add(new BattleEffect(actor.InstanceId, memoryDelta: actorDelta, rageDelta: rageGain,
+                        hasAfterimageRecovery: afterimage));
                 }
                 changes.Add(new BattleEffect(target.InstanceId, -roundedDamage, -stolen,
                     skipped, chainStep: nextChain, imprintDamage: imprint));

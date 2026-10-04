@@ -15,12 +15,14 @@
         public int ImprintDamage { get; }
         public bool IsOverheated { get; }
         public bool HasMemoryLoss { get; }
+        public bool HasAfterimageRecovery { get; }
         public bool IsDead => Hp == 0;
         public bool CanAct => !IsDead && SkippedTurns == 0 && !IsOverheated && !HasMemoryLoss;
 
         internal CombatantState(string instanceId, CombatantData data, int hp, int memory, int skippedTurns,
             bool isDefending = false, int rageEnergy = 0, int chainStep = 0, int imprintDamage = 0,
-            bool isOverheated = false, bool hasMemoryLoss = false, double? defenseDamageMultiplier = null)
+            bool isOverheated = false, bool hasMemoryLoss = false, double? defenseDamageMultiplier = null,
+            bool hasAfterimageRecovery = false)
         {
             InstanceId = instanceId;
             Data = data;
@@ -34,6 +36,7 @@
             ImprintDamage = IsDead ? 0 : imprintDamage;
             IsOverheated = data.Team == BattleTeam.Player && !IsDead && isOverheated;
             HasMemoryLoss = !IsDead && hasMemoryLoss;
+            HasAfterimageRecovery = !IsDead && hasAfterimageRecovery;
         }
     }
 }

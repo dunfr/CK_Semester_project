@@ -129,6 +129,8 @@ namespace CK.SemesterProject.Tutorial
         private UnityEngine.Events.UnityAction[] _skillActions;
 
         public bool IsInBattle => _session != null;
+        private IReadOnlyList<BattleHistoryEntry> _lastHistory = Array.Empty<BattleHistoryEntry>();
+        public IReadOnlyList<BattleHistoryEntry> History => _session?.History ?? _lastHistory;
         public BattleSnapshot Snapshot => _session == null ? null : _cachedSnapshot ?? (_cachedSnapshot = _session.GetSnapshot());
 
         private void Awake()
@@ -682,11 +684,14 @@ namespace CK.SemesterProject.Tutorial
             _hpBar.maxValue = player.Data.MaxHp;
             _hpBar.value = player.Hp;
             _status.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "  폭주 " + player.RageEnergy
-                + (player.ImprintDamage > 0 ? "  각인" : "") + (player.HasMemoryLoss ? "  메모리 고갈" : "");
+                + (player.ImprintDamage > 0 ? "  각인 " + player.ImprintDamage : "")
+                + (player.HasAfterimageRecovery ? "  다음 방어 회복" : "") + (player.HasMemoryLoss ? "  메모리 고갈" : "");
             _enemyStatus.text = string.Join("\n", monsters.Select((monster, index) =>
                 (monster.InstanceId == _targetId ? "▶ " : "") + (index + 1) + ". " + monster.Data.DisplayName
                 + " [" + TutorialMonster.GetElementName(monster.Data.Element) + "]  HP " + monster.Hp + "/" + monster.Data.MaxHp
-                + "  메모리 " + monster.Memory + "  연쇄 " + monster.ChainStep + "/4"))
+                + "  메모리 " + monster.Memory + "  연쇄 " + monster.ChainStep + "/4"
+                + (monster.ImprintDamage > 0 ? "  각인 " + monster.ImprintDamage : "")
+                + (monster.HasAfterimageRecovery ? "  다음 방어 회복" : "")))
                 + "\n순서: " + string.Join(" → ", state.TurnOrder.Select(id =>
                     state.Combatants.First(unit => unit.InstanceId == id).Data.DisplayName));
             _investmentLabel.text = "투자 " + _investment + "단계 (" + _session.Rules.GetStageCost(_playerData, _investment) + ")";
@@ -723,6 +728,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 _playerState.RestoreFull();
             }
+            _lastHistory = _session.History;
             _session = null;
             _encounterCooldown = Time.time + 3;
             RestoreExploration(state.Outcome != BattleOutcome.Victory, state.Outcome == BattleOutcome.Victory);
@@ -735,6 +741,7 @@ namespace CK.SemesterProject.Tutorial
             if (IsInBattle)
             {
                 RestoreExploration();
+                _lastHistory = _session.History;
                 _session = null;
                 _cachedSnapshot = null;
                 _battleUI.SetActive(false);

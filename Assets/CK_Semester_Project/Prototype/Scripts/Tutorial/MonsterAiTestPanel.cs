@@ -72,6 +72,7 @@ namespace CK.SemesterProject.Tutorial
                 _entryButtons[i].onClick.AddListener(_entryActions[i]);
             }
             _reset.onClick.AddListener(ResetTest);
+            BattleHistoryPanel.Create(_controller, _entryLabel, _reset);
             SelectEntry(0);
             ResetTest();
         }

@@ -12,9 +12,11 @@
         public int RageDelta { get; }
         public int? ChainStep { get; }
         public int? ImprintDamage { get; }
+        public bool? HasAfterimageRecovery { get; }
 
         public BattleEffect(string targetId, int hpDelta = 0, int memoryDelta = 0, int? skippedTurns = null,
-            bool? isDefending = null, int rageDelta = 0, int? chainStep = null, int? imprintDamage = null, double? defenseDamageMultiplier = null)
+            bool? isDefending = null, int rageDelta = 0, int? chainStep = null, int? imprintDamage = null,
+            double? defenseDamageMultiplier = null, bool? hasAfterimageRecovery = null)
         {
             TargetId = targetId;
             DefenseDamageMultiplier = defenseDamageMultiplier;
@@ -25,6 +27,7 @@
             RageDelta = rageDelta;
             ChainStep = chainStep;
             ImprintDamage = imprintDamage;
+            HasAfterimageRecovery = hasAfterimageRecovery;
         }
     }
 }
