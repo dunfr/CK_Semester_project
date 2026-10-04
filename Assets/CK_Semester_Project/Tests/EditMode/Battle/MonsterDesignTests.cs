@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using NUnit.Framework;
 
@@ -183,7 +183,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(result.Hit.InvestmentMultiplier, Is.EqualTo(multiplier).Within(0.00001));
             Assert.That(result.Changes.First(change => change.After.InstanceId == "monster").Before.Memory
                 - result.Changes.First(change => change.After.InstanceId == "monster").After.Memory,
-                Is.EqualTo(cost - (element == BattleElement.Afterimage ? 3 : element == BattleElement.Oblivion ? 2 : 0)));
+                Is.EqualTo(cost - (element == BattleElement.Oblivion ? 5 : 0)));
         }
 
         [Test]
@@ -237,7 +237,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void SoloAfterimageOpensWithSeventyPercentDefenseAndDoesNotMutateOnQuery()
         {
-            BattleSession session = Create(BattleElement.Afterimage);
+            BattleSession session = Create(BattleElement.Afterimage, playerMemory: 99);
             var ai = new MonsterAi();
             ai.TryChooseAction(session, out BattleActionRequest request);
             ai.TryChooseAction(session, out BattleActionRequest repeated);
@@ -256,6 +256,14 @@ namespace CK.SemesterProject.Battle.Tests
             session.TrySubmit(new BattleActionRequest(next.TurnId, "player", BattleActionKind.Skill, "player_attack", "monster"), out result, out _);
             Assert.That(result.Hit.Damage, Is.EqualTo(30));
             session.CompletePresentation(result.ActionId);
+            // 방어 투자 후 메모리가 줄어 새 라운드에서도 플레이어가 먼저 행동한다.
+            next = session.GetSnapshot();
+            Assert.That(next.CurrentActorId, Is.EqualTo("player"));
+            Assert.That(next.Combatants.First(unit => unit.InstanceId == "monster").IsDefending, Is.True);
+            Assert.That(session.TrySubmit(new BattleActionRequest(next.TurnId, "player", BattleActionKind.Wait),
+                out result, out _), Is.True);
+            session.CompletePresentation(result.ActionId);
+            Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("monster"));
             Assert.That(session.GetSnapshot().Combatants.First(unit => unit.InstanceId == "monster").IsDefending, Is.False);
             ai.TryChooseAction(session, out request);
             Assert.That(request.Kind, Is.EqualTo(BattleActionKind.Skill));
@@ -293,8 +301,8 @@ namespace CK.SemesterProject.Battle.Tests
                 weaknessChain: new[] { BattleElement.Afterimage, BattleElement.Afterimage, BattleElement.Afterimage, BattleElement.Afterimage },
                 monsterProfile: MonsterBehaviorProfile.CreateDefault(BattleElement.Oblivion));
             var session = new BattleSession();
-            session.Start(new[] { new BattleParticipant("player", player, initialRageEnergy: 80),
-                new BattleParticipant("monster", monster, initialMemory: 60) });
+            session.Start(new[] { new BattleParticipant("player", player, initialMemory: 55, initialRageEnergy: 80),
+                new BattleParticipant("monster", monster, initialMemory: 60) }, BattleEntryCondition.PlayerInitiated);
             for (int chain = 1; chain <= 2; chain++)
             {
                 BattleSnapshot state = session.GetSnapshot();
@@ -331,7 +339,7 @@ namespace CK.SemesterProject.Battle.Tests
         [TestCase(90, BattleActionKind.Defend, 3, 4)]
         public void OblivionRageBoundaries(int rage, BattleActionKind kind, int min, int max)
         {
-            BattleSession session = Create(BattleElement.Oblivion, playerRage: rage);
+            BattleSession session = Create(BattleElement.Oblivion, playerMemory: 99, playerRage: rage);
             new MonsterAi().TryChooseAction(session, out BattleActionRequest request);
             Assert.That(request.Kind, Is.EqualTo(kind));
             Assert.That(request.InvestmentStage.Value, Is.InRange(min, max));
@@ -340,7 +348,8 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void PartnerDefenseCoinIsStablePerTurnAndVariesAcrossSeeds()
         {
-            BattleSession session = Create(BattleElement.Oblivion, BattleElement.Imprint, ownMemory: 80, playerRage: 50);
+            BattleSession session = Create(BattleElement.Oblivion, BattleElement.Imprint,
+                ownMemory: 80, playerMemory: 79, playerRage: 50);
             var kinds = new System.Collections.Generic.HashSet<BattleActionKind>();
             for (int seed = 0; seed < 60; seed++)
             {
@@ -368,6 +377,165 @@ namespace CK.SemesterProject.Battle.Tests
                 Assert.That(new MonsterAi().TryChooseAction(session, out BattleActionRequest request), Is.True);
                 Assert.That(session.ValidateRequest(request), Is.EqualTo(BattleActionError.None), element + " " + partner + " " + own + " " + player);
             }
+        }
+
+        private static BattleSession CreateDefenseMemoryScenario(int ownMemory, int playerMemory,
+            BattleElement element = BattleElement.None, int skillCost = 0, int monsterCount = 1,
+            int playerRage = 0, bool includeDeadPlayer = false)
+        {
+            var player = new CombatantData("player", "플레이어", BattleTeam.Player, 10000, 1000, 1000,
+                new[] { new SkillData("hit", "공격", 1, criticalChance: 0) });
+            var monster = new CombatantData("monster", "몬스터", BattleTeam.Monster, 10000, 1000, 1000,
+                new[] { new SkillData("attack", "공격", 10, element, memoryCost: skillCost, criticalChance: 0) },
+                element, monsterProfile: element == BattleElement.None ? null : MonsterBehaviorProfile.CreateDefault(element));
+            var participants = new System.Collections.Generic.List<BattleParticipant>
+            {
+                new BattleParticipant("player", player, initialMemory: playerMemory, initialRageEnergy: playerRage)
+            };
+            if (includeDeadPlayer)
+            {
+                participants.Add(new BattleParticipant("dead_player", player, initialHp: 0,
+                    initialMemory: 1000, initialRageEnergy: 100));
+            }
+            for (int index = 0; index < monsterCount; index++)
+            {
+                participants.Add(new BattleParticipant("monster_" + index, monster, initialMemory: ownMemory));
+            }
+            var session = new BattleSession(randomSeed: 7, rules: new BattleRules(enableMemoryLoss: false));
+            session.Start(participants);
+            AdvanceToDefenseActor(session, "monster_0");
+            return session;
+        }
+
+        private static void AdvanceToDefenseActor(BattleSession session, string actorId)
+        {
+            for (int count = 0; count < 12; count++)
+            {
+                BattleSnapshot snapshot = session.GetSnapshot();
+                if (snapshot.CurrentActorId == actorId)
+                {
+                    return;
+                }
+                Assert.That(session.TrySubmit(new BattleActionRequest(snapshot.TurnId,
+                    snapshot.CurrentActorId, BattleActionKind.Wait), out BattleActionResult result,
+                    out BattleActionError error), Is.True, error.ToString());
+                Assert.That(session.CompletePresentation(result.ActionId), Is.True);
+            }
+            Assert.Fail("몬스터 행동 순서가 오지 않았습니다: " + actorId);
+        }
+
+        [TestCase(BattleElement.None, 99)]
+        [TestCase(BattleElement.None, 100)]
+        [TestCase(BattleElement.Afterimage, 99)]
+        [TestCase(BattleElement.Afterimage, 100)]
+        public void MonsterDefenseRejectsLowerAndEqualMemoryWithoutChangingState(BattleElement element, int memory)
+        {
+            BattleSession session = CreateDefenseMemoryScenario(memory, 100, element);
+            BattleSnapshot before = session.GetSnapshot();
+            int historyCount = session.History.Count;
+            var defend = new BattleActionRequest(before.TurnId, "monster_0", BattleActionKind.Defend);
+            Assert.That(session.ValidateRequest(defend), Is.EqualTo(BattleActionError.InvalidAction));
+            Assert.That(session.TrySubmit(defend, out BattleActionResult result, out BattleActionError error), Is.False);
+            Assert.That(error, Is.EqualTo(BattleActionError.InvalidAction));
+            Assert.That(result, Is.Null);
+            BattleSnapshot after = session.GetSnapshot();
+            Assert.That(after.TurnId, Is.EqualTo(before.TurnId));
+            Assert.That(after.CurrentActorId, Is.EqualTo(before.CurrentActorId));
+            Assert.That(after.Phase, Is.EqualTo(before.Phase));
+            CollectionAssert.AreEqual(before.TurnOrder, after.TurnOrder);
+            for (int index = 0; index < before.Combatants.Count; index++)
+            {
+                Assert.That(after.Combatants[index], Is.SameAs(before.Combatants[index]));
+            }
+            Assert.That(session.PendingResult, Is.Null);
+            Assert.That(session.GetActionCount("monster_0"), Is.Zero);
+            Assert.That(session.History.Count, Is.EqualTo(historyCount));
+        }
+
+        [TestCase(BattleElement.None, 50)]
+        [TestCase(BattleElement.Afterimage, 150)]
+        public void MonsterDefenseComparesCurrentMemoryBeforeInvestment(BattleElement element, int remainingMemory)
+        {
+            BattleSession session = CreateDefenseMemoryScenario(250, 200, element);
+            BattleSnapshot before = session.GetSnapshot();
+            var defend = new BattleActionRequest(before.TurnId, "monster_0", BattleActionKind.Defend, investmentStage: 2);
+            Assert.That(session.ValidateRequest(defend), Is.EqualTo(BattleActionError.None));
+            Assert.That(session.TrySubmit(defend, out _, out BattleActionError error), Is.True, error.ToString());
+            CombatantState monster = session.GetSnapshot().Combatants.First(unit => unit.InstanceId == "monster_0");
+            Assert.That(monster.IsDefending, Is.True);
+            Assert.That(monster.Memory, Is.EqualTo(remainingMemory));
+            Assert.That(monster.Memory, Is.LessThan(200));
+        }
+
+        [TestCase(BattleElement.Afterimage, 99, 0, BattleActionKind.Skill)]
+        [TestCase(BattleElement.Afterimage, 100, 0, BattleActionKind.Skill)]
+        [TestCase(BattleElement.Afterimage, 100, 1001, BattleActionKind.Wait)]
+        [TestCase(BattleElement.Oblivion, 99, 0, BattleActionKind.Skill)]
+        [TestCase(BattleElement.Oblivion, 100, 0, BattleActionKind.Skill)]
+        [TestCase(BattleElement.Oblivion, 100, 1001, BattleActionKind.Wait)]
+        public void ProfileAiUsesAttackOrWaitWhenMemoryPreventsDefense(BattleElement element,
+            int memory, int skillCost, BattleActionKind expected)
+        {
+            BattleSession session = CreateDefenseMemoryScenario(memory, 100, element, skillCost, playerRage: 80);
+            Assert.That(new MonsterAi().TryChooseAction(session, out BattleActionRequest request), Is.True);
+            Assert.That(request.Kind, Is.EqualTo(expected));
+            Assert.That(session.ValidateRequest(request), Is.EqualTo(BattleActionError.None));
+            Assert.That(session.TrySubmit(request, out _, out BattleActionError error), Is.True, error.ToString());
+        }
+
+        [TestCase(99, 0, BattleActionKind.Skill)]
+        [TestCase(100, 0, BattleActionKind.Skill)]
+        [TestCase(99, 1001, BattleActionKind.Wait)]
+        [TestCase(100, 1001, BattleActionKind.Wait)]
+        [TestCase(101, 1001, BattleActionKind.Defend)]
+        public void GenericAiFallbackChecksStrictMemoryComparison(int memory, int skillCost, BattleActionKind expected)
+        {
+            BattleSession session = CreateDefenseMemoryScenario(memory, 100, skillCost: skillCost);
+            Assert.That(new MonsterAi().TryChooseAction(session, out BattleActionRequest request), Is.True);
+            Assert.That(request.Kind, Is.EqualTo(expected));
+            Assert.That(session.ValidateRequest(request), Is.EqualTo(BattleActionError.None));
+        }
+
+        [TestCase(499, 0, BattleActionKind.Skill)]
+        [TestCase(500, 0, BattleActionKind.Skill)]
+        [TestCase(501, 0, BattleActionKind.Defend)]
+        [TestCase(499, 1001, BattleActionKind.Wait)]
+        [TestCase(500, 1001, BattleActionKind.Wait)]
+        public void TrioAiChecksEachMonstersCurrentMemory(int memory, int skillCost, BattleActionKind expected)
+        {
+            BattleSession session = CreateDefenseMemoryScenario(memory, 500, BattleElement.Oblivion,
+                skillCost, monsterCount: 3, playerRage: 80);
+            for (int index = 0; index < 3; index++)
+            {
+                AdvanceToDefenseActor(session, "monster_" + index);
+                Assert.That(new MonsterAi().TryChooseAction(session, out BattleActionRequest request), Is.True);
+                Assert.That(request.Kind, Is.EqualTo(expected));
+                Assert.That(session.ValidateRequest(request), Is.EqualTo(BattleActionError.None));
+            }
+        }
+
+        [Test]
+        public void DeadPlayerDoesNotPreventOtherwiseValidMonsterDefense()
+        {
+            BattleSession session = CreateDefenseMemoryScenario(250, 200, includeDeadPlayer: true);
+            var defend = new BattleActionRequest(session.GetSnapshot().TurnId, "monster_0", BattleActionKind.Defend);
+            Assert.That(session.TrySubmit(defend, out _, out BattleActionError error), Is.True, error.ToString());
+        }
+
+        [TestCase(BattleElement.None, 100)]
+        [TestCase(BattleElement.Afterimage, 100)]
+        [TestCase(BattleElement.Imprint, 0)]
+        public void GreaterMemoryDoesNotOverrideExistingDefenseProhibitions(BattleElement element, int playerRage)
+        {
+            BattleSession session = CreateDefenseMemoryScenario(250, 200, element, playerRage: playerRage);
+            // 몬스터가 먼저 행동하므로 플레이어의 행동 불능은 아직 소모되지 않았다.
+            CombatantState player = session.GetSnapshot().Combatants.First(unit => unit.InstanceId == "player");
+            Assert.That(player.IsOverheated, Is.EqualTo(playerRage == 100));
+            var defend = new BattleActionRequest(session.GetSnapshot().TurnId, "monster_0", BattleActionKind.Defend);
+            Assert.That(session.ValidateRequest(defend), Is.EqualTo(BattleActionError.InvalidAction));
+            Assert.That(new MonsterAi().TryChooseAction(session, out BattleActionRequest request), Is.True);
+            Assert.That(request.Kind, Is.EqualTo(BattleActionKind.Skill));
+            Assert.That(session.ValidateRequest(request), Is.EqualTo(BattleActionError.None));
         }
     }
 }

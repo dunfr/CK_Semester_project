@@ -11,7 +11,7 @@ namespace CK.SemesterProject.Battle.Tests
         private static readonly BattleElement O = BattleElement.Oblivion;
 
         private static BattleSession Create(BattleElement[] elements, int playerHp = 10000,
-            int playerRage = 0, int memory = 1000, int seed = 7, string initiator = null)
+            int playerRage = 0, int memory = 1000, int seed = 7, string initiator = null, int playerMemory = 1000)
         {
             var player = new CombatantData("p", "Player", BattleTeam.Player, 10000, 1000, 1000,
                 new[] { new SkillData("hit", "Hit", 400, criticalChance: 0),
@@ -19,7 +19,7 @@ namespace CK.SemesterProject.Battle.Tests
                     new SkillData("miss", "Miss", 100, accuracy: 0) });
             var roster = new System.Collections.Generic.List<BattleParticipant>
             {
-                new BattleParticipant("p", player, initialHp: playerHp, initialRageEnergy: playerRage)
+                new BattleParticipant("p", player, initialHp: playerHp, initialRageEnergy: playerRage, initialMemory: playerMemory)
             };
             for (int n = 0; n < elements.Length; n++)
             {
@@ -148,10 +148,9 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void ThreeAfterimagesOpenUninvestedAndDefenseFollowsLastHit()
         {
-            BattleSession session = Create(new[] { A, A, A });
+            BattleSession session = Create(new[] { A, A, A }, playerMemory: 999);
             BattleSnapshot opening = session.GetSnapshot();
-            session.TrySubmit(new BattleActionRequest(opening.TurnId, "p", BattleActionKind.Wait), out BattleActionResult wait, out _);
-            session.CompletePresentation(wait.ActionId);
+            Assert.That(opening.CurrentActorId, Is.Not.EqualTo("p"));
             for (int n = 0; n < 3; n++)
             {
                 BattleActionRequest first = Choose(session, session.GetSnapshot().CurrentActorId);
@@ -170,7 +169,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void TwoOblivionsTrackDamageIndependently()
         {
-            BattleSession session = Create(new[] { O, O, A }, playerRage: 80);
+            BattleSession session = Create(new[] { O, O, A }, playerRage: 80, playerMemory: 999);
             Hit(session, "m0");
             Assert.That(Choose(session, "m0").Kind, Is.EqualTo(BattleActionKind.Defend));
             Assert.That(Choose(session, "m1").Kind, Is.EqualTo(BattleActionKind.Skill));
@@ -180,7 +179,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void TwoAfterimagesUnlockCostTableAfterOtherElementDies()
         {
-            BattleSession session = Create(new[] { A, A, I });
+            BattleSession session = Create(new[] { A, A, I }, playerMemory: 999);
             Hit(session, "m0");
             for (int seed = 0; seed < 10; seed++)
             {
@@ -203,7 +202,7 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void ThreeOblivionsDefendAtRageFour()
         {
-            BattleSession session = Create(new[] { O, O, O }, playerRage: 80);
+            BattleSession session = Create(new[] { O, O, O }, playerRage: 80, playerMemory: 999);
             for (int n = 0; n < 3; n++)
             {
                 BattleActionRequest request = Choose(session, "m" + n);

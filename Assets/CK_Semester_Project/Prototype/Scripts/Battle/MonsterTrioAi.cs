@@ -55,7 +55,7 @@ namespace CK.SemesterProject.Battle
             MonsterBehaviorProfile profile = actor.Data.MonsterProfile;
             MonsterTrioRules rules = profile.Trio;
             var random = new Random(MonsterProfileAi.DecisionSeed(seed, actor.InstanceId, snapshot.TurnId));
-            bool canDefend = !MonsterAi.IsPlayerOverheated(snapshot);
+            bool canDefend = session.Rules.CanMonsterDefend(actor, snapshot.Combatants);
             bool wasHit = snapshot.DamagedByPlayer.Contains(actor.InstanceId);
             bool aloneWithAfterimages = monsters.All(unit => unit.IsDead || unit.Data.Element == BattleElement.Afterimage);
 

@@ -40,6 +40,30 @@ namespace CK.SemesterProject.Battle
             DefenseDamageMultiplier = defenseDamageMultiplier;
         }
 
+        // 방어 투자 전의 현재 메모리를 비교한다. 죽은 플레이어는 조건에서 제외한다.
+        public bool CanMonsterDefend(CombatantState actor, IEnumerable<CombatantState> combatants)
+        {
+            if (actor == null || !actor.CanAct || actor.Data.Team != BattleTeam.Monster
+                || actor.Data.MonsterProfile?.Element == BattleElement.Imprint)
+            {
+                return false;
+            }
+            bool hasPlayer = false;
+            foreach (CombatantState player in combatants)
+            {
+                if (player.IsDead || player.Data.Team != BattleTeam.Player)
+                {
+                    continue;
+                }
+                hasPlayer = true;
+                if (actor.Memory <= player.Memory || player.IsOverheated)
+                {
+                    return false;
+                }
+            }
+            return hasPlayer;
+        }
+
         public int GetStageCost(CombatantData actor, int stage)
         {
             if (actor == null || stage < 0 || stage > (actor.MonsterProfile?.MaxStage ?? 5))

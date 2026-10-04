@@ -161,18 +161,18 @@ namespace CK.SemesterProject.Battle.Tests
             string csv = File.ReadAllText("Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv");
             IReadOnlyList<SkillData> skills = SkillTable.LoadCsv(csv);
             CollectionAssert.AreEqual(new[] { "SK00", "SK01", "Sk02" }, skills.Select(skill => skill.Id));
-            CollectionAssert.AreEqual(new[] { 13, 15, 20 }, skills.Select(skill => skill.MemoryCost));
+            CollectionAssert.AreEqual(new[] { 10, 15, 20 }, skills.Select(skill => skill.MemoryCost));
             CollectionAssert.AreEqual(new[] { 20, 45, 15 }, skills.Select(skill => skill.RageGain));
             CollectionAssert.AreEqual(new[] { 0.15, 0.1, 0.15 }, skills.Select(skill => skill.BonusCriticalChance));
             Assert.That(skills.All(skill => skill.Power == 100 && skill.CriticalChance == null), Is.True);
             Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv + csv.Split('\n')[1]));
-            Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv.Replace(",15,20,13", ",150,20,13")));
+            Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv.Replace(",15,20,10", ",150,20,10")));
             Assert.Throws<FormatException>(() => SkillTable.LoadCsv("wrong"));
         }
 
         [TestCase(true, -10)]
-        [TestCase(false, -13)]
-        public void AfterimageCsvSkillNetCostIncludesHitRecovery(bool hit, int expectedDelta)
+        [TestCase(false, -10)]
+        public void AfterimageCsvSkillCostsTenAndOnlyHitArmsRecovery(bool hit, int expectedDelta)
         {
             SkillData skill = SkillTable.LoadCsv(File.ReadAllText(
                 "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv"))[0];
@@ -185,6 +185,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(new BattleActionResolver().ResolveOutcome(snapshot, request, hit, false,
                 out IReadOnlyList<BattleEffect> effects, out _), Is.EqualTo(BattleActionError.None));
             Assert.That(effects.Single(effect => effect.TargetId == "p").MemoryDelta, Is.EqualTo(expectedDelta));
+            Assert.That(effects.Single(effect => effect.TargetId == "p").HasAfterimageRecovery, Is.EqualTo(hit));
         }
 
         [Test]
