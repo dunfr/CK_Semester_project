@@ -400,10 +400,13 @@ namespace CK.SemesterProject.Battle
             _phase = BattlePhase.AwaitingAction;
             CombatantState actor = _combatants[_currentActorId];
             bool overheated = _rules.Mechanics.EnableRage && actor.RageEnergy >= BattleCombatRules.OverheatThreshold;
-            bool skipped = actor.SkippedTurns > 0 || overheated || actor.HasMemoryLoss;
+            // 같은 라운드의 강탈이나 추가 행동도 다음 자기 행동 전에 고갈을 확인한다.
+            bool memoryDepleted = actor.HasMemoryLoss
+                || (_rules.EnableMemoryLoss && actor.Memory == 0 && actor.Data.InitialMemory > 0);
+            bool skipped = actor.SkippedTurns > 0 || overheated || memoryDepleted;
             int hp = Math.Max(0, actor.Hp - actor.ImprintDamage);
             var after = new CombatantState(actor.InstanceId, actor.Data, hp,
-                actor.HasMemoryLoss && hp > 0 ? Clamp((long)actor.Memory + actor.Data.InitialMemory, actor.Data.MaxMemory) : actor.Memory,
+                memoryDepleted && hp > 0 ? Clamp((long)actor.Memory + actor.Data.InitialMemory, actor.Data.MaxMemory) : actor.Memory,
                 hp == 0 ? 0 : Math.Max(0, actor.SkippedTurns - 1), false,
                 overheated ? 0 : actor.RageEnergy, actor.ChainStep, 0,
                 hasAfterimageRecovery: !skipped && actor.HasAfterimageRecovery);

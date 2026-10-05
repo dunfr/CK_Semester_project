@@ -37,7 +37,7 @@ namespace CK.SemesterProject.Tutorial
         private int _collisionMemoryBonus = 1;
         [SerializeField, Range(1, 3), Tooltip("전투 참여 몬스터 수. 접촉한 몬스터와 가까운 살아 있는 필드 몬스터를 선택합니다. 부족하면 현재 수로 진입합니다.")]
         private int _encounterSize = 1;
-        [SerializeField, Tooltip("필드 E/접촉 자동 진입 사용. 조합 선택 테스트 씬에서는 끕니다.")]
+        [SerializeField, Tooltip("필드 좌클릭/접촉 자동 진입 사용. 조합 선택 테스트 씬에서는 끕니다.")]
         private bool _automaticEncounters = true;
         [SerializeField, Tooltip("튜토리얼 플레이어 이동 컴포넌트")]
         private PlayerMovement _movement;
@@ -55,6 +55,8 @@ namespace CK.SemesterProject.Tutorial
         private string _characterId = "CH00";
         [SerializeField, Tooltip("기존 Skill_DT CSV")]
         private TextAsset _skillTable;
+        [SerializeField, Tooltip("기본 스킬의 승리 횟수별 강화 공격력과 단계별 연출")]
+        private BasicSkillEnhancementAsset _basicSkillEnhancement;
         [SerializeField, Tooltip("원본 필드 UI. 전투 중 표시만 잠시 숨깁니다.")]
         private GameObject _fieldUI;
         [SerializeField, Tooltip("필드 UI와 별개인 전투 조작 패널")]
@@ -95,7 +97,12 @@ namespace CK.SemesterProject.Tutorial
         private readonly MonsterAi _ai = new MonsterAi();
         private BattleSession _session;
         private CombatantData _playerData;
+        private SkillData[] _baseSkills;
         private SkillData[] _skills;
+        private TMP_Text[] _skillLabels;
+        private SkillEnhancementRules _enhancementRules;
+        private int _battleSkillStage;
+        private bool _hasRecordedBattleResult;
         private EnemyStateMachine _encounter;
         private TutorialBattleFormation _formation;
         private EnemyStateMachine[] _encounterMembers = Array.Empty<EnemyStateMachine>();
@@ -136,7 +143,8 @@ namespace CK.SemesterProject.Tutorial
         private void Awake()
         {
             if (_movement == null || _orbit == null || _camera == null || _brain == null || _characters == null
-                || _fieldUI == null || _skillTable == null || _enemies == null || _enemies.Length == 0 || _battleUI == null
+                || _fieldUI == null || _skillTable == null || _basicSkillEnhancement == null
+                || _enemies == null || _enemies.Length == 0 || _battleUI == null
                 || _hpBar == null || _skillButtons == null || _skillButtons.Length != 3
                 || _investmentButton == null || _defendButton == null || _continueButton == null
                 || _status == null || _enemyStatus == null || _notice == null || _investmentLabel == null)
@@ -147,19 +155,13 @@ namespace CK.SemesterProject.Tutorial
             }
             try
             {
-                if (!_characters.TryGet(_characterId, out CharacterData character))
-                {
-                    throw new InvalidOperationException("Character_DT: 캐릭터 ID " + _characterId + "를 찾을 수 없습니다.");
-                }
-                _skills = SkillTable.LoadCsv(_skillTable.text).ToArray();
-                if (_skills.Length != _skillButtons.Length)
+                _baseSkills = SkillTable.LoadCsv(_skillTable.text).ToArray();
+                if (_baseSkills.Length != _skillButtons.Length)
                 {
                     throw new InvalidOperationException("Skill_DT: 튜토리얼 스킬 버튼 수와 데이터가 다릅니다.");
                 }
-                _playerData = new CombatantData(character.Id, character.Name, BattleTeam.Player,
-                    checked((int)character.Hp), checked((int)character.BaseMemory), checked((int)character.BaseMemory),
-                    _skills, evasion: character.EvasionRate, baseCriticalChance: character.BaseCriticalChance,
-                    criticalDamageMultiplier: character.CriticalDamage);
+                _playerState = PlayerSessionState.Current;
+                RefreshPlayerData();
             }
             catch (Exception exception)
             {
@@ -171,13 +173,13 @@ namespace CK.SemesterProject.Tutorial
             _animator = _movement.GetComponent<Animator>();
             _spawn = _movement.transform.position;
             _lastPlayerPosition = _spawn;
-            _playerState = PlayerSessionState.Current;
             _playerState.Initialize(_playerData);
             _playerState.RestoreFieldMemory();
             InitializeFieldVitals();
             _playerState.Changed += RefreshFieldVitals;
             RefreshFieldVitals();
             _enemyEnabled = new bool[_enemies.Length];
+            _skillLabels = _skillButtons.Select(button => button.GetComponentInChildren<TMP_Text>(true)).ToArray();
             _skillActions = new UnityEngine.Events.UnityAction[_skills.Length];
             for (int i = 0; i < _skills.Length; i++)
             {
@@ -320,6 +322,22 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
+        private void RefreshPlayerData()
+        {
+            if (!_characters.TryGet(_characterId, out CharacterData character))
+            {
+                throw new InvalidOperationException("Character_DT: 캐릭터 ID " + _characterId + "를 찾을 수 없습니다.");
+            }
+            int victories = _playerState.CharacterId == character.Id ? _playerState.VictoryCount : 0;
+            _enhancementRules = _basicSkillEnhancement.CreateRules();
+            _battleSkillStage = _enhancementRules.GetStage(victories);
+            _skills = _basicSkillEnhancement.CreateSkills(_baseSkills, victories);
+            _playerData = new CombatantData(character.Id, character.Name, BattleTeam.Player,
+                checked((int)character.Hp), checked((int)character.BaseMemory), checked((int)character.BaseMemory),
+                _skills, evasion: character.EvasionRate, baseCriticalChance: character.BaseCriticalChance,
+                criticalDamageMultiplier: character.CriticalDamage);
+        }
+
         private void ReadBattleCameraInput()
         {
             Mouse mouse = Mouse.current;
@@ -425,12 +443,13 @@ namespace CK.SemesterProject.Tutorial
                 .Where(other => other != null && other != enemy && other.isActiveAndEnabled)
                 .Distinct().OrderBy(other => (other.transform.position - enemy.transform.position).sqrMagnitude))
                 .Take(Mathf.Clamp(_encounterSize, 1, 3)).ToArray();
-            var participants = new List<BattleParticipant>
-            {
-                new BattleParticipant("player", _playerData, initialHp: _playerState.Hp, initialMemory: _playerState.Memory)
-            };
+            var participants = new List<BattleParticipant>();
             try
             {
+                // 강화는 전투 시작에만 반영해 진행 중인 전투의 스킬 계산을 고정한다.
+                RefreshPlayerData();
+                participants.Add(new BattleParticipant("player", _playerData,
+                    initialHp: _playerState.Hp, initialMemory: _playerState.Memory));
                 for (int i = 0; i < _encounterMembers.Length; i++)
                 {
                     participants.Add(new BattleParticipant(GetMonsterId(i), GetMonsterData(_encounterMembers[i])));
@@ -438,7 +457,7 @@ namespace CK.SemesterProject.Tutorial
             }
             catch (Exception exception)
             {
-                Debug.LogError("몬스터 데이터 오류: " + exception.Message, enemy);
+                Debug.LogError("전투 데이터 오류: " + exception.Message, enemy);
                 _encounterMembers = Array.Empty<EnemyStateMachine>();
                 return false;
             }
@@ -461,13 +480,15 @@ namespace CK.SemesterProject.Tutorial
                 return false;
             }
             _session = session;
+            _hasRecordedBattleResult = false;
             _cachedSnapshot = null;
             _battleYaw = 0f;
             _battlePitch = 0f;
             _isCameraDragging = false;
             _formation = formation;
             _presentations = _encounterMembers.Select((member, index) =>
-                new TutorialBattleActionPresentation(_movement.transform, member.transform, 1.6f, GetMonsterId(index))).ToArray();
+                new TutorialBattleActionPresentation(_movement.transform, member.transform, 1.6f, GetMonsterId(index),
+                    enhancement: _basicSkillEnhancement, skillStage: _battleSkillStage)).ToArray();
             _monsterPresentations = _encounterMembers.Select((member, index) =>
                 new TutorialBattleActionPresentation(member.transform, _movement.transform, 1.6f, "player", GetMonsterId(index))).ToArray();
             _playerHome = _movement.transform.position;
@@ -698,13 +719,28 @@ namespace CK.SemesterProject.Tutorial
             for (int i = 0; i < _skillButtons.Length; i++)
             {
                 _skillButtons[i].interactable = CanInput(state);
+                if (_skillLabels[i] != null)
+                {
+                    _skillLabels[i].text = TutorialMonster.GetElementName(_skills[i].Element)
+                        + " " + _battleSkillStage + "단계\n위력 " + _skills[i].Power;
+                }
             }
             _investmentButton.interactable = CanInput(state);
             _defendButton.interactable = CanInput(state);
             _continueButton.gameObject.SetActive(state.Phase == BattlePhase.Finished);
             if (state.Phase == BattlePhase.Finished)
             {
+                if (!_hasRecordedBattleResult)
+                {
+                    _hasRecordedBattleResult = true;
+                    _playerState.RecordBattleOutcome(state.Outcome);
+                }
                 _notice.text = state.Outcome == BattleOutcome.Victory ? "승리" : state.Outcome == BattleOutcome.Defeat ? "패배 · 시작 위치로 돌아갑니다" : "무승부";
+                int nextStage = _enhancementRules.GetStage(_playerState.VictoryCount);
+                int remaining = _enhancementRules.GetRemainingVictories(_playerState.VictoryCount);
+                _notice.text += nextStage > _battleSkillStage ? " · 기본 스킬 " + nextStage + "단계 강화 (다음 전투부터)"
+                    : remaining > 0 ? " · 누적 " + _playerState.VictoryCount + "승 / 다음 강화까지 " + remaining + "승"
+                    : " · 기본 스킬 최대 단계";
             }
         }
 
