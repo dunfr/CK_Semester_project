@@ -19,7 +19,7 @@ namespace CK.SemesterProject.Tutorial
         private Button[] _presets;
         [SerializeField, Tooltip("일반, 플레이어 선제, 몬스터 선제 선택 버튼")]
         private Button[] _entryButtons;
-        [SerializeField, Tooltip("모든 상태와 적을 초기화하는 버튼")]
+        [SerializeField, Tooltip("HP·메모리·적을 초기화하는 버튼. 누적 승리는 유지합니다")]
         private Button _reset;
         [SerializeField, Tooltip("필드에서 표시하는 테스트 선택 패널")]
         private GameObject _selection;
