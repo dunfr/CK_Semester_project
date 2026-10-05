@@ -139,7 +139,8 @@ namespace CK.SemesterProject.Battle.Tests
                 participants.Add(new BattleParticipant("partner", new CombatantData("ally", "동료", BattleTeam.Monster,
                     100, 100, 100, new[] { skill }, partner, monsterProfile: MonsterBehaviorProfile.CreateDefault(partner)), initialMemory: 1));
             }
-            var session = new BattleSession(randomSeed: 7);
+            // 행동표의 메모리 구간을 그대로 비교한다. 실제 고갈·행동 소모·회복은 별도 세션 테스트에서 검증한다.
+            var session = new BattleSession(randomSeed: 7, rules: new BattleRules(enableMemoryLoss: false));
             session.Start(participants);
             for (int i = 0; i < 10 && session.GetSnapshot().CurrentActorId != "monster"; i++)
             {
@@ -183,7 +184,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(result.Hit.InvestmentMultiplier, Is.EqualTo(multiplier).Within(0.00001));
             Assert.That(result.Changes.First(change => change.After.InstanceId == "monster").Before.Memory
                 - result.Changes.First(change => change.After.InstanceId == "monster").After.Memory,
-                Is.EqualTo(cost - (element == BattleElement.Oblivion ? 5 : 0)));
+                Is.EqualTo(cost - (element == BattleElement.Oblivion ? 10 : 0)));
         }
 
         [Test]

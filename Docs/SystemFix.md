@@ -51,3 +51,31 @@ Unity 6000.3.23f1 컴파일러로 코어·테스트·게임 스크립트를 컴�
 `BattleRules.CanMonsterDefend`에서 메모리 비교와 기존 각인/플레이어 과열 방어 금지를 공통으로 판단한다. 일반·속성·3기 AI와 `BattleSession.ValidateRequest`가 이 판단을 사용하므로 직접 요청으로도 조건을 우회할 수 없다. 사망한 플레이어는 비교에서 제외한다.
 
 검증: 코어·테스트·게임 스크립트 컴파일 성공. 에디터 외부 코어 테스트 217개 통과(추가 조건 회귀 26개 포함). 동률/열세 요청 거부와 상태 보존, 투자 차감 전 비교, 일반·속성·3기 AI의 공격/대기 대체, 기존 금지 조건과 사망 플레이어 제외를 확인했다. PlayMode/데모 실행은 하지 않았다.
+
+# 2026-10-05 시스템 수정
+
+기준: `References/시스템 픽스 문서 (1).pdf`의 10-05 항목과 그 안에 연결된 [최신 전투 시스템 기획서](https://docs.google.com/document/d/1mxInwgEbY87ZiuaAHrdiOem1eM80JwjNWXajo8VmtRA/edit)의 기본 스킬 강화 절. 강화 횟수는 사용자 답변에 따라 승리한 전투만 누적한다.
+
+## 적용
+
+- 망각 강탈 등으로 같은 라운드에 메모리가 0이 돼도 다음 자신의 행동 시작에 고갈을 처리한다. 초기 메모리만큼 회복하고 그 행동 기회를 건너뛰며, 무료 방어·대기나 선제/연쇄 추가 행동으로 우회할 수 없다.
+- 망각 기본 강탈을 5 → 10으로 변경한다. 대상 잔량과 행동자의 최대 공간에 맞춰 양쪽에 동일량을 적용한다.
+- 각인 지연 피해를 최종 스킬 피해의 10% → 20%로 변경한다. 대상의 다음 행동 시작에 한 번 발생하며 방어 배율을 재적용하지 않는다.
+- 잔상·각인·망각 기본 스킬은 1~3단계로 강화한다. 현재 5승 후 2단계 120, 10승 후 3단계 150이며 최대 3단계다. 새 플레이는 1단계 100으로 시작한다. 비용·폭주·치명타 등은 강화로 증가하지 않는다.
+- 패배·무승부·중단은 누적하지 않는다. 승리 처리는 한 전투당 한 번이며 회복·테스트 조합 전환·같은 캐릭터의 씬 이동에는 누적을 유지한다. 전투가 끝난 뒤 해금한 단계는 다음 전투에 적용한다.
+- TutorialDemo·MonsterAI_Test에 `BasicSkillEnhancement.asset`을 연결한다. Inspector에서 Victories Per Stage, 속성별 Stage Powers와 단계별 Animations/Effects를 수정할 수 있다. ID 대소문자와 공격력 3칸을 유지한다. 새 공개 API는 `SkillEnhancementRules`, `PlayerRuntimeState.VictoryCount/RecordBattleOutcome`, `SkillData.WithPower`다.
+- 전투 스킬 버튼에 단계·위력을, 종료 안내에 승리 진행·강화를 표시한다. 제공된 강화 연출 자산이 없어 새 아트는 만들지 않았으며, Animations/Effects를 연결하면 해당 단계의 클립과 프리팹을 사용한다.
+
+## 기획자 테스트 순서
+
+1. Play를 끄고 `Data/Battle/BasicSkillEnhancement.asset`을 선택한다. 정식 기본값은 승리 주기 5, 각 스킬 공격력 100/120/150이다.
+2. 빠른 강화 확인만 할 때 주기를 1로 임시 수정하고 Play를 새로 시작한다. MonsterAI_Test에서 한 전투를 이기면 2단계, 다음 승리 뒤 3단계를 해금한다. 다음 전투 버튼의 위력이 120/150인지 확인한다.
+3. 패배 또는 전투 중단·초기화만 반복해도 누적이 오르지 않는지 확인한다. 승리 후 결과 화면에 머무르거나 초기화해도 승리 수가 중복 증가하지 않아야 한다.
+4. 전투 기록의 기본 피해·최종 피해·비용을 비교한다. 강화 후 기본 공격력만 증가하고 비용·폭주 수치는 기존과 같아야 한다. 메모리 0은 다음 자기 행동에 고갈 결과가 기록돼야 한다.
+5. Stop 후 승리 주기를 반드시 5로 되돌린다. Play 재시작은 새 게임이므로 승리 누적도 0부터 시작한다. 기존 10-04 Inspector 안내 PDF는 당시 기준이므로 최신 속성·강화 수치는 이 절을 따른다.
+
+## 검증
+
+Unity 6000.3.23f1의 컴파일러로 CK.Battle.Core, CK.Battle.Core.Tests, Assembly-CSharp 컴파일 성공. 에디터 외부 코어 테스트 261개 통과, 실패 0개(기존 217개와 고갈 6개·속성 20개·강화 18개). 기존 AI 표의 메모리 0 구간은 고갈을 끈 정책 테스트로 유지하고 실제 행동 불능·회복 흐름은 고갈 테스트에서 따로 확인했다.
+
+두 씬의 강화 에셋·스크립트 GUID, 전투별 승리 집계 가드, 다음 전투의 공격력 재구성, 단계별 PlayableGraph·이펙트 정리와 Transform 포즈 복원 경로를 정적 확인했다. 연결한 Animator 클립은 Unity [AnimationClipPlayable](https://docs.unity3d.com/cn/6000.0/ScriptReference/Animations.AnimationClipPlayable.html)과 [수동 그래프 평가](https://docs.unity3d.com/ja/6000.0/ScriptReference/Playables.PlayableGraph.Evaluate.html)로 행동 시간에 맞춰 재생한다. 기존 UnityChan 코드의 중복 타입 경고는 남아 있다. 이번 세션에 Unity MCP가 제공되지 않아 Editor Console·실제 화면은 확인하지 못했으며, 게임·PlayMode·데모는 실행하지 않았다.

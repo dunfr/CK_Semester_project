@@ -12,6 +12,7 @@ namespace CK.SemesterProject.Battle
         public int MaxHp { get; private set; }
         public int MaxMemory { get; private set; }
         public int InitialMemory { get; private set; }
+        public int VictoryCount { get; private set; }
 
         public void Initialize(CombatantData data)
         {
@@ -24,7 +25,30 @@ namespace CK.SemesterProject.Battle
             MaxHp = data.MaxHp;
             MaxMemory = data.MaxMemory;
             InitialMemory = data.InitialMemory;
+            if (isNewCharacter)
+            {
+                VictoryCount = 0;
+            }
             SetVitals(isNewCharacter ? MaxHp : Hp, isNewCharacter ? InitialMemory : Memory);
+        }
+
+        public bool RecordBattleOutcome(BattleOutcome outcome)
+        {
+            if (!Enum.IsDefined(typeof(BattleOutcome), outcome))
+            {
+                throw new ArgumentOutOfRangeException(nameof(outcome));
+            }
+            if (CharacterId == null)
+            {
+                throw new InvalidOperationException("플레이어 상태를 먼저 초기화해야 합니다.");
+            }
+            if (outcome != BattleOutcome.Victory)
+            {
+                return false;
+            }
+            VictoryCount = (int)Math.Min(int.MaxValue, (long)VictoryCount + 1);
+            Changed?.Invoke();
+            return true;
         }
 
         public void SetVitals(int hp, int memory)

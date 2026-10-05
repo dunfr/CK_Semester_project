@@ -154,12 +154,12 @@ namespace CK.SemesterProject.Battle.Tests
         {
             BattleSession session = Start(new[] { new SkillData("hit", "Hit", 100, BattleElement.Imprint) });
             Attack(session);
-            Assert.That(session.GetSnapshot().Combatants[1].ImprintDamage, Is.EqualTo(10));
+            Assert.That(session.GetSnapshot().Combatants[1].ImprintDamage, Is.EqualTo(20));
             Finish(session);
             BattleActionResult tick = session.PendingResult;
             Assert.That(tick.IsTurnStartEffect, Is.True);
             Assert.That(tick.WasSkipped, Is.False);
-            Assert.That(tick.Changes.Single().HpDelta, Is.EqualTo(-10));
+            Assert.That(tick.Changes.Single().HpDelta, Is.EqualTo(-20));
             Assert.That(session.GetSnapshot().Combatants[1].ImprintDamage, Is.Zero);
             Finish(session);
             Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("m"));
@@ -168,7 +168,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(session.CompletePresentation(tick.ActionId), Is.False);
             Attack(session, "enemy");
             Finish(session);
-            Assert.That(session.GetSnapshot().Combatants[1].Hp, Is.EqualTo(890));
+            Assert.That(session.GetSnapshot().Combatants[1].Hp, Is.EqualTo(880));
         }
 
         [Test]
@@ -247,7 +247,7 @@ namespace CK.SemesterProject.Battle.Tests
             Attack(session);
             Finish(session);
             Assert.That(session.PendingResult.WasSkipped, Is.True);
-            Assert.That(session.GetSnapshot().Combatants[1].Hp, Is.EqualTo(890));
+            Assert.That(session.GetSnapshot().Combatants[1].Hp, Is.EqualTo(880));
             Assert.That(session.GetSnapshot().Combatants[1].SkippedTurns, Is.EqualTo(1));
             Finish(session);
             Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("p"));
@@ -286,9 +286,9 @@ namespace CK.SemesterProject.Battle.Tests
             BattleSnapshot state = session.GetSnapshot();
             Assert.That(state.CurrentActorId, Is.EqualTo("p2"));
             Assert.That(session.TrySubmit(new BattleActionRequest(state.TurnId, "p2", BattleActionKind.Skill, "hit", "m"), out _, out _), Is.True);
-            Assert.That(session.GetSnapshot().Combatants[2].ImprintDamage, Is.EqualTo(10));
+            Assert.That(session.GetSnapshot().Combatants[2].ImprintDamage, Is.EqualTo(20));
             Finish(session);
-            Assert.That(session.PendingResult.Changes.Single().HpDelta, Is.EqualTo(-10));
+            Assert.That(session.PendingResult.Changes.Single().HpDelta, Is.EqualTo(-20));
         }
 
         [Test]
@@ -486,8 +486,8 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(session.GetSnapshot().Combatants[0].HasAfterimageRecovery, Is.False);
         }
 
-        [TestCase(BattleTeam.Player, 50, 20, 5)]
-        [TestCase(BattleTeam.Monster, 50, 20, 5)]
+        [TestCase(BattleTeam.Player, 50, 20, 10)]
+        [TestCase(BattleTeam.Monster, 50, 20, 10)]
         [TestCase(BattleTeam.Monster, 99, 20, 1)]
         [TestCase(BattleTeam.Monster, 50, 2, 2)]
         [TestCase(BattleTeam.Monster, 100, 20, 0)]
@@ -517,12 +517,12 @@ namespace CK.SemesterProject.Battle.Tests
             session.Start(new[] { new BattleParticipant("p", player), new BattleParticipant("m", monster) },
                 BattleEntryCondition.MonsterCollision, "m");
             Attack(session, "imprint");
-            Assert.That(session.GetSnapshot().Combatants[0].ImprintDamage, Is.EqualTo(10));
+            Assert.That(session.GetSnapshot().Combatants[0].ImprintDamage, Is.EqualTo(20));
             Finish(session);
             Assert.That(session.PendingResult.IsTurnStartEffect, Is.True);
-            Assert.That(session.PendingResult.Changes.Single().HpDelta, Is.EqualTo(-10));
+            Assert.That(session.PendingResult.Changes.Single().HpDelta, Is.EqualTo(-20));
             Assert.That(session.History.Count, Is.EqualTo(2));
-            StringAssert.Contains("각인 피해 10", session.History[1].ToString());
+            StringAssert.Contains("각인 피해 20", session.History[1].ToString());
             Finish(session);
             Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("p"));
             Assert.That(session.GetSnapshot().Combatants[0].ImprintDamage, Is.Zero);

@@ -25,7 +25,7 @@ namespace CK.SemesterProject.Battle
         public BattleCombatRules(double criticalChance = 0.1, double criticalMultiplier = 1.2,
             double weaknessMultiplier = 1.25, double resistanceMultiplier = 0.75,
             IEnumerable<double> chainMultipliers = null, bool enableElementEffects = true,
-            bool enableRage = true, int afterimageRecovery = 10, int oblivionSteal = 5, double imprintRatio = 0.1)
+            bool enableRage = true, int afterimageRecovery = 10, int oblivionSteal = 10, double imprintRatio = 0.2)
         {
             double[] chain = (chainMultipliers ?? new[] { 1.0, 1.0, 1.2, 1.3, 1.0 }).ToArray();
             if (!IsFinite(criticalChance) || criticalChance < 0 || criticalChance > 1
