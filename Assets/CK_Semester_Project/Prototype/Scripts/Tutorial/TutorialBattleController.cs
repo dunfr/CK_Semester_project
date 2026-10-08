@@ -102,6 +102,7 @@ namespace CK.SemesterProject.Tutorial
         private TMP_Text[] _skillLabels;
         private SkillEnhancementRules _enhancementRules;
         private int _battleSkillStage;
+        private int _testSkillStage;
         private bool _hasRecordedBattleResult;
         private EnemyStateMachine _encounter;
         private TutorialBattleFormation _formation;
@@ -136,6 +137,19 @@ namespace CK.SemesterProject.Tutorial
         private UnityEngine.Events.UnityAction[] _skillActions;
 
         public bool IsInBattle => _session != null;
+        public int TestSkillStage => _testSkillStage > 0 ? _testSkillStage
+            : _enhancementRules?.GetStage(_playerState?.VictoryCount ?? 0) ?? 1;
+
+        public void CycleTestSkillStage()
+        {
+            if (IsInBattle || _playerData == null || !enabled)
+            {
+                return;
+            }
+            // 테스트 편의를 위한 단계 선택이다. 실제 승리 횟수는 변경하지 않는다.
+            _testSkillStage = TestSkillStage % 3 + 1;
+            RefreshPlayerData();
+        }
         private IReadOnlyList<BattleHistoryEntry> _lastHistory = Array.Empty<BattleHistoryEntry>();
         public IReadOnlyList<BattleHistoryEntry> History => _session?.History ?? _lastHistory;
         public BattleSnapshot Snapshot => _session == null ? null : _cachedSnapshot ?? (_cachedSnapshot = _session.GetSnapshot());
@@ -156,10 +170,6 @@ namespace CK.SemesterProject.Tutorial
             try
             {
                 _baseSkills = SkillTable.LoadCsv(_skillTable.text).ToArray();
-                if (_baseSkills.Length != _skillButtons.Length)
-                {
-                    throw new InvalidOperationException("Skill_DT: 튜토리얼 스킬 버튼 수와 데이터가 다릅니다.");
-                }
                 _playerState = PlayerSessionState.Current;
                 RefreshPlayerData();
             }
@@ -330,8 +340,12 @@ namespace CK.SemesterProject.Tutorial
             }
             int victories = _playerState.CharacterId == character.Id ? _playerState.VictoryCount : 0;
             _enhancementRules = _basicSkillEnhancement.CreateRules();
-            _battleSkillStage = _enhancementRules.GetStage(victories);
-            _skills = _basicSkillEnhancement.CreateSkills(_baseSkills, victories);
+            _battleSkillStage = _testSkillStage > 0 ? _testSkillStage : _enhancementRules.GetStage(victories);
+            _skills = _basicSkillEnhancement.CreateSkillsForStage(_baseSkills, _battleSkillStage);
+            if (_skills.Length != _skillButtons.Length)
+            {
+                throw new InvalidOperationException("Skill_DT: 현재 단계 스킬 수와 버튼 수가 다릅니다.");
+            }
             _playerData = new CombatantData(character.Id, character.Name, BattleTeam.Player,
                 checked((int)character.Hp), checked((int)character.BaseMemory), checked((int)character.BaseMemory),
                 _skills, evasion: character.EvasionRate, baseCriticalChance: character.BaseCriticalChance,
@@ -736,6 +750,11 @@ namespace CK.SemesterProject.Tutorial
                     _playerState.RecordBattleOutcome(state.Outcome);
                 }
                 _notice.text = state.Outcome == BattleOutcome.Victory ? "승리" : state.Outcome == BattleOutcome.Defeat ? "패배 · 시작 위치로 돌아갑니다" : "무승부";
+                if (_testSkillStage > 0)
+                {
+                    _notice.text += " · 테스트 스킬 " + _testSkillStage + "단계 / 누적 " + _playerState.VictoryCount + "승";
+                    return;
+                }
                 int nextStage = _enhancementRules.GetStage(_playerState.VictoryCount);
                 int remaining = _enhancementRules.GetRemainingVictories(_playerState.VictoryCount);
                 _notice.text += nextStage > _battleSkillStage ? " · 기본 스킬 " + nextStage + "단계 강화 (다음 전투부터)"

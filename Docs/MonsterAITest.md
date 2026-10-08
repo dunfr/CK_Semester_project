@@ -69,3 +69,43 @@
 `Tutorial Battle → Basic Skill Enhancement`의 `Data/Battle/BasicSkillEnhancement.asset`에서 승리 주기와 3종의 단계 공격력·연출을 바꾼다. 빠른 검증은 주기를 임시로 1로 바꾼 뒤 두 번 승리하고 다음 전투의 2·3단계 버튼/기록을 확인한다. 작업 후 Stop 상태에서 주기를 5로 복구한다. 자세한 절차와 범위는 `Docs/SystemFix.md`의 10-05 절을 따른다.
 
 검증: Unity 컴파일러로 코어·테스트·게임 스크립트 컴파일 성공. 에디터 외부 코어 테스트 261개 통과, 실패 0개. 게임·PlayMode·실제 입력 및 연결한 연출 자산의 실행 검증은 하지 않았다.
+
+## 2026-10-08 일반 몬스터·기본 스킬 DT 반영
+
+`Docs/References/Monster_DT (1).xlsx`와 `Skill_DT (1).xlsx`의 `시트2`를 기준으로 적용했다. 보스 MO09, 특수기 SK09, 궁극기 SK10은 이번 요청에서 제외했다. 캐릭터 능력치는 변경하지 않았다.
+
+기존 9개 박스와 씬의 참조를 유지하고, A에는 기존 3종, B/C에는 추가 6종을 연결했다. AI 행동표와 1~3기 조합 규칙은 유지한다.
+
+| 테스트 에셋 | DT ID | HP | 공격력 | 초기 메모리 |
+| --- | --- | --- | --- | --- |
+| AfterimageA | MO00 | 300 | 10 | 260 |
+| ImprintA | MO01 | 200 | 25 | 180 |
+| OblivionA | MO02 | 350 | 20 | 180 |
+| AfterimageB | MO03 | 350 | 15 | 260 |
+| ImprintB | MO04 | 250 | 30 | 180 |
+| OblivionB | MO05 | 400 | 25 | 180 |
+| AfterimageC | MO06 | 400 | 20 | 270 |
+| ImprintC | MO07 | 350 | 35 | 180 |
+| OblivionC | MO08 | 450 | 30 | 190 |
+
+각 몬스터의 표시 이름과 약점 연쇄는 DT를 따르고 회피율은 모두 10%다. `Data/MonsterAITest/`의 에셋을 Inspector에서 편집한다. `Data/Monsters/`의 튜토리얼 기본 3종도 같은 기준으로 맞췄다. 필드 이동 속도는 별도의 FSM/NavMesh 설정이므로 이번 전투 능력치 반영에서 변경하지 않았다.
+
+`Data/Battle/Skill_DT.csv`에 기본 스킬 9행을 저장했다. CSV 치명타 열은 기존 로더의 백분율 단위를 유지하므로 엑셀 0.15는 CSV 15로 변환했다. 엑셀 원본 수정만으로 CSV·몬스터 에셋이 자동 갱신되지는 않는다.
+
+| 승리 횟수 | 잔상 | 각인 | 망각 | 공격력 |
+| --- | --- | --- | --- | --- |
+| 0~4 | SK00 | SK01 | SK02 | 100 |
+| 5~9 | SK03 | SK04 | SK05 | 120 |
+| 10 이상 | SK06 | SK07 | SK08 | 150 |
+
+버튼은 기존 3개를 유지한다. 각 단계의 메모리 소모는 잔상 10·각인 15·망각 20, 폭주 획득은 20·25·15다. `BasicSkillEnhancement.asset`의 `Stage Skill Ids`가 각 속성의 1·2·3단계 행을 연결한다. 9행 테이블에서는 `Stage Powers` 대신 CSV의 `skill_damage`를 편집한다. 승리 주기와 단계별 애니메이션·이펙트 연결은 기존 설정을 유지한다.
+
+확인할 씬은 `Assets/CK_Semester_Project/Prototype/Scenes/MonsterAI_Test.unity`다. 기존 2기 동일 속성 조합에서 A/B, 3기 동일 속성 조합에서 A/B/C를 비교할 수 있다. 각 개체의 이름·HP·메모리가 서로 다른지, 승리 횟수에 따라 다음 전투에서 스킬 ID와 공격력이 바뀌는지 확인한다.
+
+검증: Unity 컴파일러로 CK.Battle.Core·CK.Battle.Core.Tests·Assembly-CSharp 컴파일 성공(기존 UnityChan 중복 타입 경고). 에디터 외부 코어 테스트 267개 통과, 실패 0개. 9종의 DT 수치·씬 GUID 참조 일치와 기존 AI 표 보존도 확인했다. 게임·데모·PlayMode는 실행하지 않았다.
+
+### 스킬 강화 테스트 버튼
+
+테스트 화면 오른쪽 위 `초기화` 버튼 왼쪽에 `스킬 강화` 버튼을 추가했다. 클릭하면 1→2→3단계로 바뀌고, 3단계에서는 `강화 초기화`로 표시되어 1단계로 돌아간다. 전투 중에는 비활성화되며 선택한 단계는 다음 전투에서 사용한다. 실제 누적 승리는 바꾸지 않고, 일반 테스트 초기화 후에도 선택 단계는 유지된다. Play를 종료하면 테스트 단계 선택은 해제되고 기존 승리 기반 강화 규칙을 사용한다.
+
+Hierarchy의 `Enhance Test Skills`가 버튼 오브젝트이고, `MonsterAiTestPanel`의 `Enhance Skill` 참조에 연결되어 있다. Inspector에서 위치·크기·버튼 스타일을 조절할 수 있다. 버튼 추가 후 게임 스크립트 컴파일과 씬 참조를 확인했으며 데모는 실행하지 않았다.

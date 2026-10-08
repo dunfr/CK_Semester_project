@@ -65,14 +65,16 @@ namespace CK.SemesterProject.Tutorial
         private string _displayName;
         [SerializeField, Tooltip("AI 유형과 공격 속성")]
         private BattleElement _element;
-        [SerializeField, Min(1), Tooltip("임시 최대 HP. Monster DT 확정 시 교체")]
+        [SerializeField, Min(1), Tooltip("Monster_DT의 최대 HP")]
         private int _maxHp = 600;
-        [SerializeField, Min(1), Tooltip("임시 기본/최대 메모리. 잔상은 플레이어보다 높게 설정")]
+        [SerializeField, Min(1), Tooltip("Monster_DT의 기본/최대 메모리")]
         private int _memory = 180;
-        [SerializeField, Min(0), Tooltip("임시 기본 공격력")]
+        [SerializeField, Min(0), Tooltip("Monster_DT의 기본 공격력")]
         private int _power = 90;
         [SerializeField, Range(0f, 1f), Tooltip("기본 공격 명중률")]
         private float _accuracy = 1;
+        [SerializeField, Range(0f, 1f), Tooltip("Monster_DT의 회피율. 0.1이면 10%")]
+        private float _evasion;
         [SerializeField, Tooltip("4개 원소로 구성한 약점 연쇄")]
         private BattleElement[] _weaknessChain;
         [SerializeField, Tooltip("0단계부터 기본 메모리 대비 비용 백분율")]
@@ -142,7 +144,7 @@ namespace CK.SemesterProject.Tutorial
                     _trioSurvivorDefense.Select(row => row.Create()).ToArray()));
             var attack = new SkillData(_id + "_attack", "공격", _power, _element, accuracy: _accuracy);
             return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
-                new[] { attack }, _element, weaknessChain: _weaknessChain, monsterProfile: profile);
+                new[] { attack }, _element, evasion: _evasion, weaknessChain: _weaknessChain, monsterProfile: profile);
         }
     }
 }
