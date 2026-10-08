@@ -12,14 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d2ea9e0f6c022a41b1e60e46f559e65, type: 3}
   m_Name: ImprintA
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.MonsterBattleDefinition
-  _id: test_imprint_0
-  _displayName: "\uAC01\uC778 A"
+  _id: MO01
+  _displayName: "\uac01\uc778_\ud14c\uc2a4\ud2b8_\ubaac\uc2a4\ud130"
   _element: 2
-  _maxHp: 600
+  _maxHp: 200
   _memory: 180
-  _power: 90
+  _power: 25
   _accuracy: 1
-  _weaknessChain: 01000000020000000300000001000000
+  _evasion: 0.1
+  _weaknessChain: 01000000030000000200000001000000
   _costPercent: 000000000a000000140000001e00000028000000320000003c00000046000000
   _multipliers:
   - 1

@@ -12,14 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d2ea9e0f6c022a41b1e60e46f559e65, type: 3}
   m_Name: Oblivion
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.MonsterBattleDefinition
-  _id: prototype_oblivion
-  _displayName: "\uB9DD\uAC01 \uBAAC\uC2A4\uD130"
+  _id: MO02
+  _displayName: "\ub9dd\uac01_\ud14c\uc2a4\ud2b8_\ubaac\uc2a4\ud130"
   _element: 3
-  _maxHp: 600
+  _maxHp: 350
   _memory: 180
-  _power: 90
+  _power: 20
   _accuracy: 1
-  _weaknessChain: 02000000030000000100000002000000
+  _evasion: 0.1
+  _weaknessChain: 02000000010000000300000002000000
   _costPercent: 000000000a000000140000001e00000028000000
   _multipliers:
   - 1

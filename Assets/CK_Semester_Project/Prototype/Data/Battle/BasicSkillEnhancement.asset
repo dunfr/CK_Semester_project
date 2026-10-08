@@ -15,6 +15,10 @@ MonoBehaviour:
   _victoriesPerStage: 5
   _skills:
   - _skillId: SK00
+    _stageSkillIds:
+    - SK00
+    - SK03
+    - SK06
     _stagePowers: 640000007800000096000000
     _animations:
     - {fileID: 0}
@@ -25,6 +29,10 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
   - _skillId: SK01
+    _stageSkillIds:
+    - SK01
+    - SK04
+    - SK07
     _stagePowers: 640000007800000096000000
     _animations:
     - {fileID: 0}
@@ -34,7 +42,11 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
     - {fileID: 0}
-  - _skillId: Sk02
+  - _skillId: SK02
+    _stageSkillIds:
+    - SK02
+    - SK05
+    - SK08
     _stagePowers: 640000007800000096000000
     _animations:
     - {fileID: 0}

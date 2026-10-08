@@ -1,11 +1,60 @@
 using System;
 using System.Linq;
+using System.IO;
 using NUnit.Framework;
 
 namespace CK.SemesterProject.Battle.Tests
 {
     public sealed class SkillEnhancementTests
     {
+        private static string[][] StageIds()
+        {
+            return new[]
+            {
+                new[] { "SK00", "SK03", "SK06" },
+                new[] { "SK01", "SK04", "SK07" },
+                new[] { "SK02", "SK05", "SK08" }
+            };
+        }
+
+        [TestCase(0, 100, "SK00")]
+        [TestCase(4, 100, "SK00")]
+        [TestCase(5, 120, "SK03")]
+        [TestCase(9, 120, "SK03")]
+        [TestCase(10, 150, "SK06")]
+        public void TableStagesSelectThreeCommandsByIdAfterVictoryBoundaries(int victories, int power, string firstId)
+        {
+            SkillData[] source = SkillTable.LoadCsv(File.ReadAllText(
+                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).Reverse().ToArray();
+            SkillData[] selected = SkillTable.SelectStage(source, StageIds(), new SkillEnhancementRules().GetStage(victories));
+            Assert.That(selected.Length, Is.EqualTo(3));
+            Assert.That(selected[0].Id, Is.EqualTo(firstId));
+            Assert.That(selected.All(skill => skill.Power == power), Is.True);
+            CollectionAssert.AreEqual(new[] { BattleElement.Afterimage, BattleElement.Imprint, BattleElement.Oblivion },
+                selected.Select(skill => skill.Element));
+            CollectionAssert.AreEqual(new[] { 10, 15, 20 }, selected.Select(skill => skill.MemoryCost));
+            CollectionAssert.AreEqual(new[] { 20, 25, 15 }, selected.Select(skill => skill.RageGain));
+            Assert.That(selected.All(skill => source.Contains(skill)), Is.True);
+        }
+
+        [Test]
+        public void StageTableRejectsMissingDuplicateUnmappedAndMixedElementRows()
+        {
+            SkillData[] source = SkillTable.LoadCsv(File.ReadAllText(
+                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).ToArray();
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source.Take(8).ToArray(), StageIds(), 1));
+            string[][] duplicate = StageIds();
+            duplicate[2][2] = "SK00";
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source, duplicate, 1));
+            string[][] missing = StageIds();
+            missing[2][2] = "SK99";
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source, missing, 1));
+            source[8] = new SkillData("SK08", "잘못된 속성", 150, BattleElement.Afterimage);
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source, StageIds(), 1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => SkillTable.SelectStage(source, StageIds(), 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => SkillTable.SelectStage(source, StageIds(), 4));
+        }
+
         private static CombatantData Player(string id = "player", SkillData skill = null)
         {
             return new CombatantData(id, "플레이어", BattleTeam.Player, 1000, 100, 100,

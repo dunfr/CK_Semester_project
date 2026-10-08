@@ -16,7 +16,9 @@ namespace CK.SemesterProject.Tutorial
         {
             [SerializeField, Tooltip("Skill_DT의 기본 스킬 ID. 대소문자를 유지합니다")]
             private string _skillId;
-            [SerializeField, Tooltip("1·2·3단계 기본 공격력. 비용·치명타·폭주 수치는 Skill_DT를 유지합니다")]
+            [SerializeField, Tooltip("Skill_DT의 1·2·3단계 스킬 ID. 지정 시 각 행의 수치를 그대로 사용합니다")]
+            private string[] _stageSkillIds;
+            [SerializeField, Tooltip("기존 3행 Skill_DT용 단계별 공격력. 9행 테이블에서는 각 단계 행의 공격력을 사용합니다")]
             private int[] _stagePowers = { 100, 120, 150 };
             [SerializeField, Tooltip("1·2·3단계 공격 애니메이션. 비어 있으면 기존 임시 연출을 사용합니다")]
             private AnimationClip[] _animations = new AnimationClip[StageCount];
@@ -24,6 +26,12 @@ namespace CK.SemesterProject.Tutorial
             private GameObject[] _effects = new GameObject[StageCount];
 
             public string SkillId => _skillId;
+            public string[] StageSkillIds => _stageSkillIds;
+
+            public bool Matches(string skillId)
+            {
+                return _skillId == skillId || (_stageSkillIds != null && _stageSkillIds.Contains(skillId));
+            }
 
             public SkillData CreateSkill(SkillData source, int stage)
             {
@@ -58,7 +66,20 @@ namespace CK.SemesterProject.Tutorial
 
         public SkillData[] CreateSkills(IReadOnlyList<SkillData> source, int victories)
         {
-            int stage = CreateRules().GetStage(victories);
+            return CreateSkillsForStage(source, CreateRules().GetStage(victories));
+        }
+
+        public SkillData[] CreateSkillsForStage(IReadOnlyList<SkillData> source, int stage)
+        {
+            ValidateStage(stage);
+            if (_skills != null && source != null && source.Count == 9)
+            {
+                if (_skills.Any(skill => skill == null))
+                {
+                    throw new ArgumentException("기본 스킬 강화 데이터: 단계 설정이 비어 있습니다.");
+                }
+                return SkillTable.SelectStage(source, _skills.Select(skill => skill.StageSkillIds), stage);
+            }
             if (_skills == null || source == null || _skills.Length != source.Count
                 || _skills.Any(skill => skill == null || string.IsNullOrWhiteSpace(skill.SkillId))
                 || _skills.Select(skill => skill.SkillId).Distinct(StringComparer.Ordinal).Count() != _skills.Length)
@@ -81,13 +102,13 @@ namespace CK.SemesterProject.Tutorial
         public AnimationClip GetAnimation(string skillId, int stage)
         {
             ValidateStage(stage);
-            return _skills?.FirstOrDefault(skill => skill != null && skill.SkillId == skillId)?.GetAnimation(stage);
+            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetAnimation(stage);
         }
 
         public GameObject GetEffect(string skillId, int stage)
         {
             ValidateStage(stage);
-            return _skills?.FirstOrDefault(skill => skill != null && skill.SkillId == skillId)?.GetEffect(stage);
+            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetEffect(stage);
         }
 
         private static void ValidateStage(int stage)
