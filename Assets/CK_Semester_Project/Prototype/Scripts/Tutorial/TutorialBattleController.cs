@@ -19,8 +19,19 @@ namespace CK.SemesterProject.Tutorial
         private float _actionSeconds = 1.2f;
         [SerializeField, Min(2f), Tooltip("전투 진입 시 플레이어와 몬스터 사이의 목표 간격(m)")]
         private float _battleSpacing = 9f;
-        [SerializeField, Tooltip("전투 카메라 위치: 플레이어 기준 오른쪽/높이/전방(m)")]
+        // 기존 씬의 Vector3 설정을 새 XY / Distance 필드로 한 번 이전한다.
+        [SerializeField, HideInInspector]
         private Vector3 _battleCameraOffset = new Vector3(2.2f, 1.3f, -2.3f);
+        [SerializeField, HideInInspector] private bool _cameraSettingsMigrated;
+        [Header("Battle Camera")]
+        [SerializeField, Tooltip("플레이어 기준 X: 오른쪽, Y: 높이(m). 전투 간격에 따라 확대되며 실제 전투에서는 장애물/화면 보정을 적용합니다.")]
+        private Vector2 _battleCameraOffsetXY = new Vector2(2.2f, 1.3f);
+        [SerializeField, Min(0.1f), Tooltip("플레이어 뒤쪽으로 떨어지는 기본 거리(m). 양수일수록 멀어집니다.")]
+        private float _battleCameraDistance = 2.3f;
+        [SerializeField, Tooltip("Play 모드 디버그: true = 전투 구도, false = 탐색 구도. 비전투에서는 카메라만 미리 봅니다. 실제 전투 진입/종료 시 자동 전환됩니다.")]
+        private bool _debugBattleCamera;
+        [SerializeField, Tooltip("비전투 카메라 미리보기의 대상(선택). 비어 있으면 플레이어 전방 Battle Spacing 지점을 바라봅니다.")]
+        private Transform _debugCameraTarget;
         [SerializeField, Range(35f, 65f), Tooltip("전투 카메라의 수직 시야각(도)")]
         private float _battleFieldOfView = 56f;
         [SerializeField, Min(0.1f), Tooltip("전투 진입 카메라가 자리를 잡는 시간(초)")]
@@ -29,6 +40,7 @@ namespace CK.SemesterProject.Tutorial
         private float _cameraDrift = 0.18f;
         [SerializeField, Min(0f), Tooltip("행동 시 카메라의 이동 폭(m)")]
         private float _cameraActionTravel = 0.45f;
+        [Header("Battle Setup")]
         [SerializeField, Min(1), Tooltip("DT 미제공 몬스터의 임시 HP. 밸런스 확정값이 아닙니다.")]
         private int _monsterHp = 600;
         [SerializeField, Min(1), Tooltip("DT 미제공 몬스터의 임시 초기 메모리")]
@@ -133,6 +145,11 @@ namespace CK.SemesterProject.Tutorial
         private float _nextFootstep;
         private Vector3 _lastPlayerPosition;
         private UnityEngine.Events.UnityAction[] _skillActions;
+        private TutorialBattleCameraPreview _cameraPreview;
+        private bool _isBattleCameraActive;
+
+        private Vector3 ConfiguredCameraOffset => new Vector3(
+            _battleCameraOffsetXY.x, _battleCameraOffsetXY.y, -_battleCameraDistance);
 
         public event Action<BattleOutcome> FieldBattleEnded;
 
@@ -167,6 +184,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void Awake()
         {
+            MigrateCameraSettings();
             if (_movement == null || _orbit == null || _camera == null || _brain == null || _characters == null
                 || _fieldUI == null || _skillTable == null || _enemies == null || _enemies.Length == 0 || _battleUI == null
                 || _hpBar == null || _skillButtons == null || _skillButtons.Length != 3
@@ -241,6 +259,11 @@ namespace CK.SemesterProject.Tutorial
         {
             if (!IsInBattle)
             {
+                UpdateCameraPreview();
+                if (_cameraPreview != null)
+                {
+                    return;
+                }
                 if (_automaticEncounters)
                 {
                     UpdateExploration();
@@ -309,6 +332,7 @@ namespace CK.SemesterProject.Tutorial
         {
             if (!IsInBattle)
             {
+                UpdateCameraPreview();
                 return;
             }
             bool wasEntering = _cameraTime < _cameraEntrySeconds;
@@ -316,6 +340,11 @@ namespace CK.SemesterProject.Tutorial
             if (wasEntering && _cameraTime >= _cameraEntrySeconds)
             {
                 RefreshUI();
+            }
+            SetBattleCameraActive(_debugBattleCamera);
+            if (!_isBattleCameraActive)
+            {
+                return;
             }
             float previousYaw = _battleYaw;
             float previousPitch = _battlePitch;
@@ -327,7 +356,7 @@ namespace CK.SemesterProject.Tutorial
             float progress = isAttack ? Mathf.Clamp01(_elapsed / _actionSeconds) : 0f;
             float direction = isAttack && result.Request.ActorId != "player" ? -1f : 1f;
             float opening = 1f - Mathf.SmoothStep(0f, 1f, _cameraTime / _cameraEntrySeconds);
-            Vector3 offset = TutorialBattleCamera.GetMotionOffset(_battleCameraOffset,
+            Vector3 offset = TutorialBattleCamera.GetMotionOffset(ConfiguredCameraOffset,
                 _cameraTime, opening, progress, direction, _cameraDrift, _cameraActionTravel);
             float fieldOfView = _battleFieldOfView - 2f * Mathf.Sin(progress * Mathf.PI);
             Pose target;
@@ -357,6 +386,71 @@ namespace CK.SemesterProject.Tutorial
                 _camera.transform.SetPositionAndRotation(position,
                     Quaternion.Slerp(_camera.transform.rotation, target.rotation, blend));
                 _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fieldOfView, blend);
+            }
+        }
+
+        private void OnValidate()
+        {
+            MigrateCameraSettings();
+            _battleCameraDistance = Mathf.Max(0.1f, _battleCameraDistance);
+        }
+
+        private void MigrateCameraSettings()
+        {
+            if (_cameraSettingsMigrated)
+            {
+                return;
+            }
+            _battleCameraOffsetXY = new Vector2(_battleCameraOffset.x, _battleCameraOffset.y);
+            _battleCameraDistance = Mathf.Max(0.1f, -_battleCameraOffset.z);
+            _cameraSettingsMigrated = true;
+        }
+
+        private void UpdateCameraPreview()
+        {
+            if (!_debugBattleCamera)
+            {
+                EndCameraPreview();
+                return;
+            }
+            if (_cameraPreview == null)
+            {
+                _cameraPreview = new TutorialBattleCameraPreview(_camera, _brain, _orbit, _movement);
+            }
+            _cameraPreview.Show(_debugCameraTarget, _battleSpacing, ConfiguredCameraOffset, _battleFieldOfView);
+        }
+
+        private void EndCameraPreview()
+        {
+            _cameraPreview?.Restore();
+            _cameraPreview = null;
+        }
+
+        private void SetBattleCameraActive(bool active)
+        {
+            if (_isBattleCameraActive == active)
+            {
+                return;
+            }
+            _isBattleCameraActive = active;
+            _isCameraDragging = false;
+            if (active)
+            {
+                _orbit.enabled = false;
+                _brain.enabled = false;
+                _camera.orthographic = false;
+                _camera.fieldOfView = _battleFieldOfView;
+                _camera.transform.SetPositionAndRotation(_battleCameraPose.position, _battleCameraPose.rotation);
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+            else
+            {
+                _camera.transform.SetPositionAndRotation(_cameraPosition, _cameraRotation);
+                _camera.fieldOfView = _cameraFieldOfView;
+                _camera.orthographic = _cameraWasOrthographic;
+                _brain.enabled = _brainEnabled;
+                _orbit.enabled = _orbitEnabled;
             }
         }
 
@@ -485,6 +579,8 @@ namespace CK.SemesterProject.Tutorial
             {
                 return false;
             }
+            // 미리보기에서 진입해도 실제 탐색 카메라와 이동 상태를 복원 대상으로 저장한다.
+            EndCameraPreview();
             _encounterMembers = members != null ? members.ToArray() : new[] { enemy }.Concat(_enemies
                 .Where(other => other != null && other != enemy && other.isActiveAndEnabled)
                 .Distinct().OrderBy(other => (other.transform.position - enemy.transform.position).sqrMagnitude))
@@ -515,7 +611,7 @@ namespace CK.SemesterProject.Tutorial
             SetBackgroundEnemiesHidden(true);
             Pose battlePose = default;
             if (!formation.TryPlace(_battleSpacing, (playerSlot, enemySlot) => TryGetGroupPose(
-                playerSlot, enemySlot, formation.EnemySlots, _battleCameraOffset,
+                playerSlot, enemySlot, formation.EnemySlots, ConfiguredCameraOffset,
                 _battleFieldOfView, out battlePose)))
             {
                 SetBackgroundEnemiesHidden(false);
@@ -525,6 +621,8 @@ namespace CK.SemesterProject.Tutorial
                 return false;
             }
             _session = session;
+            _debugBattleCamera = true;
+            _isBattleCameraActive = true;
             _cachedSnapshot = null;
             _battleYaw = 0f;
             _battlePitch = 0f;
@@ -571,7 +669,7 @@ namespace CK.SemesterProject.Tutorial
             _battleCameraPose = battlePose;
             _cameraTime = 0f;
             Pose openingPose;
-            Vector3 openingOffset = TutorialBattleCamera.GetMotionOffset(_battleCameraOffset,
+            Vector3 openingOffset = TutorialBattleCamera.GetMotionOffset(ConfiguredCameraOffset,
                 0f, 1f, 0f, 1f, _cameraDrift, _cameraActionTravel);
             if (TryGetGroupPose(_playerHome, _enemyCenter, _formation.EnemySlots, openingOffset, _battleFieldOfView, out openingPose)
                 && TutorialBattleCamera.CanTravel(openingPose.position, battlePose.position,
@@ -829,6 +927,8 @@ namespace CK.SemesterProject.Tutorial
 
         public void CancelBattle()
         {
+            _debugBattleCamera = false;
+            EndCameraPreview();
             if (IsInBattle)
             {
                 RestoreExploration();
@@ -842,6 +942,8 @@ namespace CK.SemesterProject.Tutorial
 
         private void RestoreExploration(bool respawn = false, bool defeated = false)
         {
+            _debugBattleCamera = false;
+            _isBattleCameraActive = false;
             // 필드에서는 HP를 보존하고 메모리만 최초값으로 회복한다.
             _playerState.RestoreFieldMemory();
             if (_isCameraDragging)
@@ -939,6 +1041,8 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnDisable()
         {
+            _debugBattleCamera = false;
+            EndCameraPreview();
             if (IsInBattle && _camera != null && _movement != null && _orbit != null && _brain != null)
             {
                 RestoreExploration();
