@@ -65,3 +65,8 @@ PlayerMovement의 Animator 필드는 새 자식 Animator를 참조하며 Normali
 아래는 교체 후 기존 Run 모션을 적용한 렌더다. 원본 모션의 손·소매 간격 등은 새 웨이트를 계산해 변경하지 않는다.
 
 ![기존 리깅 유지 후 Run](Images/FuchsiaModelFixRun.png)
+
+
+## 전투 대기 모션
+
+전투 진입 시 TutorialBattleController는 실제 자식 Fuchsia 모델의 활성 Animator를 찾는다. 이동을 비활성화하고 Speed를 즉시 0으로 설정해 FuchsiaIdle만 재생한다. Animator를 정지시키지 않으므로 대기 모션은 계속 반복된다. 전투 종료/취소 시 이전 Animator 재생 속도를 복원하고 필드 이동 코드가 다시 Walk/Run 파라미터를 갱신한다.

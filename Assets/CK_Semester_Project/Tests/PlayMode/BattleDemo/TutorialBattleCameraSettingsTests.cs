@@ -70,7 +70,8 @@ namespace CK.SemesterProject.Battle.Tests
             TickCamera();
 
             Assert.That(IsInBattle, Is.False, "미리보기는 전투 세션을 시작하지 않아야 합니다.");
-            Assert.That(_movement.enabled, Is.False);
+            Assert.That(_movement.enabled, Is.EqualTo(original.MovementEnabled),
+                "카메라만 변경하는 미리보기는 탐색 이동 상태를 유지해야 합니다.");
             Assert.That(_orbit.enabled, Is.False);
             Assert.That(_brain.enabled, Is.False);
             Assert.That(Vector3.Distance(_camera.transform.position, original.Position), Is.GreaterThan(.01f));
@@ -179,6 +180,35 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(Field<bool>("_debugBattleCamera"), Is.False);
             AssertRestored(fieldState);
             AssertPosition(_movement.transform.position, playerHome);
+        }
+
+        [UnityTest]
+        public IEnumerator BattleUsesChildAnimatorIdleLoopAndRestoresFieldPlayback()
+        {
+            Animator animator = _movement.GetComponentsInChildren<Animator>()
+                .Single(item => item.enabled && item.runtimeAnimatorController != null);
+            Assert.That(Field<Animator>("_animator"), Is.SameAs(animator));
+            animator.speed = .75f;
+            animator.SetFloat("Speed", 1f);
+            animator.Update(.1f);
+            CameraState fieldState;
+            Vector3 playerHome;
+            Assert.That(BeginBattleFromPreview(out fieldState, out playerHome), Is.True);
+            Assert.That(animator.GetFloat("Speed"), Is.EqualTo(0f));
+            Assert.That(animator.speed, Is.GreaterThan(0f));
+            float startedAt = animator.GetCurrentAnimatorStateInfo(0).normalizedTime;
+            yield return new WaitForSeconds(.2f);
+            Assert.That(animator.GetFloat("Speed"), Is.EqualTo(0f));
+            Assert.That(animator.GetCurrentAnimatorClipInfo(0)
+                .Any(info => info.clip.name == "FuchsiaIdle" && info.weight > .99f), Is.True);
+            Assert.That(animator.GetCurrentAnimatorStateInfo(0).normalizedTime, Is.GreaterThan(startedAt),
+                "Idle 상태를 유지하면서 대기 모션 자체는 재생되어야 합니다.");
+            Invoke("CancelBattle");
+            Assert.That(animator.speed, Is.EqualTo(.75f));
+            Assert.That(_movement.enabled, Is.True);
+            _movement.GetType().GetMethod("Move", PrivateInstance)
+                .Invoke(_movement, new object[] { Vector2.up, true });
+            Assert.That(animator.GetFloat("Speed"), Is.GreaterThan(0f), "필드 복귀 후 달리기 파라미터가 다시 갱신되어야 합니다.");
         }
 
         private bool BeginBattleFromPreview(out CameraState fieldState, out Vector3 playerHome)

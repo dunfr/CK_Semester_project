@@ -218,7 +218,8 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             _characterController = _movement.GetComponent<CharacterController>();
-            _animator = _movement.GetComponent<Animator>();
+            _animator = _movement.GetComponentsInChildren<Animator>()
+                .FirstOrDefault(animator => animator.enabled && animator.runtimeAnimatorController != null);
             _spawn = _movement.transform.position;
             _lastPlayerPosition = _spawn;
             _playerState = PlayerSessionState.Current;
@@ -652,9 +653,10 @@ namespace CK.SemesterProject.Tutorial
             if (_animator != null && _animator.runtimeAnimatorController != null)
             {
                 _animatorSpeed = _animator.speed;
-                _animator.SetFloat("Speed", 0);
+                // 자식 모델의 이동 Blend Tree를 Idle로 전환하고 대기 모션은 계속 재생한다.
+                _animator.SetFloat("Speed", 0f);
+                _animator.speed = 1f;
                 _animator.Update(0f);
-                _animator.speed = 0;
             }
             _orbit.enabled = false;
             SetEnemiesPaused(true);
