@@ -17,16 +17,24 @@ namespace CK.SemesterProject.Editor
         {
             GameObject rig = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "Prefabs/FuchsiaAnimated.prefab"));
             GameObject appearance = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "Prefabs/FuchsiaToon.prefab"), rig.transform);
-            appearance.transform.localPosition = Vector3.zero;
+            // Instantiate(parent)의 기본 정렬에 맡기지 않고 프리팹의 원점 보정을 명시한다.
+            appearance.transform.localPosition = AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "Prefabs/FuchsiaToon.prefab").transform.localPosition;
             appearance.transform.localRotation = Quaternion.identity;
             appearance.transform.localScale = Vector3.one;
             appearance.name = "Updated Appearance";
             var sources = rig.GetComponentsInChildren<SkinnedMeshRenderer>().ToDictionary(item => item.name);
+            // 같은 치마 토폴로지의 중심을 기준으로 두 FBX의 미세한 원점 차이도 제거한다.
+            MeshRenderer skirt = appearance.GetComponentsInChildren<MeshRenderer>().Single(item => item.name == "치마");
+            Vector3 sourceCenter = sources["skirt"].sharedMesh.vertices.Aggregate(Vector3.zero, (sum, vertex) => sum + vertex)
+                / sources["skirt"].sharedMesh.vertexCount;
+            Mesh skirtMesh = skirt.GetComponent<MeshFilter>().sharedMesh;
+            Vector3 targetCenter = skirtMesh.vertices.Aggregate(Vector3.zero, (sum, vertex) => sum + vertex) / skirtMesh.vertexCount;
+            appearance.transform.position += sources["skirt"].transform.TransformPoint(sourceCenter) - skirt.transform.TransformPoint(targetCenter);
             var targets = new List<SkinnedMeshRenderer>();
             float maximumDistance = 0;
-            if (!AssetDatabase.IsValidFolder(Folder + "Models/UpdatedSkin"))
+            if (!AssetDatabase.IsValidFolder(Folder + "Models/UpdatedSkinBindings"))
             {
-                AssetDatabase.CreateFolder(Folder + "Models", "UpdatedSkin");
+                AssetDatabase.CreateFolder(Folder + "Models", "UpdatedSkinBindings");
             }
             try
             {
@@ -35,7 +43,20 @@ namespace CK.SemesterProject.Editor
                     string group = GroupFor(renderer);
                     SkinnedMeshRenderer source = sources[group];
                     MeshFilter filter = renderer.GetComponent<MeshFilter>();
-                    Mesh mesh = UnityEngine.Object.Instantiate(filter.sharedMesh);
+                    Mesh originalMesh = filter.sharedMesh;
+                    var mesh = new Mesh();
+                    mesh.indexFormat = originalMesh.indexFormat;
+                    mesh.vertices = originalMesh.vertices;
+                    mesh.normals = originalMesh.normals;
+                    mesh.tangents = originalMesh.tangents;
+                    mesh.uv = originalMesh.uv;
+                    mesh.uv2 = originalMesh.uv2;
+                    mesh.colors = originalMesh.colors;
+                    mesh.subMeshCount = originalMesh.subMeshCount;
+                    for (int submesh = 0; submesh < originalMesh.subMeshCount; submesh++)
+                    {
+                        mesh.SetTriangles(originalMesh.GetTriangles(submesh), submesh);
+                    }
                     mesh.name = "FuchsiaUpdated_" + renderer.name;
                     Vector3[] vertices = mesh.vertices;
                     Vector3[] oldVertices = source.sharedMesh.vertices;
@@ -59,9 +80,37 @@ namespace CK.SemesterProject.Editor
                         maximumDistance = Mathf.Max(maximumDistance, Mathf.Sqrt(best));
                         weights[index] = oldWeights[nearest];
                     }
+                    // FBX 부품별 비균일 스케일을 스키닝 Transform에 남기지 않는다.
+                    // 모든 정점/법선을 기존 스킨 메시와 같은 바인드 공간으로 옮긴다.
+                    mesh.vertices = vertices.Select(toSource.MultiplyPoint3x4).ToArray();
+                    Matrix4x4 normalMatrix = toSource.inverse.transpose;
+                    mesh.normals = mesh.normals.Select(normal => normalMatrix.MultiplyVector(normal).normalized).ToArray();
+                    Vector4[] tangents = mesh.tangents;
+                    for (int index = 0; index < tangents.Length; index++)
+                    {
+                        Vector3 tangent = toSource.MultiplyVector(tangents[index]).normalized;
+                        tangents[index] = new Vector4(tangent.x, tangent.y, tangent.z,
+                            tangents[index].w * Mathf.Sign(toSource.determinant));
+                    }
+                    mesh.tangents = tangents;
+                    if (toSource.determinant < 0)
+                    {
+                        for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
+                        {
+                            int[] triangles = mesh.GetTriangles(submesh);
+                            for (int index = 0; index < triangles.Length; index += 3)
+                            {
+                                int first = triangles[index];
+                                triangles[index] = triangles[index + 2];
+                                triangles[index + 2] = first;
+                            }
+                            mesh.SetTriangles(triangles, submesh);
+                        }
+                    }
+                    mesh.RecalculateBounds();
                     mesh.boneWeights = weights;
-                    mesh.bindposes = source.sharedMesh.bindposes.Select(pose => pose * toSource).ToArray();
-                    string path = Folder + "Models/UpdatedSkin/" + mesh.name + ".asset";
+                    mesh.bindposes = source.sharedMesh.bindposes;
+                    string path = Folder + "Models/UpdatedSkinBindings/" + mesh.name + ".asset";
                     Mesh existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
                     if (existing == null)
                     {
@@ -70,10 +119,15 @@ namespace CK.SemesterProject.Editor
                     else
                     {
                         EditorUtility.CopySerialized(mesh, existing);
+                        EditorUtility.SetDirty(existing);
                         UnityEngine.Object.DestroyImmediate(mesh);
                         mesh = existing;
                     }
-                    GameObject item = renderer.gameObject;
+                    var item = new GameObject(renderer.name);
+                    item.transform.SetParent(source.transform.parent, false);
+                    item.transform.localPosition = source.transform.localPosition;
+                    item.transform.localRotation = source.transform.localRotation;
+                    item.transform.localScale = source.transform.localScale;
                     Material[] materials = renderer.sharedMaterials;
                     var shadows = renderer.shadowCastingMode;
                     UnityEngine.Object.DestroyImmediate(renderer);
@@ -87,6 +141,7 @@ namespace CK.SemesterProject.Editor
                     target.updateWhenOffscreen = true;
                     targets.Add(target);
                 }
+                UnityEngine.Object.DestroyImmediate(appearance);
                 // 검은 기존 리깅과 머티리얼을 그대로 사용한다.
                 foreach (SkinnedMeshRenderer source in sources.Values.Where(item => item.name != "Katana"))
                 {
