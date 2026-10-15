@@ -17,10 +17,12 @@ namespace CK.SemesterProject.Battle
         public MonsterTacticsTable WithAfterimage { get; }
         public MonsterTacticsTable WithOblivion { get; }
         public int MaxStage => CostPercent.Count - 1;
+        public MonsterTrioRules Trio { get; }
 
         public MonsterBehaviorProfile(BattleElement element, IEnumerable<int> costs, IEnumerable<double> multipliers,
             IEnumerable<int> playerThresholds, IEnumerable<int> selfThresholds, MonsterTacticsTable solo,
-            MonsterTacticsTable withImprint, MonsterTacticsTable withAfterimage, MonsterTacticsTable withOblivion)
+            MonsterTacticsTable withImprint, MonsterTacticsTable withAfterimage, MonsterTacticsTable withOblivion,
+            MonsterTrioRules trio = null)
         {
             int[] percentages = costs.ToArray();
             double[] damage = multipliers.ToArray();
@@ -45,6 +47,7 @@ namespace CK.SemesterProject.Battle
                 }
             }
             Element = element;
+            Trio = trio ?? new MonsterTrioRules();
             CostPercent = Array.AsReadOnly(percentages);
             Multipliers = Array.AsReadOnly(damage);
             PlayerThresholds = Array.AsReadOnly(player);

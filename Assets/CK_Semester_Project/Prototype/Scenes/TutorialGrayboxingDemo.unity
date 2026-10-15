@@ -2121,7 +2121,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 9b10491d01b50444e8778debdaec0388, type: 2}
+  _definition: {fileID: 11400000, guid: 111f45c41780d55428c5a13f79a5d8f3, type: 2}
 --- !u!114 &26329416
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12536,7 +12536,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 44da246ab542a0a44adf5371621de75d, type: 2}
+  _definition: {fileID: 11400000, guid: 1470f1b3bf1299449b9d03ddd0cf9b17, type: 2}
 --- !u!114 &211227668
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17036,7 +17036,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 44da246ab542a0a44adf5371621de75d, type: 2}
+  _definition: {fileID: 11400000, guid: 99096ff2732927445beff1c169a8ebf0, type: 2}
 --- !u!114 &273873206
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -35086,7 +35086,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 9b10491d01b50444e8778debdaec0388, type: 2}
+  _definition: {fileID: 11400000, guid: 441c6349878a392479f25de299516c2f, type: 2}
 --- !u!114 &524718189
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -57313,7 +57313,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 9b10491d01b50444e8778debdaec0388, type: 2}
+  _definition: {fileID: 11400000, guid: 66b5f7ad8e558694a845df7738b0ae1f, type: 2}
 --- !u!114 &892107980
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -89595,6 +89595,7 @@ MonoBehaviour:
   _characters: {fileID: 11400000, guid: 316d76428a4d5e544b66c93645ec42cd, type: 2}
   _characterId: CH00
   _skillTable: {fileID: 4900000, guid: 270fb69e545cec0498dd4482e869a8be, type: 3}
+  _basicSkillEnhancement: {fileID: 11400000, guid: bc2c7f4ba10646d390b16c25e8cb38c4, type: 2}
   _fieldUI: {fileID: 1840145100}
   _battleUI: {fileID: 1321962534}
   _hpBar: {fileID: 1459925200}
@@ -92073,7 +92074,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 44da246ab542a0a44adf5371621de75d, type: 2}
+  _definition: {fileID: 11400000, guid: d2bc34ab2bfb71945a0158c58feca956, type: 2}
 --- !u!114 &1468868500
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -103659,7 +103660,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 021f491ccbe9d3b4b8eef03d894a1035, type: 2}
+  _definition: {fileID: 11400000, guid: 5bcd91b902810cd4384a7f65baa5240e, type: 2}
 --- !u!114 &1670287095
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -113981,7 +113982,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 021f491ccbe9d3b4b8eef03d894a1035, type: 2}
+  _definition: {fileID: 11400000, guid: f016d9ac81f524d448de3f412a54aa5b, type: 2}
 --- !u!114 &1807941339
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -129938,7 +129939,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 184a79e3de7babd43b20671257cfe236, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialMonster
-  _definition: {fileID: 11400000, guid: 021f491ccbe9d3b4b8eef03d894a1035, type: 2}
+  _definition: {fileID: 11400000, guid: 93627486c2aa80041aad75e5ba6301af, type: 2}
 --- !u!114 &2036497278
 MonoBehaviour:
   m_ObjectHideFlags: 0

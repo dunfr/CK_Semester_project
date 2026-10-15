@@ -49,3 +49,14 @@ Game View에서 시작 화면과 하층 안내 UI를 확인했다. 하층 캡처
 ![시작 화면](Images/tutorial_content_start.png)
 
 ![경비 복도 안내](Images/tutorial_content_guard.png)
+
+
+## 2026-10-15 battle-core 최신 AI 병합
+
+`origin/feat/battle-core`의 `a2d847b`까지 병합했다. 최신 1~3기 조합 AI, 메모리 고갈/속성 효과 수정, 9종 Monster DT와 기본 스킬 강화 규칙을 포함한다. 충돌한 TutorialBattleController는 기존 필드 상호작용·목표 진행·타깃 선택·카메라 설정·푸시아 전투 Idle을 유지하며 병합했다.
+
+실제 TutorialGrayboxingDemo에는 BasicSkillEnhancement 참조를 연결하고 첫 경비병을 제외한 9개 몬스터에 MO00~MO08 정의를 각각 배정했다. 기존 속성별 배치를 보존하며 A/B/C 순서로 사용한다. 첫 콘솔 경비병은 전용 ID/이름과 HP 240·공격력 25를 유지하고 최신 각인 행동표/약점·회피/3기 규칙을 반영한다. 정의 에셋의 행동 조건과 투자표는 기존처럼 Inspector에서 편집한다. 필드 NavMesh AI와 순찰 경로는 유지한다.
+
+재생성 시 TutorialLevelIntegration.ConnectLatestBattleData가 동일한 정의와 스킬 강화 참조를 연결한다. 기존 동선이나 푸시아 리깅은 재생성하지 않는다. MonsterAI_Test 씬의 최신 9종 및 스킬 강화 테스트 버튼도 함께 병합했다.
+
+검증 결과: Unity EditMode 코어 테스트 267개, PlayMode 동선 테스트 4개와 전투 Idle·카메라 테스트 5개 통과. 실제 저장된 씬에서 MO00~MO08 각 1개와 첫 경비병 정의를 확인했다. 컴파일 및 Console 오류 0건. UI 화면 비율 테스트는 실행하지 않았다.

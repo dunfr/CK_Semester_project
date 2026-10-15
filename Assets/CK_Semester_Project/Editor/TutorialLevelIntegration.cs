@@ -171,12 +171,62 @@ namespace CK.SemesterProject.Editor
             var hudSettings = new SerializedObject(hud);
             Set(hudSettings, "_levelFlow", flow);
             hudSettings.ApplyModifiedPropertiesWithoutUndo();
+            ConnectLatestBattleData();
             ConfigureConnectedRoute();
             ConfigureGlass();
             ConfigurePatrols(root.transform);
             Physics.SyncTransforms();
             EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        }
+
+        public static void ConnectLatestBattleData()
+        {
+            var battle = UnityEngine.Object.FindFirstObjectByType<TutorialBattleController>();
+            var battleSettings = new SerializedObject(battle);
+            Set(battleSettings, "_basicSkillEnhancement", AssetDatabase.LoadAssetAtPath<BasicSkillEnhancementAsset>(
+                "Assets/CK_Semester_Project/Prototype/Data/Battle/BasicSkillEnhancement.asset"));
+            battleSettings.ApplyModifiedPropertiesWithoutUndo();
+            const string firstPath = "Assets/CK_Semester_Project/Prototype/Data/TutorialFirstEncounter.asset";
+            MonsterBattleDefinition first = AssetDatabase.LoadAssetAtPath<MonsterBattleDefinition>(firstPath);
+            var previous = new SerializedObject(first);
+            string id = previous.FindProperty("_id").stringValue;
+            string displayName = previous.FindProperty("_displayName").stringValue;
+            int hp = previous.FindProperty("_maxHp").intValue;
+            int power = previous.FindProperty("_power").intValue;
+            EditorUtility.CopySerialized(AssetDatabase.LoadAssetAtPath<MonsterBattleDefinition>(
+                "Assets/CK_Semester_Project/Prototype/Data/Monsters/Imprint.asset"), first);
+            first.name = "TutorialFirstEncounter";
+            var firstSettings = new SerializedObject(first);
+            firstSettings.FindProperty("_id").stringValue = id;
+            firstSettings.FindProperty("_displayName").stringValue = displayName;
+            firstSettings.FindProperty("_maxHp").intValue = hp;
+            firstSettings.FindProperty("_power").intValue = power;
+            firstSettings.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(first);
+            var variants = new System.Collections.Generic.Dictionary<CK.SemesterProject.Battle.BattleElement, int>();
+            foreach (EnemyStateMachine enemy in UnityEngine.Object.FindObjectsByType<EnemyStateMachine>(FindObjectsSortMode.None)
+                .OrderBy(item => item.name, StringComparer.Ordinal))
+            {
+                TutorialMonster monster = enemy.GetComponent<TutorialMonster>();
+                var monsterSettings = new SerializedObject(monster);
+                MonsterBattleDefinition definition = first;
+                if (enemy.name != "emey AI")
+                {
+                    var element = monster.GetData().Element;
+                    int variant;
+                    variants.TryGetValue(element, out variant);
+                    definition = AssetDatabase.LoadAssetAtPath<MonsterBattleDefinition>(
+                        "Assets/CK_Semester_Project/Prototype/Data/MonsterAITest/" + element + "ABC"[variant % 3] + ".asset");
+                    variants[element] = variant + 1;
+                }
+                if (definition == null)
+                {
+                    throw new InvalidOperationException("최신 몬스터 정의를 찾을 수 없습니다: " + enemy.name);
+                }
+                Set(monsterSettings, "_definition", definition);
+                monsterSettings.ApplyModifiedPropertiesWithoutUndo();
+            }
         }
 
         public static void ConfigureConnectedRoute()

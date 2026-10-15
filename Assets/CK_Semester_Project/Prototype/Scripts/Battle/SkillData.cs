@@ -60,5 +60,12 @@ namespace CK.SemesterProject.Battle
             Element = element;
             Target = target;
         }
+
+        public SkillData WithPower(int power)
+        {
+            return new SkillData(Id, DisplayName, power, Element, Target,
+                MemoryCost, MemoryRecovery, MemorySteal, Accuracy, CriticalChance,
+                RageGain, InflictedSkippedTurns, BonusCriticalChance, EnglishName);
+        }
     }
 }
