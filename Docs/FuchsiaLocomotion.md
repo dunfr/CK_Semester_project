@@ -45,26 +45,23 @@ PlayerMovement의 Animator 필드는 새 자식 Animator를 참조하며 Normali
 ![발과 그림자 접점 보정](Images/FuchsiaShadowContact.png)
 
 
-## 2026-10-15 새 외형 적용
+## 2026-10-15 새 FBX 적용 — 기존 리깅 유지
 
-`feat/tutorial-demo-grayboxing`을 원격 `9b542b0`까지 fast-forward한 뒤 첨부된 `character_fuchsia_01 (1).fbx`를 기존 `Models/character_fuchsia_01.fbx`에 적용했다. FBX GUID와 하위 에셋 ID는 유지한다.
+브랜치 `feat/tutorial-demo-grayboxing`을 원격 `9b542b0`까지 갱신한 뒤 제공된 `character_fuchsia_01 (1).fbx`를 기존 `Models/character_fuchsia_01.fbx`에 적용했다. 원본 FBX의 GUID는 유지한다.
 
-첨부 FBX는 정적 메시 35개로 구성되어 있다. 사용자의 요청에 따라 기존 Generic 리그와 Idle/Walk/Run을 보존하기 위해 `Prefabs/FuchsiaUpdatedAnimated.prefab`을 별도로 생성했다. 기존 `FuchsiaAnimated.prefab`의 부위별 메시 바인드 공간에서 최근접 정점의 BoneWeight를 새 외형에 이전하고, 새 메시의 로컬 공간에 맞게 bindpose를 변환했다. 머리/얼굴/안경/외투/치마/몸을 구분해 대응시키며 검은 기존 리깅 모델을 유지한다. 파생 스킨 메시들은 `Models/UpdatedSkinBindings/`에 저장한다.
+전체 정적 외형에 가중치를 새로 계산하던 이전 방식은 제거했다. 현재 `FuchsiaUpdatedAnimated.prefab`은 수정 전 `FuchsiaAnimated.prefab`의 기존 **7개 SkinnedMeshRenderer, 본, 본 가중치, bindpose, 삼각형, 머티리얼, Avatar와 Animator Controller**를 유지한다. 머리·머리카락·안경·외투·치마·검은 기존 메시 그대로 사용한다.
 
-튜토리얼 씬의 `Fuchsia Visual`이 새 프리팹을 참조하고 PlayerMovement의 Animator 연결을 새 인스턴스로 갱신했다. 기존 위치·회전·스케일, Animator Controller와 Avatar, 머티리얼 및 이동/전투 코드는 유지한다. 원본 리깅 프리팹은 보존했다.
+새 FBX와 교체 전 FBX를 비교하면 실질적인 메시 변경은 `몸` 부품에 한정된다. 기존 리깅 body 메시 안에서 동일 UV와 위치로 대응되는 883개 정점에 새 FBX의 외형 데이터를 적용하고, 나머지 정점과 리깅 데이터는 그대로 둔다. 교체된 스킨 메시 하나만 `Models/FuchsiaUpdatedBody.asset`에 저장한다. 벨트의 내보내기 변환 차이는 외형 위치를 바꿀 수준의 변경이 아니므로 기존 리깅 위치를 유지한다.
 
-검증: Unity 6000.3.23f1 컴파일 성공. 새 스킨 메시 35개와 기존 검의 메시/재질 누락 0개, 가중치 합 오류 0개, Idle/Walk/Run 샘플의 NaN/무한 정점 0개. 새 외투의 모션 간 정점 변위 약 0.903m로 실제 스키닝 변형을 확인했다. 실제 Play 화면에서 외형·재질·검과 유효한 기존 Avatar 및 FuchsiaLocomotion 연결을 확인했다. 전체 전투/튜토리얼 완주 및 UI 화면 비율 테스트는 이번 모델 교체에서 실행하지 않았다.
+튜토리얼 씬의 `Fuchsia Visual`은 새 프리팹을 참조한다. 이동·전투 코드 및 모션 클립은 변경하지 않았다. 이전에 생성했던 35개 재스키닝 부품 메시와 비교용 임시 FBX는 제거했다.
 
-최근접 가중치 이전은 원래 모델러의 수작업 스키닝과 동일하지 않다. 향후 관절이나 의상 모션을 수정할 때 최종 리깅 원본에서 웨이트를 다듬을 수 있다. 재생성은 메뉴 추가 없이 Unity 에디터 API에서 `FuchsiaModelReplacement.BuildAndApply()`를 호출한다.
+검증:
 
+- 원본 대비 7개 렌더러의 본 가중치·bindpose·삼각형·머티리얼 일치.
+- Idle/Walk/Run 각각 5개 시점, 총 15개 포즈에서 전체 정점의 원본 대비 최대 위치 차이 `0.000000648m`.
+- 기존 리그와 동일한 모션으로 재생되는 정면·측면 렌더 확인.
+- 전체 튜토리얼/전투 완주와 UI 화면 비율 검사는 이번 모델 교체 범위에서 실행하지 않았다.
 
-### 모델 분리·변형 수정
+아래는 교체 후 기존 Run 모션을 적용한 렌더다. 원본 모션의 손·소매 간격 등은 새 웨이트를 계산해 변경하지 않는다.
 
-첫 가중치 이전 결과는 정적 FBX 메시를 복제한 상태에서 스키닝 데이터를 덧붙여 사용했다. 일부 부품이 화면에서 분리되고 늘어나는 문제가 있어 이 결과의 수치 검사만으로 정상이라고 판단한 기록은 충분하지 않았다.
-
-수정된 생성 코드는 정적 프리팹의 원점 보정을 명시적으로 보존하고, 같은 치마 메시 중심을 이용해 리그와 외형을 정렬한다. 새 `Mesh`를 만들고 정점·법선·접선·UV·삼각형을 명시적으로 채운 뒤 기존 리그의 바인드 공간으로 변환한다. 정적 FBX의 내부 메시 버퍼를 그대로 복제하지 않는다. 새 SkinnedMeshRenderer의 Transform도 원본 스킨 렌더러와 일치시킨다.
-
-Idle/Walk/Run 정면·측면 렌더를 기존 FuchsiaAnimated와 나란히 비교해 머리 분리와 의상 파손이 사라진 것을 확인했다. 실제 Play 화면에서도 Idle과 Run을 확인했고, 이동 메서드 호출 시 Walk 3m/s / Run 5.4m/s 및 Animator 연결을 확인했다. 기존 리깅 애니메이션에 있던 소매와 손 사이 간격 같은 원본 포즈의 특성은 이번 모델 전환에서 수정하지 않는다.
-
-
-![모델 분리 수정 후 실제 Run 화면](Images/FuchsiaModelFixRun.png)
+![기존 리깅 유지 후 Run](Images/FuchsiaModelFixRun.png)

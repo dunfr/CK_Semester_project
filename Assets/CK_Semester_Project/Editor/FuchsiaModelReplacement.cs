@@ -1,240 +1,128 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
+using CK.SemesterProject.Tutorial;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace CK.SemesterProject.Editor
 {
-    // 새 정적 외형을 기존 Generic 리그의 바인드 공간에 연결한다. 원본 리깅 프리팹은 보존한다.
+    // 기존 7개 스킨 메시와 리그를 유지하며 새 FBX에서 바뀐 몸 외형만 갱신한다.
     public static class FuchsiaModelReplacement
     {
         private const string Folder = "Assets/CK_Semester_Project/Prototype/Sandbox/Junmo/FuchsiaShading/";
-        private const string PrefabPath = Folder + "Prefabs/FuchsiaUpdatedAnimated.prefab";
 
         public static string BuildAndApply()
         {
             GameObject rig = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "Prefabs/FuchsiaAnimated.prefab"));
-            GameObject appearance = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "Prefabs/FuchsiaToon.prefab"), rig.transform);
-            // Instantiate(parent)의 기본 정렬에 맡기지 않고 프리팹의 원점 보정을 명시한다.
-            appearance.transform.localPosition = AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "Prefabs/FuchsiaToon.prefab").transform.localPosition;
-            appearance.transform.localRotation = Quaternion.identity;
-            appearance.transform.localScale = Vector3.one;
-            appearance.name = "Updated Appearance";
-            var sources = rig.GetComponentsInChildren<SkinnedMeshRenderer>().ToDictionary(item => item.name);
-            // 같은 치마 토폴로지의 중심을 기준으로 두 FBX의 미세한 원점 차이도 제거한다.
-            MeshRenderer skirt = appearance.GetComponentsInChildren<MeshRenderer>().Single(item => item.name == "치마");
-            Vector3 sourceCenter = sources["skirt"].sharedMesh.vertices.Aggregate(Vector3.zero, (sum, vertex) => sum + vertex)
-                / sources["skirt"].sharedMesh.vertexCount;
-            Mesh skirtMesh = skirt.GetComponent<MeshFilter>().sharedMesh;
-            Vector3 targetCenter = skirtMesh.vertices.Aggregate(Vector3.zero, (sum, vertex) => sum + vertex) / skirtMesh.vertexCount;
-            appearance.transform.position += sources["skirt"].transform.TransformPoint(sourceCenter) - skirt.transform.TransformPoint(targetCenter);
-            var targets = new List<SkinnedMeshRenderer>();
-            float maximumDistance = 0;
-            if (!AssetDatabase.IsValidFolder(Folder + "Models/UpdatedSkinBindings"))
-            {
-                AssetDatabase.CreateFolder(Folder + "Models", "UpdatedSkinBindings");
-            }
             try
             {
-                foreach (MeshRenderer renderer in appearance.GetComponentsInChildren<MeshRenderer>())
+                SkinnedMeshRenderer body = rig.GetComponentsInChildren<SkinnedMeshRenderer>().Single(item => item.name == "body");
+                GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(Folder + "Models/character_fuchsia_01.fbx");
+                MeshFilter changed = model.GetComponentsInChildren<MeshFilter>().Single(item => item.name == "몸");
+                Mesh original = body.sharedMesh;
+                Mesh incoming = changed.sharedMesh;
+                Vector3[] positions = original.vertices;
+                Vector3[] normals = original.normals;
+                Vector4[] tangents = original.tangents;
+                Vector2[] uv = original.uv;
+                Vector3[] newPositions = incoming.vertices;
+                Vector3[] newNormals = incoming.normals;
+                Vector4[] newTangents = incoming.tangents;
+                Vector2[] newUv = incoming.uv;
+                Matrix4x4 toBody = body.transform.worldToLocalMatrix * changed.transform.localToWorldMatrix;
+                Vector3[] converted = newPositions.Select(toBody.MultiplyPoint3x4).ToArray();
+                int[] affected = Enumerable.Range(0, positions.Length)
+                    .Where(index => newUv.Any(value => (value - uv[index]).sqrMagnitude < 1e-10f)).ToArray();
+                if (affected.Length != newPositions.Length)
                 {
-                    string group = GroupFor(renderer);
-                    SkinnedMeshRenderer source = sources[group];
-                    MeshFilter filter = renderer.GetComponent<MeshFilter>();
-                    Mesh originalMesh = filter.sharedMesh;
-                    var mesh = new Mesh();
-                    mesh.indexFormat = originalMesh.indexFormat;
-                    mesh.vertices = originalMesh.vertices;
-                    mesh.normals = originalMesh.normals;
-                    mesh.tangents = originalMesh.tangents;
-                    mesh.uv = originalMesh.uv;
-                    mesh.uv2 = originalMesh.uv2;
-                    mesh.colors = originalMesh.colors;
-                    mesh.subMeshCount = originalMesh.subMeshCount;
-                    for (int submesh = 0; submesh < originalMesh.subMeshCount; submesh++)
+                    throw new InvalidOperationException("몸 메시의 기존 정점 대응 수가 일치하지 않습니다. 리깅을 재계산하지 않습니다.");
+                }
+                Vector3 offset = affected.Select(index => positions[index]).Aggregate(Vector3.zero, (sum, value) => sum + value) / affected.Length
+                    - converted.Aggregate(Vector3.zero, (sum, value) => sum + value) / converted.Length;
+                bool[] used = new bool[converted.Length];
+                Matrix4x4 normalMatrix = toBody.inverse.transpose;
+                float maximumDistance = 0;
+                foreach (int index in affected)
+                {
+                    int candidate = -1;
+                    float distance = float.PositiveInfinity;
+                    for (int next = 0; next < converted.Length; next++)
                     {
-                        mesh.SetTriangles(originalMesh.GetTriangles(submesh), submesh);
-                    }
-                    mesh.name = "FuchsiaUpdated_" + renderer.name;
-                    Vector3[] vertices = mesh.vertices;
-                    Vector3[] oldVertices = source.sharedMesh.vertices;
-                    BoneWeight[] oldWeights = source.sharedMesh.boneWeights;
-                    var weights = new BoneWeight[vertices.Length];
-                    Matrix4x4 toSource = source.transform.worldToLocalMatrix * renderer.transform.localToWorldMatrix;
-                    for (int index = 0; index < vertices.Length; index++)
-                    {
-                        Vector3 point = toSource.MultiplyPoint3x4(vertices[index]);
-                        float best = float.PositiveInfinity;
-                        int nearest = 0;
-                        for (int candidate = 0; candidate < oldVertices.Length; candidate++)
+                        if (used[next] || (newUv[next] - uv[index]).sqrMagnitude >= 1e-10f)
                         {
-                            float distance = (oldVertices[candidate] - point).sqrMagnitude;
-                            if (distance < best)
-                            {
-                                best = distance;
-                                nearest = candidate;
-                            }
+                            continue;
                         }
-                        maximumDistance = Mathf.Max(maximumDistance, Mathf.Sqrt(best));
-                        weights[index] = oldWeights[nearest];
-                    }
-                    // FBX 부품별 비균일 스케일을 스키닝 Transform에 남기지 않는다.
-                    // 모든 정점/법선을 기존 스킨 메시와 같은 바인드 공간으로 옮긴다.
-                    mesh.vertices = vertices.Select(toSource.MultiplyPoint3x4).ToArray();
-                    Matrix4x4 normalMatrix = toSource.inverse.transpose;
-                    mesh.normals = mesh.normals.Select(normal => normalMatrix.MultiplyVector(normal).normalized).ToArray();
-                    Vector4[] tangents = mesh.tangents;
-                    for (int index = 0; index < tangents.Length; index++)
-                    {
-                        Vector3 tangent = toSource.MultiplyVector(tangents[index]).normalized;
-                        tangents[index] = new Vector4(tangent.x, tangent.y, tangent.z,
-                            tangents[index].w * Mathf.Sign(toSource.determinant));
-                    }
-                    mesh.tangents = tangents;
-                    if (toSource.determinant < 0)
-                    {
-                        for (int submesh = 0; submesh < mesh.subMeshCount; submesh++)
+                        float difference = (positions[index] - converted[next] - offset).sqrMagnitude;
+                        if (difference < distance)
                         {
-                            int[] triangles = mesh.GetTriangles(submesh);
-                            for (int index = 0; index < triangles.Length; index += 3)
-                            {
-                                int first = triangles[index];
-                                triangles[index] = triangles[index + 2];
-                                triangles[index + 2] = first;
-                            }
-                            mesh.SetTriangles(triangles, submesh);
+                            candidate = next;
+                            distance = difference;
                         }
                     }
-                    mesh.RecalculateBounds();
-                    mesh.boneWeights = weights;
-                    mesh.bindposes = source.sharedMesh.bindposes;
-                    string path = Folder + "Models/UpdatedSkinBindings/" + mesh.name + ".asset";
-                    Mesh existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
-                    if (existing == null)
+                    if (candidate < 0 || distance > .000004f)
                     {
-                        AssetDatabase.CreateAsset(mesh, path);
+                        throw new InvalidOperationException("기존 몸 정점에 맞지 않는 새 메시입니다: " + index);
                     }
-                    else
+                    used[candidate] = true;
+                    maximumDistance = Mathf.Max(maximumDistance, Mathf.Sqrt(distance));
+                    positions[index] = converted[candidate] + offset;
+                    normals[index] = normalMatrix.MultiplyVector(newNormals[candidate]).normalized;
+                    uv[index] = newUv[candidate];
+                    if (newTangents.Length == newPositions.Length && tangents.Length == positions.Length)
                     {
-                        EditorUtility.CopySerialized(mesh, existing);
-                        EditorUtility.SetDirty(existing);
-                        UnityEngine.Object.DestroyImmediate(mesh);
-                        mesh = existing;
+                        Vector3 tangent = toBody.MultiplyVector(newTangents[candidate]).normalized;
+                        tangents[index] = new Vector4(tangent.x, tangent.y, tangent.z, newTangents[candidate].w * Mathf.Sign(toBody.determinant));
                     }
-                    var item = new GameObject(renderer.name);
-                    item.transform.SetParent(source.transform.parent, false);
-                    item.transform.localPosition = source.transform.localPosition;
-                    item.transform.localRotation = source.transform.localRotation;
-                    item.transform.localScale = source.transform.localScale;
-                    Material[] materials = renderer.sharedMaterials;
-                    var shadows = renderer.shadowCastingMode;
-                    UnityEngine.Object.DestroyImmediate(renderer);
-                    UnityEngine.Object.DestroyImmediate(filter);
-                    SkinnedMeshRenderer target = item.AddComponent<SkinnedMeshRenderer>();
-                    target.sharedMesh = mesh;
-                    target.sharedMaterials = materials;
-                    target.bones = source.bones;
-                    target.rootBone = source.rootBone;
-                    target.shadowCastingMode = shadows;
-                    target.updateWhenOffscreen = true;
-                    targets.Add(target);
                 }
-                UnityEngine.Object.DestroyImmediate(appearance);
-                // 검은 기존 리깅과 머티리얼을 그대로 사용한다.
-                foreach (SkinnedMeshRenderer source in sources.Values.Where(item => item.name != "Katana"))
+                // 원본 스킨 메시를 복제하므로 본, 가중치, bindpose, 삼각형, 나머지 부품은 그대로다.
+                Mesh mesh = UnityEngine.Object.Instantiate(original);
+                mesh.name = "FuchsiaUpdatedBody";
+                mesh.vertices = positions;
+                mesh.normals = normals;
+                mesh.tangents = tangents;
+                mesh.uv = uv;
+                mesh.RecalculateBounds();
+                if (!mesh.boneWeights.SequenceEqual(original.boneWeights) || !mesh.bindposes.SequenceEqual(original.bindposes))
                 {
-                    source.enabled = false;
+                    throw new InvalidOperationException("원본 리깅 데이터가 달라졌습니다.");
                 }
-                SampleBounds(rig, targets);
+                const string meshPath = Folder + "Models/FuchsiaUpdatedBody.asset";
+                Mesh saved = AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
+                if (saved == null)
+                {
+                    AssetDatabase.CreateAsset(mesh, meshPath);
+                }
+                else
+                {
+                    EditorUtility.CopySerialized(mesh, saved);
+                    EditorUtility.SetDirty(saved);
+                    UnityEngine.Object.DestroyImmediate(mesh);
+                    mesh = saved;
+                }
+                body.sharedMesh = mesh;
+                const string prefabPath = Folder + "Prefabs/FuchsiaUpdatedAnimated.prefab";
                 rig.name = "FuchsiaUpdatedAnimated";
-                PrefabUtility.SaveAsPrefabAsset(rig, PrefabPath);
+                PrefabUtility.SaveAsPrefabAsset(rig, prefabPath);
+                Transform player = GameObject.Find("Fuchsia Player").transform;
+                Transform previous = player.Find("Fuchsia Visual");
+                GameObject replacement = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath), player);
+                replacement.name = "Fuchsia Visual";
+                replacement.transform.localPosition = previous.localPosition;
+                replacement.transform.localRotation = previous.localRotation;
+                replacement.transform.localScale = previous.localScale;
+                var movement = new SerializedObject(player.GetComponent<PlayerMovement>());
+                movement.FindProperty("_animator").objectReferenceValue = replacement.GetComponentInChildren<Animator>();
+                movement.ApplyModifiedPropertiesWithoutUndo();
+                UnityEngine.Object.DestroyImmediate(previous.gameObject);
+                EditorSceneManager.MarkSceneDirty(player.gameObject.scene);
+                EditorSceneManager.SaveScene(player.gameObject.scene);
+                AssetDatabase.SaveAssets();
+                return "Original 7 renderers/rig/weights retained; updated body vertices=" + affected.Length + "; position difference=" + maximumDistance;
             }
             finally
             {
                 UnityEngine.Object.DestroyImmediate(rig);
-            }
-            Transform player = GameObject.Find("Fuchsia Player").transform;
-            Transform old = player.Find("Fuchsia Visual");
-            Vector3 position = old.localPosition;
-            Quaternion rotation = old.localRotation;
-            Vector3 scale = old.localScale;
-            GameObject replacement = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath), player);
-            replacement.name = "Fuchsia Visual";
-            replacement.transform.localPosition = position;
-            replacement.transform.localRotation = rotation;
-            replacement.transform.localScale = scale;
-            var movement = new SerializedObject(player.GetComponent<CK.SemesterProject.Tutorial.PlayerMovement>());
-            movement.FindProperty("_animator").objectReferenceValue = replacement.GetComponentInChildren<Animator>();
-            movement.ApplyModifiedPropertiesWithoutUndo();
-            UnityEngine.Object.DestroyImmediate(old.gameObject);
-            EditorSceneManager.MarkSceneDirty(player.gameObject.scene);
-            EditorSceneManager.SaveScene(player.gameObject.scene);
-            AssetDatabase.SaveAssets();
-            return "Transferred " + targets.Count + " meshes; maximum bind correspondence distance=" + maximumDistance.ToString("F5") + "m";
-        }
-
-        private static string GroupFor(MeshRenderer renderer)
-        {
-            string name = renderer.name;
-            if (renderer.sharedMaterial.name == "FuchsiaHairToon")
-            {
-                return "hair";
-            }
-            if (renderer.sharedMaterial.name == "FuchsiaFaceToon")
-            {
-                return "head";
-            }
-            if (name == "안경" || name == "안경알")
-            {
-                return "glasses";
-            }
-            if (name == "치마")
-            {
-                return "skirt";
-            }
-            if (name == "외투" || name == "리본")
-            {
-                return "outer";
-            }
-            return "body";
-        }
-
-        private static void SampleBounds(GameObject rig, List<SkinnedMeshRenderer> targets)
-        {
-            var bounds = new Bounds[targets.Count];
-            var initialized = new bool[targets.Count];
-            foreach (string clipName in new[] { "FuchsiaIdle", "FuchsiaWalk", "FuchsiaRun" })
-            {
-                AnimationClip clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(Folder + "Animations/" + clipName + ".anim");
-                for (int frame = 0; frame <= 24; frame++)
-                {
-                    clip.SampleAnimation(rig, clip.length * frame / 24f);
-                    for (int index = 0; index < targets.Count; index++)
-                    {
-                        SkinnedMeshRenderer target = targets[index];
-                        var baked = new Mesh();
-                        target.BakeMesh(baked);
-                        foreach (Vector3 vertex in baked.vertices)
-                        {
-                            Vector3 point = target.rootBone.InverseTransformPoint(target.transform.TransformPoint(vertex));
-                            if (!initialized[index])
-                            {
-                                bounds[index] = new Bounds(point, Vector3.zero);
-                                initialized[index] = true;
-                            }
-                            bounds[index].Encapsulate(point);
-                        }
-                        UnityEngine.Object.DestroyImmediate(baked);
-                    }
-                }
-            }
-            for (int index = 0; index < targets.Count; index++)
-            {
-                bounds[index].Expand(.15f);
-                targets[index].localBounds = bounds[index];
-                targets[index].updateWhenOffscreen = false;
             }
         }
     }
