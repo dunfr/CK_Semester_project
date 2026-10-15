@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using UnityEngine;
@@ -11,6 +12,8 @@ namespace CK.SemesterProject.Tutorial
     {
         private const float ImpactTime = 0.35f;
         private const float ReturnTime = 0.55f;
+        private const float EffectTailSeconds = .9f;
+        private readonly List<GameObject> _effectTails = new List<GameObject>();
         private readonly Transform _actor;
         private readonly Transform _target;
         private readonly Vector3 _attackPosition;
@@ -31,6 +34,8 @@ namespace CK.SemesterProject.Tutorial
         private AnimationClip _animation;
         private GameObject _effectPrefab;
         private GameObject _effectInstance;
+        private GameObject _chargeInstance;
+        private float _chargeFraction;
         private bool _hasSpawnedEffect;
         private PlayableGraph _animationGraph;
         private AnimationClipPlayable _animationPlayable;
@@ -93,7 +98,7 @@ namespace CK.SemesterProject.Tutorial
                 && result.Request.TargetId == _targetId;
             if (!isAttack || progress >= 1f || _actor == null || _target == null)
             {
-                Restore();
+                Restore(isAttack && progress >= 1f);
                 return;
             }
             _hasApplied = true;
@@ -105,7 +110,25 @@ namespace CK.SemesterProject.Tutorial
                 _effectPrefab = _enhancement != null ? _enhancement.GetEffect(result.Request.SkillId, _skillStage) : null;
                 _hasSpawnedEffect = false;
                 BeginAnimation();
+                GameObject chargePrefab = _enhancement != null ? _enhancement.GetChargeEffect(result.Request.SkillId) : null;
+                _chargeFraction = chargePrefab != null ? _enhancement.ScaledChargeFraction : 0f;
+                if (chargePrefab != null && progress < _chargeFraction)
+                {
+                    _chargeInstance = Object.Instantiate(chargePrefab, _actor);
+                    _chargeInstance.transform.localPosition = Vector3.zero;
+                    _chargeInstance.transform.localRotation = Quaternion.identity;
+                    PlayParticles(_chargeInstance, _enhancement.ChargePlaybackSpeed);
+                }
             }
+            bool isCharging = progress < _chargeFraction;
+            if (!isCharging && _chargeInstance != null)
+            {
+                _chargeInstance.SetActive(false);
+                Object.Destroy(_chargeInstance);
+                _chargeInstance = null;
+            }
+            // 차징 동안 원래 자리에서 대기하고 이후에만 기존 접근·베기·복귀 연출을 진행한다.
+            progress = Mathf.Clamp01((progress - _chargeFraction) / (1f - _chargeFraction));
             if (_animationGraph.IsValid())
             {
                 _animationPlayable.SetTime(progress * _animation.length);
@@ -125,6 +148,12 @@ namespace CK.SemesterProject.Tutorial
                 if (_effectPrefab != null)
                 {
                     _effectInstance = Object.Instantiate(_effectPrefab, _target.position, _target.rotation);
+                    TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
+                    if (placement != null)
+                    {
+                        placement.Initialize(_actor, _target, Camera.main);
+                    }
+                    PlayParticles(_effectInstance);
                 }
             }
             bool tookDamage = false;
@@ -166,14 +195,49 @@ namespace CK.SemesterProject.Tutorial
 
         public void Restore()
         {
+            Restore(false);
+        }
+
+        private void Restore(bool letEffectFinish)
+        {
+            if (!letEffectFinish)
+            {
+                foreach (GameObject tail in _effectTails)
+                {
+                    if (tail != null)
+                    {
+                        Object.Destroy(tail);
+                    }
+                }
+                _effectTails.Clear();
+            }
             if (!_hasApplied)
             {
                 return;
             }
             if (_effectInstance != null)
             {
-                Object.Destroy(_effectInstance);
+                if (letEffectFinish)
+                {
+                    TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
+                    if (placement != null)
+                    {
+                        placement.enabled = false;
+                    }
+                    _effectTails.RemoveAll(tail => tail == null);
+                    _effectTails.Add(_effectInstance);
+                    Object.Destroy(_effectInstance, EffectTailSeconds);
+                }
+                else
+                {
+                    Object.Destroy(_effectInstance);
+                }
                 _effectInstance = null;
+            }
+            if (_chargeInstance != null)
+            {
+                Object.Destroy(_chargeInstance);
+                _chargeInstance = null;
             }
             if (_animationGraph.IsValid())
             {
@@ -209,6 +273,22 @@ namespace CK.SemesterProject.Tutorial
             _animation = null;
             _effectPrefab = null;
             _hasSpawnedEffect = false;
+            _chargeFraction = 0f;
+        }
+
+        private static void PlayParticles(GameObject effect, float speedMultiplier = 1f)
+        {
+            ParticleSystem[] particles = effect.GetComponentsInChildren<ParticleSystem>();
+            foreach (ParticleSystem particle in particles)
+            {
+                particle.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particle.main;
+                main.simulationSpeed *= speedMultiplier;
+            }
+            foreach (ParticleSystem particle in particles)
+            {
+                particle.Play(false);
+            }
         }
 
         private void BeginAnimation()

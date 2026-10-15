@@ -25,9 +25,10 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
     _effects:
-    - {fileID: 0}
-    - {fileID: 0}
-    - {fileID: 0}
+    - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
+    - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
+    - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
+    _chargeEffect: {fileID: 9107676139558650793, guid: 9ceef9e040fa3894b96c522f05924f1a, type: 3}
   - _skillId: SK01
     _stageSkillIds:
     - SK01
@@ -42,6 +43,7 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
     - {fileID: 0}
+    _chargeEffect: {fileID: 6219356343798167718, guid: afbd658d1f7510848ae8289c1a62f36a, type: 3}
   - _skillId: SK02
     _stageSkillIds:
     - SK02
@@ -56,3 +58,6 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
     - {fileID: 0}
+    _chargeEffect: {fileID: 425000871882217287, guid: 822e9bc464e1b3c41938a417a4d9b9ec, type: 3}
+  _chargeFraction: 0.25
+  _chargePlaybackSpeed: 0.25

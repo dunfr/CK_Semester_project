@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
@@ -31,7 +31,10 @@ namespace CK.SemesterProject.Battle.Tests
             Set("_automaticEncounters", false);
             Component flow = GameObject.Find("Tutorial Level Content").GetComponent("TutorialLevelFlow");
             flow.GetType().GetField("_awakeningSeconds", PrivateInstance).SetValue(flow, .02f);
-            yield return new WaitForSeconds(.1f);
+            flow.GetType().GetField("_pressStopHoldSeconds", PrivateInstance).SetValue(flow, .02f);
+            flow.GetType().GetField("_guardWalkSeconds", PrivateInstance).SetValue(flow, .02f);
+            flow.GetType().GetField("_guardGestureSeconds", PrivateInstance).SetValue(flow, .02f);
+            yield return new WaitForSeconds(.15f);
             _movement = Field<Behaviour>("_movement");
             _orbit = Field<Behaviour>("_orbit");
             _brain = Field<Behaviour>("_brain");

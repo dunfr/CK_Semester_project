@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.AI;
 
 namespace Semester.Enemies
@@ -21,6 +21,10 @@ namespace Semester.Enemies
         [Range(0f, 360f)] public float viewAngle = 100f;
         [Tooltip("시야를 막는 레이어. 자신과 플레이어의 Collider는 자동 제외")]
         public LayerMask sightBlockingLayers = ~0;
+        [SerializeField, Min(0f), Tooltip("감지 가능한 대상과의 최대 높이 차(m). 0이면 높이 제한 없음")]
+        private float _maximumSightHeightDifference;
+        [SerializeField, Tooltip("순찰하지 않고 현재 자리에서 감시합니다. 발견 후 추적은 허용합니다.")]
+        private bool _stationaryGuard;
 
         [Header("배회 영역 (월드 X/Z)")]
         [Tooltip("선택: 영역 중심. 비어 있으면 시작 위치를 고정 중심으로 사용")]
@@ -174,6 +178,10 @@ namespace Semester.Enemies
         public bool IsPlayerVisible()
         {
             if (player == null || !player.gameObject.activeInHierarchy) return false;
+            if (_maximumSightHeightDifference > 0f && Mathf.Abs(player.position.y - transform.position.y) > _maximumSightHeightDifference)
+            {
+                return false;
+            }
             Vector3 delta = player.position + Vector3.up * targetHeight - EyePosition;
             if (delta.sqrMagnitude > viewDistance * viewDistance) return false;
             Vector3 forward = eyes != null ? eyes.forward : transform.forward;
@@ -186,6 +194,29 @@ namespace Semester.Enemies
                 return false;
             }
             return true;
+        }
+
+        public void ObserveNoise(Vector3 position)
+        {
+            if (!isActiveAndEnabled)
+            {
+                return;
+            }
+            pendingSound = position;
+            soundPending = true;
+        }
+
+        public void InvestigatePosition(Vector3 position)
+        {
+            if (!isActiveAndEnabled)
+            {
+                return;
+            }
+            LastHeardPosition = position;
+            LastSeenPosition = position;
+            HasLastSeenPosition = true;
+            soundPending = false;
+            Enter(State.PursueLastSeen);
         }
 
         private void HearNoise(Vector3 position, float radius, GameObject source)
@@ -236,6 +267,10 @@ namespace Semester.Enemies
 
         private bool ChoosePatrolDestination()
         {
+            if (_stationaryGuard)
+            {
+                return false;
+            }
             if (patrolPoints.Length > 0)
             {
                 for (int attempt = 0; attempt < patrolPoints.Length; attempt++)

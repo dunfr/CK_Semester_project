@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
@@ -32,7 +32,12 @@ namespace CK.SemesterProject.Battle.Tests
                 .GetProperty("Current").GetValue(null);
             _playerState.RestoreFull();
             // 콘텐츠 시작 연출이 이동을 해제한 뒤 기존 HUD 연결을 검증한다.
-            yield return new WaitForSeconds(2.1f);
+            Component flow = GameObject.Find("Tutorial Level Content").GetComponent("TutorialLevelFlow");
+            foreach (string name in new[] { "_awakeningSeconds", "_guardWalkSeconds", "_guardGestureSeconds", "_pressStopHoldSeconds" })
+            {
+                flow.GetType().GetField(name, PrivateInstance).SetValue(flow, .02f);
+            }
+            yield return new WaitForSeconds(.25f);
             _hud.GetType().GetField("_bannerStartedAt", PrivateInstance).SetValue(_hud, Time.unscaledTime);
         }
 
@@ -111,7 +116,54 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(Snapshot(), Is.Not.Null);
         }
 
-        [UnityTest]
+        [UnityTest, Category("BattleSkillMenu")]
+        public IEnumerator ArrowSelectionOpensDescriptionWithoutExecutingAndWraps()
+        {
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            Transform details = UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .SelectMany(canvas => canvas.GetComponentsInChildren<Transform>(true)).Single(item => item.name == "SkillDescriptionPanel");
+            Assert.That(details.gameObject.activeSelf, Is.False);
+            BattleSnapshot before = Snapshot();
+            MethodInfo move = _hud.GetType().GetMethod("MoveSkillSelection");
+            move.Invoke(_hud, new object[] { 1 });
+            Assert.That(_hud.GetType().GetProperty("SelectedSkill").GetValue(_hud), Is.EqualTo(1));
+            Assert.That(details.gameObject.activeSelf, Is.True);
+            Assert.That(Text("SkillNameText"), Is.EqualTo("테스트_각인"));
+            Assert.That(Snapshot(), Is.SameAs(before), "방향키 선택은 비용을 소모하거나 턴을 진행하지 않습니다.");
+            move.Invoke(_hud, new object[] { 1 });
+            move.Invoke(_hud, new object[] { 1 });
+            Assert.That(_hud.GetType().GetProperty("SelectedSkill").GetValue(_hud), Is.EqualTo(0));
+            move.Invoke(_hud, new object[] { -1 });
+            Assert.That(_hud.GetType().GetProperty("SelectedSkill").GetValue(_hud), Is.EqualTo(2));
+            _battle.GetType().GetMethod("CancelBattle").Invoke(_battle, null);
+            yield return null;
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            Assert.That(details.gameObject.activeSelf, Is.False, "다음 전투에는 설명을 닫아야 합니다.");
+        }
+
+        [UnityTest, Category("BattleSkillMenu")]
+        public IEnumerator EnterKeepsUsingHighlightedSkillWithoutExtraConfirmation()
+        {
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            MethodInfo confirm = _hud.GetType().GetMethod("ExecuteSelectedSkill");
+            Assert.That(_hud.GetType().GetProperty("HasSkillSelection").GetValue(_hud), Is.False);
+            confirm.Invoke(_hud, null);
+            Assert.That(Snapshot().Phase, Is.EqualTo(BattlePhase.AwaitingPresentation));
+            yield return null;
+            Transform details = (Transform)((GameObject)_hud.GetType().GetField("_skillDetailsPanel", PrivateInstance).GetValue(_hud)).transform;
+            Assert.That(details.gameObject.activeSelf, Is.False);
+        }
+
+        [UnityTest, Category("BattleSkillMenu")]
         public IEnumerator SelectingSkillThenExecutingUsesCoreCostsAndRestoresField()
         {
             Assert.That(BeginBattle(), Is.True, "실제 맵에서 단독 전투 배치를 확보해야 합니다.");
@@ -143,7 +195,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(Text("Runtime Field Vitals"), Does.Contain("200/200"));
         }
 
-        [UnityTest]
+        [UnityTest, Category("BattleSkillMenu")]
         public IEnumerator UnaffordableInvestmentDisablesActionsAndShowsLocks()
         {
             _playerState.SetVitals(1000, 10);
@@ -151,6 +203,7 @@ namespace CK.SemesterProject.Battle.Tests
             yield return new WaitForSeconds(1.1f);
             _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
             yield return null;
+            Click("SkillButton_NormalAttack");
             _battle.GetType().GetMethod("SetInvestmentStage").Invoke(_battle, new object[] { 5 });
             yield return null;
             Component execute = GameObject.Find("Use Selected Skill").GetComponent("Button");
@@ -217,7 +270,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(map.enabled, Is.False);
         }
 
-        [UnityTest]
+        [UnityTest, Category("BattleSkillMenu")]
         public IEnumerator EnemyClickOpensCommandUiOnlyAfterTargeting()
         {
             Assert.That(BeginBattle(false, false), Is.True);

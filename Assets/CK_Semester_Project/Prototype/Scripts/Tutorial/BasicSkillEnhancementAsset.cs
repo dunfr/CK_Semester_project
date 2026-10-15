@@ -24,9 +24,12 @@ namespace CK.SemesterProject.Tutorial
             private AnimationClip[] _animations = new AnimationClip[StageCount];
             [SerializeField, Tooltip("1·2·3단계 타격 이펙트 프리팹. 비어 있으면 이펙트를 생성하지 않습니다")]
             private GameObject[] _effects = new GameObject[StageCount];
+            [SerializeField, Tooltip("공격 전에 캐릭터를 기준으로 재생하는 차징 이펙트")]
+            private GameObject _chargeEffect;
 
             public string SkillId => _skillId;
             public string[] StageSkillIds => _stageSkillIds;
+            public GameObject ChargeEffect => _chargeEffect;
 
             public bool Matches(string skillId)
             {
@@ -58,6 +61,15 @@ namespace CK.SemesterProject.Tutorial
         private int _victoriesPerStage = 5;
         [SerializeField, Tooltip("기본 스킬 3종의 ID와 단계별 공격력·연출 연결")]
         private SkillStages[] _skills;
+        [SerializeField, Range(0.05f, 0.45f), Tooltip("전체 행동 시간 중 공격 전 차징에 사용하는 비율(0~1)")]
+        private float _chargeFraction = .25f;
+        [SerializeField, Range(.1f, 2f), Tooltip("차징 이펙트 재생 속도(배). 0.5는 절반 속도이며 차징 시간은 두 배가 됩니다")]
+        private float _chargePlaybackSpeed = .5f;
+
+        public float ChargeFraction => _chargeFraction;
+        public float ChargePlaybackSpeed => _chargePlaybackSpeed;
+        public float ChargeDurationScale => 1f + _chargeFraction * (1f / _chargePlaybackSpeed - 1f);
+        public float ScaledChargeFraction => _chargeFraction / _chargePlaybackSpeed / ChargeDurationScale;
 
         public SkillEnhancementRules CreateRules()
         {
@@ -109,6 +121,11 @@ namespace CK.SemesterProject.Tutorial
         {
             ValidateStage(stage);
             return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetEffect(stage);
+        }
+
+        public GameObject GetChargeEffect(string skillId)
+        {
+            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.ChargeEffect;
         }
 
         private static void ValidateStage(int stage)

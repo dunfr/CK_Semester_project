@@ -159,6 +159,19 @@ namespace CK.SemesterProject.Tutorial
         private Vector3 ConfiguredCameraOffset => new Vector3(
             _battleCameraOffsetXY.x, _battleCameraOffsetXY.y, -_battleCameraDistance);
 
+        private float PresentationSeconds
+        {
+            get
+            {
+                BattleActionResult pending = _session?.PendingResult;
+                bool hasPlayerCharge = pending != null && pending.Request.ActorId == "player"
+                    && pending.Request.Kind == BattleActionKind.Skill && !pending.WasSkipped
+                    && !pending.IsTurnStartEffect && _basicSkillEnhancement != null
+                    && _basicSkillEnhancement.GetChargeEffect(pending.Request.SkillId) != null;
+                return hasPlayerCharge ? _actionSeconds * _basicSkillEnhancement.ChargeDurationScale : _actionSeconds;
+            }
+        }
+
         public event Action<BattleOutcome> FieldBattleEnded;
 
         public void SetRespawnPoint(Vector3 position)
@@ -321,15 +334,15 @@ namespace CK.SemesterProject.Tutorial
                 {
                     if (pending.Request.ActorId == "player" && pending.Request.TargetId == GetMonsterId(i))
                     {
-                        _presentations[i].Sample(pending, _elapsed / _actionSeconds);
+                        _presentations[i].Sample(pending, _elapsed / PresentationSeconds);
                     }
                     else if (pending.Request.ActorId == GetMonsterId(i) && pending.Request.TargetId == "player")
                     {
-                        _monsterPresentations[i].Sample(pending, _elapsed / _actionSeconds);
+                        _monsterPresentations[i].Sample(pending, _elapsed / PresentationSeconds);
                     }
                 }
             }
-            if (_elapsed >= _actionSeconds && snapshot.Phase == BattlePhase.AwaitingPresentation)
+            if (_elapsed >= PresentationSeconds && snapshot.Phase == BattlePhase.AwaitingPresentation)
             {
                 _session.CompletePresentation(_session.PendingResult.ActionId);
                 _cachedSnapshot = null;
@@ -368,7 +381,7 @@ namespace CK.SemesterProject.Tutorial
             // 플레이어 피격 중에는 공격에 따른 카메라 이동·줌을 적용하지 않는다.
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == "player";
-            float progress = isAttack ? Mathf.Clamp01(_elapsed / _actionSeconds) : 0f;
+            float progress = isAttack ? Mathf.Clamp01(_elapsed / PresentationSeconds) : 0f;
             float direction = isAttack && result.Request.ActorId != "player" ? -1f : 1f;
             float opening = 1f - Mathf.SmoothStep(0f, 1f, _cameraTime / _cameraEntrySeconds);
             Vector3 offset = TutorialBattleCamera.GetMotionOffset(ConfiguredCameraOffset,

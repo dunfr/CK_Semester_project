@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CK.SemesterProject.Tutorial;
 using TMPro;
@@ -458,6 +458,7 @@ namespace CK.SemesterProject.Editor
                 button.targetGraphic.raycastTarget = true;
                 button.navigation = new Navigation { mode = Navigation.Mode.None };
             }
+            BattleSkillLayoutIntegration.ApplyCurrentScene();
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
             EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
         }

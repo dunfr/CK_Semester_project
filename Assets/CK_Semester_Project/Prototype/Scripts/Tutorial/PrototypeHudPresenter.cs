@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using TMPro;
@@ -10,6 +10,7 @@ using UnityEngine.UI;
 namespace CK.SemesterProject.Tutorial
 {
     // 표현·선택만 담당한다. 피해/비용/행동 가능 여부는 기존 전투 세션을 사용한다.
+    [DefaultExecutionOrder(-40)]
     public sealed class PrototypeHudPresenter : MonoBehaviour
     {
         [Serializable]
@@ -50,6 +51,7 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private TMP_Text _skillName;
         [SerializeField] private TMP_Text _skillType;
         [SerializeField] private TMP_Text _skillDescription;
+        [SerializeField] private GameObject _skillDetailsPanel;
         [SerializeField] private TMP_Text _skillPower;
         [SerializeField] private TMP_Text _skillAccuracy;
         [SerializeField] private TMP_Text _skillElement;
@@ -88,6 +90,7 @@ namespace CK.SemesterProject.Tutorial
         private UnityAction[] _targetActions;
         private BattleSnapshot _previousSnapshot;
         private int _selectedSkill;
+        private bool _hasSkillSelection;
         private int _previousStage = -1;
         private int _previousFloor = -1;
         private bool _couldChoose;
@@ -98,9 +101,14 @@ namespace CK.SemesterProject.Tutorial
         private float _nextMapFrame;
 
         public int SelectedSkill => _selectedSkill;
+        public bool HasSkillSelection => _hasSkillSelection;
 
         private void Awake()
         {
+            if (_skillDetailsPanel == null)
+            {
+                _skillDetailsPanel = _skillName.transform.parent.gameObject;
+            }
             _selectActions = new UnityAction[_skills.Length];
             for (int index = 0; index < _skills.Length; index++)
             {
@@ -149,16 +157,35 @@ namespace CK.SemesterProject.Tutorial
 
         private void Update()
         {
-            if (_battle.HasSelectedBattleTarget && _battle.CanChooseAction && Application.isFocused && Keyboard.current != null)
+            Keyboard keyboard = Keyboard.current;
+            if (!_battle.HasSelectedBattleTarget || !_battle.CanChooseAction || !Application.isFocused || keyboard == null)
             {
-                if (Keyboard.current.fKey.wasPressedThisFrame)
+                return;
+            }
+            bool up = keyboard.upArrowKey.wasPressedThisFrame;
+            bool down = keyboard.downArrowKey.wasPressedThisFrame;
+            bool confirm = keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame;
+            if (up || down || confirm)
+            {
+                // UI Submit과 별도 전투 입력이 같은 Enter를 이중 소비하지 않게 한다.
+                var events = UnityEngine.EventSystems.EventSystem.current;
+                if (events != null && events.currentSelectedGameObject != null
+                    && events.currentSelectedGameObject.transform.IsChildOf(_playerTurn.transform))
                 {
-                    _battle.CycleInvestment();
+                    events.SetSelectedGameObject(null);
                 }
-                if (Keyboard.current.enterKey.wasPressedThisFrame)
-                {
-                    ExecuteSelectedSkill();
-                }
+            }
+            if (up != down)
+            {
+                MoveSkillSelection(up ? -1 : 1);
+            }
+            if (keyboard.fKey.wasPressedThisFrame)
+            {
+                _battle.CycleInvestment();
+            }
+            if (confirm)
+            {
+                ExecuteSelectedSkill();
             }
         }
 
@@ -191,6 +218,9 @@ namespace CK.SemesterProject.Tutorial
             if (state == null)
             {
                 _previousSnapshot = null;
+                _hasSkillSelection = false;
+                _selectedSkill = 0;
+                _skillDetailsPanel.SetActive(false);
                 return;
             }
             if (state != _previousSnapshot || _couldChoose != _battle.CanChooseAction
@@ -242,12 +272,24 @@ namespace CK.SemesterProject.Tutorial
 
         public void SelectSkill(int index)
         {
-            if (index < 0 || index >= _battle.Skills.Count)
+            if (!_battle.HasSelectedBattleTarget || !_battle.CanChooseAction
+                || index < 0 || index >= Mathf.Min(_battle.Skills.Count, _skills.Length))
             {
                 return;
             }
             _selectedSkill = index;
+            _hasSkillSelection = true;
             RefreshBattle();
+        }
+
+        public void MoveSkillSelection(int direction)
+        {
+            int count = Mathf.Min(_battle.Skills.Count, _skills.Length);
+            if (!_battle.HasSelectedBattleTarget || !_battle.CanChooseAction || count == 0 || direction == 0)
+            {
+                return;
+            }
+            SelectSkill((_selectedSkill + (direction > 0 ? 1 : -1) + count) % count);
         }
 
         public void ExecuteSelectedSkill()
@@ -285,6 +327,11 @@ namespace CK.SemesterProject.Tutorial
             _previousTarget = _battle.TargetId;
             _previousTargetSelected = _battle.HasSelectedBattleTarget;
             _couldChoose = _battle.CanChooseAction;
+            if (!_couldChoose || !_battle.HasSelectedBattleTarget)
+            {
+                _hasSkillSelection = false;
+            }
+            _skillDetailsPanel.SetActive(_hasSkillSelection && _couldChoose && _battle.HasSelectedBattleTarget);
             CombatantState player = state.Combatants.First(unit => unit.InstanceId == "player");
             CombatantState[] enemies = state.Combatants.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
             CombatantState target = enemies.FirstOrDefault(unit => unit.InstanceId == _battle.TargetId) ?? enemies[0];
@@ -319,10 +366,13 @@ namespace CK.SemesterProject.Tutorial
                 _skillCosts[index].text = "MEM " + cost;
                 _skills[index].interactable = _couldChoose;
                 _skillImages[index].sprite = index == _selectedSkill ? _selectedSkillSprite : _normalSkill;
-                _skillCosts[index].color = cost > player.Memory ? new Color(1f, 0.4f, 0.4f) : Color.cyan;
+                _skillNames[index].color = index == _selectedSkill ? new Color(.04f, .12f, .2f) : Color.white;
+                _skillCosts[index].color = cost > player.Memory
+                    ? new Color(1f, 0.4f, 0.4f)
+                    : index == _selectedSkill ? new Color(0f, .25f, .32f) : Color.cyan;
             }
             SkillData selected = _battle.Skills[_selectedSkill];
-            _execute.interactable = _couldChoose && selected.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
+            _execute.interactable = _couldChoose && _hasSkillSelection && selected.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
             _defend.interactable = _couldChoose && _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
             _investment.interactable = _couldChoose;
             RefreshSkillDetails(selected);
@@ -358,8 +408,10 @@ namespace CK.SemesterProject.Tutorial
         {
             _skillName.text = skill.DisplayName;
             _skillType.text = TutorialMonster.GetElementName(skill.Element);
-            _skillDescription.text = "기본 메모리 " + skill.MemoryCost + " · 투자 비용 " + _battle.GetInvestmentCost(_battle.InvestmentStage)
-                + "\nEnter / 사용 버튼으로 실행";
+            _skillDescription.text = (skill.Target == SkillTarget.Enemy
+                ? "적 1명에게 " + TutorialMonster.GetElementName(skill.Element) + " 속성으로 공격합니다."
+                : "대상: " + skill.Target)
+                + "\n기본 메모리 " + skill.MemoryCost + " · 투자 비용 " + _battle.GetInvestmentCost(_battle.InvestmentStage);
             _skillPower.text = skill.Power.ToString();
             _skillAccuracy.text = (skill.Accuracy * 100).ToString("0.#") + "%";
             _skillElement.text = TutorialMonster.GetElementName(skill.Element);

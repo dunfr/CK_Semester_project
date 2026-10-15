@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CK.SemesterProject.Tutorial;
 using Semester.Enemies;
@@ -162,9 +162,10 @@ namespace CK.SemesterProject.Editor
                     }
                 }
             }
-            if (enemies.Length != 10)
+            int expectedEnemyCount = scene.GetRootGameObjects().Any(item => item.name == "Dummy Modeling Map") ? 12 : 10;
+            if (enemies.Length != expectedEnemyCount)
             {
-                throw new InvalidOperationException("원본의 몬스터 10기와 연결 수가 다릅니다.");
+                throw new InvalidOperationException("맵의 몬스터 " + expectedEnemyCount + "기와 연결 수가 다릅니다.");
             }
             foreach (EnemyStateMachine enemy in enemies)
             {

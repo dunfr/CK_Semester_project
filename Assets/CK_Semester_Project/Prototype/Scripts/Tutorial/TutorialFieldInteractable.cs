@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace CK.SemesterProject.Tutorial
 {
-    public enum TutorialFieldAction { CardDoor, ElevatorDoor, ArrivalDoor, ElevatorPanel, HallDoor, ExitDoor }
+    public enum TutorialFieldAction { CardDoor, ElevatorDoor, ArrivalDoor, ElevatorPanel, HallDoor, ExitDoor, CardKey, CorridorCardDoor }
 
     public sealed class TutorialFieldInteractable : MonoBehaviour
     {
@@ -26,9 +26,10 @@ namespace CK.SemesterProject.Tutorial
         public Vector3 InteractionPosition => _interactionPoint.position;
         public float Range => _range;
         public bool IsAvailable => !_flow.IsBusy && !IsOpen
+            && (_kind != TutorialFieldAction.CardKey || _flow.IsCardKeyRaised)
             && (_kind != TutorialFieldAction.ElevatorPanel || _flow.Stage == TutorialLevelStage.Elevator);
-        public string Prompt => !_flow.HasCardKey ? "카드키 필요"
-            : _kind == TutorialFieldAction.HallDoor && !_flow.HasCollapsed ? "덕트 경로를 먼저 통과하세요"
+        public string Prompt => _kind == TutorialFieldAction.CardKey ? "카드키 획득"
+            : !_flow.HasCardKey ? "카드키 필요"
             : _kind == TutorialFieldAction.ExitDoor && _flow.Stage < TutorialLevelStage.UpperExit ? "홀 상층으로 올라가세요"
             : _prompt;
 
@@ -43,10 +44,19 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            if (!_flow.HasCardKey || (_kind == TutorialFieldAction.HallDoor && !_flow.HasCollapsed)
+            if (_kind == TutorialFieldAction.CardKey)
+            {
+                _flow.CollectCardKey();
+                return;
+            }
+            if (!_flow.HasCardKey
                 || (_kind == TutorialFieldAction.ExitDoor && _flow.Stage < TutorialLevelStage.UpperExit))
             {
                 _flow.ShowFeedback(Prompt);
+                if (!_flow.HasCardKey)
+                {
+                    _flow.FocusCardDesk();
+                }
                 return;
             }
             if (_kind == TutorialFieldAction.ElevatorPanel)

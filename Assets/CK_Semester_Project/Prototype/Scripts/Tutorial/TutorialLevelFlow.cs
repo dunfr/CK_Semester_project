@@ -1,8 +1,10 @@
-using System.Collections;
+﻿using System.Collections;
 using CK.SemesterProject.Battle;
 using Semester.Enemies;
 using TMPro;
 using UnityEngine;
+using UnityEngine.AI;
+using Unity.Cinemachine;
 
 namespace CK.SemesterProject.Tutorial
 {
@@ -14,8 +16,33 @@ namespace CK.SemesterProject.Tutorial
 
     public sealed class TutorialLevelFlow : MonoBehaviour
     {
-        [SerializeField, Min(0.1f), Tooltip("캡슐 시작 연출 시간(초)")]
+        [SerializeField, Min(0.1f), Tooltip("프레스 전체 하강에 걸리는 기준 시간(초). 중간 정지 비율에 도달하면 즉시 멈춥니다.")]
         private float _awakeningSeconds = 2f;
+        [SerializeField, Min(0f), Tooltip("프레스의 전체 하강 거리(m). 실제 이동은 중간 정지 비율까지만 적용합니다.")]
+        private float _pressTravelDistance = 2f;
+        [SerializeField, Range(0.1f, 0.9f), Tooltip("전체 하강 중 프레스가 정지하는 시점 비율(0~1)")]
+        private float _pressStopProgress = 0.5f;
+        [SerializeField, Min(0f), Tooltip("프레스가 멈춘 뒤 조작을 해제하기까지 대기(초)")]
+        private float _pressStopHoldSeconds = 0.5f;
+        [SerializeField, Min(0f), Tooltip("시작 경비병이 콘솔까지 걷는 시간(초)")]
+        private float _guardWalkSeconds = 2.5f;
+        [SerializeField, Min(0f), Tooltip("경비병 버튼 조작과 놀람 연출 시간(초)")]
+        private float _guardGestureSeconds = 1.5f;
+        [SerializeField, Min(0.1f), Tooltip("조작 해제 후 첫 적이 플레이어를 추적하기까지 대기(초)")]
+        private float _firstGuardWaitSeconds = 20f;
+        [SerializeField, Tooltip("맵 아래 낙하 복귀 기준 월드 높이(m)")]
+        private float _fallRecoveryHeight = -130f;
+        [SerializeField, Min(0.1f), Tooltip("카드키 상승 시간(초)")]
+        private float _cardRiseSeconds = 0.2f;
+        [SerializeField] private Transform _guardConsolePoint;
+        [SerializeField] private Transform _consoleFocus;
+        [SerializeField] private Transform _cardKey;
+        [SerializeField] private BoxCollider _elevatorBoardingZone;
+        [SerializeField] private TutorialSequenceEffects _effects;
+        [SerializeField] private EnemyStateMachine _ductLookout;
+        [SerializeField] private EnemyStateMachine[] _ductInvestigators;
+        [SerializeField] private EnemyStateMachine[] _collapseInvestigators;
+        [SerializeField] private TutorialFieldInteractable _corridorCardDoor;
         [SerializeField, Min(0.1f), Tooltip("엘리베이터 운행 시간(초)")]
         private float _elevatorSeconds = 7f;
         [SerializeField, Min(0.1f), Tooltip("덕트에서 소리 반응을 관찰할 시간(초)")]
@@ -51,9 +78,14 @@ namespace CK.SemesterProject.Tutorial
         private float _feedbackUntil;
         private bool _isBusy;
         private bool _hasCollapsed;
+        private bool _hasDuctNoise;
+        private bool _isFirstGuardTriggered;
+        private float _firstGuardElapsed;
 
         public TutorialLevelStage Stage { get; private set; }
         public bool HasCardKey { get; private set; }
+        public bool IsCardKeyRaised { get; private set; }
+        public bool HasDuctNoise => _hasDuctNoise;
         public bool IsBusy => _isBusy;
         public bool HasCollapsed => _hasCollapsed;
         public Vector3 Checkpoint => _checkpoint;
@@ -73,14 +105,37 @@ namespace CK.SemesterProject.Tutorial
             _movement.enabled = false;
             _firstEnemy.enabled = false;
             _movement.GetComponentInChildren<CameraController>().FaceDirection(_firstEnemy.transform.position - _movement.transform.position);
+            SetIdle();
             Stage = TutorialLevelStage.Awakening;
             RefreshObjective();
-            Vector3 lidStart = _capsuleLid.position;
-            for (float elapsed = 0; elapsed < _awakeningSeconds; elapsed += Time.deltaTime)
+            NavMeshAgent firstAgent = _firstEnemy.GetComponent<NavMeshAgent>();
+            firstAgent.enabled = false;
+            Vector3 guardStart = _firstEnemy.transform.position;
+            for (float elapsed = 0; elapsed < _guardWalkSeconds; elapsed += Time.deltaTime)
             {
-                _capsuleLid.position = lidStart + Vector3.down * Mathf.SmoothStep(0, 0.6f, elapsed / _awakeningSeconds);
+                _firstEnemy.transform.position = Vector3.Lerp(guardStart, _guardConsolePoint.position, elapsed / _guardWalkSeconds);
                 yield return null;
             }
+            _firstEnemy.transform.position = _guardConsolePoint.position;
+            _firstEnemy.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(_consoleFocus.position - _guardConsolePoint.position, Vector3.up));
+            ShowFeedback("경비병: 폐기 절차를 시작한다.", _guardGestureSeconds);
+            _effects.PlayCue(0, _consoleFocus.position);
+            yield return new WaitForSeconds(_guardGestureSeconds);
+            _effects.SetCapsuleAlarm(true);
+            Vector3 lidStart = _capsuleLid.position;
+            float stopTime = _awakeningSeconds * _pressStopProgress;
+            for (float elapsed = 0; elapsed < stopTime; elapsed += Time.deltaTime)
+            {
+                float progress = Mathf.SmoothStep(0, 1, elapsed / _awakeningSeconds);
+                _capsuleLid.position = lidStart + Vector3.down * (_pressTravelDistance * progress);
+                yield return null;
+            }
+            float stopDistance = _pressTravelDistance * Mathf.SmoothStep(0, 1, _pressStopProgress);
+            _capsuleLid.position = lidStart + Vector3.down * stopDistance;
+            _effects.PlayCue(0, _capsuleLid.position);
+            ShowFeedback("프레스가 멈췄습니다.", 2f);
+            yield return new WaitForSeconds(_pressStopHoldSeconds);
+            firstAgent.enabled = true;
             _movement.enabled = true;
             _firstEnemy.enabled = true;
             _isBusy = false;
@@ -91,7 +146,8 @@ namespace CK.SemesterProject.Tutorial
         {
             if (!_battle.IsInBattle)
             {
-                Transform target = Stage == TutorialLevelStage.DuctEscape && _hasCollapsed ? _hallCheckpoint : _goalPoints[(int)Stage];
+                Transform target = Stage == TutorialLevelStage.CardDoor && !HasCardKey ? _cardKey
+                    : Stage == TutorialLevelStage.DuctEscape && _hasCollapsed ? _hallCheckpoint : _goalPoints[(int)Stage];
                 float distance = Vector3.Distance(_movement.transform.position, target.position);
                 Vector3 view = _camera.WorldToViewportPoint(target.position);
                 string direction = view.z < 0 ? "뒤쪽" : view.x < .4f ? "좌측" : view.x > .6f ? "우측" : "정면";
@@ -102,7 +158,16 @@ namespace CK.SemesterProject.Tutorial
             {
                 _feedback.transform.parent.gameObject.SetActive(false);
             }
-            if (!_battle.IsInBattle && !_isBusy && _movement.transform.position.y < 2f)
+            if (Stage == TutorialLevelStage.FirstBattle && !_isBusy && !_battle.IsInBattle && !_isFirstGuardTriggered)
+            {
+                _firstGuardElapsed += Time.deltaTime;
+                if (_firstGuardElapsed >= _firstGuardWaitSeconds)
+                {
+                    _isFirstGuardTriggered = true;
+                    StartCoroutine(AlertFirstGuard());
+                }
+            }
+            if (!_battle.IsInBattle && !_isBusy && _movement.transform.position.y < _fallRecoveryHeight)
             {
                 RespawnAtCheckpoint();
             }
@@ -122,7 +187,11 @@ namespace CK.SemesterProject.Tutorial
 
         public void OpenedDoor(TutorialFieldInteractable door)
         {
-            if (Stage == TutorialLevelStage.CardDoor)
+            if (door.Kind == TutorialFieldAction.CorridorCardDoor)
+            {
+                TriggerDuctNoise();
+            }
+            if (door.Kind == TutorialFieldAction.CardDoor && Stage == TutorialLevelStage.CardDoor)
             {
                 Advance(TutorialLevelStage.Elevator);
                 SetCheckpoint(_movement.transform.position, Stage);
@@ -136,8 +205,7 @@ namespace CK.SemesterProject.Tutorial
                 return false;
             }
             // 패널 버튼에만 접근한 상태에서는 운행하지 않는다. 플레이어도 카 안에 있어야 한다.
-            Vector3 offset = _movement.transform.position - _elevatorCar.position;
-            if (offset.x < -0.3f || offset.x > 3f || Mathf.Abs(offset.z) > 1.3f || Mathf.Abs(offset.y) > 1f)
+            if (!_elevatorBoardingZone.bounds.Contains(_movement.transform.position + Vector3.up * 0.5f))
             {
                 ShowFeedback("엘리베이터 안에 탑승한 뒤 패널을 누르세요.");
                 return false;
@@ -150,6 +218,7 @@ namespace CK.SemesterProject.Tutorial
         {
             _isBusy = true;
             _movement.enabled = false;
+            SetIdle();
             CharacterController controller = _movement.GetComponent<CharacterController>();
             controller.enabled = false;
             Vector3 carStart = _elevatorCar.position;
@@ -195,14 +264,15 @@ namespace CK.SemesterProject.Tutorial
             }
             if (destination == TutorialLevelStage.DuctRamp && Stage == TutorialLevelStage.ObserveGuard)
             {
+                TriggerDuctNoise();
                 Advance(destination);
             }
-            else if (destination == TutorialLevelStage.DuctObservation && Stage == TutorialLevelStage.DuctRamp)
+            else if (destination == TutorialLevelStage.DuctObservation && Stage >= TutorialLevelStage.ObserveGuard && Stage <= TutorialLevelStage.DuctRamp)
             {
                 SetCheckpoint(_ductCheckpoint.position, TutorialLevelStage.DuctRamp);
                 StartCoroutine(ObserveNoise());
             }
-            else if (destination == TutorialLevelStage.Hall && Stage == TutorialLevelStage.DuctEscape && _hasCollapsed)
+            else if (destination == TutorialLevelStage.Hall && Stage >= TutorialLevelStage.ObserveGuard && Stage <= TutorialLevelStage.DuctEscape && HasCardKey)
             {
                 Advance(destination);
                 SetCheckpoint(_hallCheckpoint.position, destination);
@@ -223,8 +293,8 @@ namespace CK.SemesterProject.Tutorial
             Advance(TutorialLevelStage.DuctObservation);
             _isBusy = true;
             _movement.enabled = false;
-            EnemyNoise.Emit(_observationNoisePoint.position, 8f, gameObject);
-            ShowFeedback("경비병: 방금 소리 들었나?\n적이 소리 난 방향을 바라봅니다.", _observationSeconds);
+            SetIdle();
+            ShowFeedback("경비병: 위쪽은 이상 없나?\n덕트 위에서 경비의 대화를 듣습니다.", _observationSeconds);
             yield return new WaitForSeconds(_observationSeconds);
             _movement.enabled = true;
             _isBusy = false;
@@ -233,10 +303,11 @@ namespace CK.SemesterProject.Tutorial
 
         public bool CollapseDuct()
         {
-            if (_hasCollapsed || _isBusy || _battle.IsInBattle || Stage != TutorialLevelStage.DuctEscape)
+            if (_hasCollapsed || _isBusy || _battle.IsInBattle || (Stage < TutorialLevelStage.ObserveGuard || Stage > TutorialLevelStage.DuctEscape))
             {
                 return false;
             }
+            Advance(TutorialLevelStage.DuctEscape);
             _hasCollapsed = true;
             StartCoroutine(CollapseSection());
             return true;
@@ -251,6 +322,14 @@ namespace CK.SemesterProject.Tutorial
             }
             Vector3 start = _ductSection.position;
             EnemyNoise.Emit(start, _collapseNoiseRadius, _movement.gameObject);
+            _effects.PlayCollapse(start);
+            foreach (EnemyStateMachine enemy in _collapseInvestigators)
+            {
+                if (enemy != null && enemy.isActiveAndEnabled)
+                {
+                    enemy.InvestigatePosition(new Vector3(start.x, _hallCheckpoint.position.y, start.z));
+                }
+            }
             ShowFeedback("덕트 붕괴! · 소리 때문에 적이 경계합니다. 홀 입구로 이동하세요.", 5f);
             for (float elapsed = 0; elapsed < _collapseSeconds; elapsed += Time.deltaTime)
             {
@@ -276,14 +355,142 @@ namespace CK.SemesterProject.Tutorial
         {
             if (outcome == BattleOutcome.Victory && Stage == TutorialLevelStage.FirstBattle)
             {
-                HasCardKey = true;
                 Advance(TutorialLevelStage.CardDoor);
                 SetCheckpoint(_movement.transform.position, Stage);
-                ShowFeedback("카드키 획득 · 출입문에서 좌클릭하세요.");
+                StartCoroutine(RaiseCardKey());
             }
             else if (outcome != BattleOutcome.Victory)
             {
                 RespawnAtCheckpoint();
+            }
+        }
+
+        public void CollectCardKey()
+        {
+            if (!IsCardKeyRaised || HasCardKey || _isBusy || _battle.IsInBattle)
+            {
+                return;
+            }
+            IsCardKeyRaised = false;
+            HasCardKey = true;
+            _cardKey.gameObject.SetActive(false);
+            _effects.PlayCue(2, _consoleFocus.position);
+            RefreshObjective();
+            ShowFeedback("카드키 획득 · 출입문에서 좌클릭하세요.");
+        }
+
+        public void FocusCardDesk()
+        {
+            if (!_isBusy && !_battle.IsInBattle)
+            {
+                StartCoroutine(FocusDesk(0.5f));
+            }
+        }
+
+        public void TriggerDuctNoise()
+        {
+            if (_hasDuctNoise || Stage < TutorialLevelStage.ObserveGuard || Stage >= TutorialLevelStage.Hall)
+            {
+                return;
+            }
+            _hasDuctNoise = true;
+            _corridorCardDoor.Open();
+            _ductLookout.ObserveNoise(_observationNoisePoint.position);
+            _effects.PlayCue(3, _observationNoisePoint.position);
+            foreach (EnemyStateMachine enemy in _ductInvestigators)
+            {
+                if (enemy != null && enemy.isActiveAndEnabled)
+                {
+                    StartCoroutine(InvestigateAfterDoorOpens(enemy));
+                }
+            }
+            ShowFeedback("경비병: 무슨 소리지? 덕트 쪽을 확인해.\n감시병은 소리 방향을 보고, 순찰병 둘은 확인하러 이동합니다.", 4f);
+        }
+
+        private IEnumerator InvestigateAfterDoorOpens(EnemyStateMachine enemy)
+        {
+            yield return new WaitForSeconds(1.1f);
+            while (_battle.IsInBattle)
+            {
+                yield return null;
+            }
+            if (enemy != null && enemy.isActiveAndEnabled)
+            {
+                enemy.InvestigatePosition(_observationNoisePoint.position);
+            }
+        }
+
+        private IEnumerator AlertFirstGuard()
+        {
+            ShowFeedback("경비병: 깨어났다고?!", _guardGestureSeconds);
+            Quaternion start = _firstEnemy.transform.rotation;
+            Vector3 direction = Vector3.ProjectOnPlane(_movement.transform.position - _firstEnemy.transform.position, Vector3.up);
+            Quaternion target = direction.sqrMagnitude > 0.001f ? Quaternion.LookRotation(direction) : start;
+            for (float elapsed = 0; elapsed < _guardGestureSeconds && !_battle.IsInBattle; elapsed += Time.deltaTime)
+            {
+                _firstEnemy.transform.rotation = Quaternion.Slerp(start, target, elapsed / _guardGestureSeconds);
+                yield return null;
+            }
+            if (!_battle.IsInBattle && _firstEnemy.isActiveAndEnabled)
+            {
+                _firstEnemy.InvestigatePosition(_movement.transform.position);
+            }
+        }
+
+        private IEnumerator RaiseCardKey()
+        {
+            _isBusy = true;
+            _movement.enabled = false;
+            SetIdle();
+            _cardKey.gameObject.SetActive(true);
+            Vector3 start = _cardKey.position;
+            _effects.PlayCue(1, start);
+            // 잠시 콘솔을 보여 준 뒤 원래 카메라/조작 상태로 복귀한다.
+            Coroutine focus = StartCoroutine(FocusDesk(Mathf.Max(0.5f, _cardRiseSeconds)));
+            for (float elapsed = 0; elapsed < _cardRiseSeconds; elapsed += Time.deltaTime)
+            {
+                _cardKey.position = start + Vector3.up * (0.35f * Mathf.Clamp01(elapsed / _cardRiseSeconds));
+                yield return null;
+            }
+            _cardKey.position = start + Vector3.up * 0.35f;
+            IsCardKeyRaised = true;
+            yield return focus;
+            _isBusy = false;
+            _movement.enabled = true;
+            ShowFeedback("콘솔에서 카드키가 올라왔습니다. 가까이 가서 좌클릭하세요.");
+        }
+
+        private IEnumerator FocusDesk(float seconds)
+        {
+            bool wasBusy = _isBusy;
+            bool wasMoving = _movement.enabled;
+            var orbit = _movement.GetComponentInChildren<CameraController>();
+            var brain = _camera.GetComponent<CinemachineBrain>();
+            bool wasOrbitEnabled = orbit.enabled;
+            bool wasBrainEnabled = brain.enabled;
+            Vector3 position = _camera.transform.position;
+            Quaternion rotation = _camera.transform.rotation;
+            _isBusy = true;
+            _movement.enabled = false;
+            SetIdle();
+            orbit.enabled = false;
+            brain.enabled = false;
+            _camera.transform.position = _consoleFocus.position + new Vector3(0f, 1.6f, 3.2f);
+            _camera.transform.LookAt(_consoleFocus.position);
+            yield return new WaitForSeconds(seconds);
+            _camera.transform.SetPositionAndRotation(position, rotation);
+            brain.enabled = wasBrainEnabled;
+            orbit.enabled = wasOrbitEnabled;
+            _movement.enabled = wasMoving;
+            _isBusy = wasBusy;
+        }
+
+        private void SetIdle()
+        {
+            Animator animator = _movement.GetComponentInChildren<Animator>();
+            if (animator != null && animator.runtimeAnimatorController != null)
+            {
+                animator.SetFloat("Speed", 0f);
             }
         }
 
@@ -303,6 +510,15 @@ namespace CK.SemesterProject.Tutorial
             _movement.Teleport(_checkpoint);
             PlayerSessionState.Current.RestoreFull();
             Stage = _checkpointStage;
+            if (Stage == TutorialLevelStage.FirstBattle && _firstEnemy.gameObject.activeSelf)
+            {
+                _firstEnemy.enabled = false;
+                _firstEnemy.GetComponent<NavMeshAgent>().Warp(_guardConsolePoint.position);
+                _firstEnemy.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(_consoleFocus.position - _guardConsolePoint.position, Vector3.up));
+                _firstEnemy.enabled = true;
+                _firstGuardElapsed = 0f;
+                _isFirstGuardTriggered = false;
+            }
             RefreshObjective();
             ShowFeedback("체크포인트에서 다시 시작합니다.");
         }
@@ -319,14 +535,14 @@ namespace CK.SemesterProject.Tutorial
             {
                 "캡슐에서 깨어나는 중…",
                 "WASD 이동 · SHIFT 달리기\n콘솔 앞 몬스터에게 접근해 좌클릭",
-                "카드키 획득\n출입문에 접근해 좌클릭",
+                HasCardKey ? "카드키 획득\n출입문에 접근해 좌클릭" : "콘솔 데스크에서 올라온\n카드키를 좌클릭해 획득하세요",
                 "복도를 지나 엘리베이터 탑승\n패널을 좌클릭해 하층으로 이동",
                 "유리 너머 경비를 관찰하고\n열린 옆 복도로 우회하세요",
-                "복도 끝 경사 덕트를 따라\n상부 경로로 올라가세요",
+                "부서진 덕트 또는 지상 복도로\n홀 입구를 향해 이동하세요",
                 "소리에 반응하는 적을 관찰하세요",
-                "덕트를 따라 이동하세요\n붕괴 후 홀 입구로 이동",
+                "덕트 또는 지상 경로를 선택하세요\n소리에 반응하는 경비를 주의하세요",
                 "적 순찰을 관찰하며 우회하세요\n홀 끝 계단으로 상층 이동",
-                "상층 출입문을 열고\n다음 구역으로 이동하세요",
+                "상층 출구를 통과해\n다음 구역으로 이동하세요",
                 "튜토리얼 완료\n조작 · 전투 · 카드키 · 소리 학습 완료"
             };
             _objective.text = objectives[(int)Stage];
