@@ -149,6 +149,8 @@ namespace CK.SemesterProject.Tutorial
         private PlayerRuntimeState _playerState;
         private int _investment;
         private float _elapsed;
+        private BattleActionResult _timedPresentation;
+        private float _presentationSeconds;
         private float _encounterCooldown;
         private float _nextFootstep;
         private Vector3 _lastPlayerPosition;
@@ -164,11 +166,22 @@ namespace CK.SemesterProject.Tutorial
             get
             {
                 BattleActionResult pending = _session?.PendingResult;
-                bool hasPlayerCharge = pending != null && pending.Request.ActorId == "player"
+                if (pending == null)
+                {
+                    _timedPresentation = null;
+                    return _actionSeconds;
+                }
+                if (ReferenceEquals(_timedPresentation, pending))
+                {
+                    return _presentationSeconds;
+                }
+                bool isPlayerSkill = pending != null && pending.Request.ActorId == "player"
                     && pending.Request.Kind == BattleActionKind.Skill && !pending.WasSkipped
-                    && !pending.IsTurnStartEffect && _basicSkillEnhancement != null
-                    && _basicSkillEnhancement.GetChargeEffect(pending.Request.SkillId) != null;
-                return hasPlayerCharge ? _actionSeconds * _basicSkillEnhancement.ChargeDurationScale : _actionSeconds;
+                    && !pending.IsTurnStartEffect && _basicSkillEnhancement != null;
+                _timedPresentation = pending;
+                _presentationSeconds = isPlayerSkill ? _basicSkillEnhancement.GetPresentationSeconds(pending.Request.SkillId,
+                    TestSkillStage, _actionSeconds) : _actionSeconds;
+                return _presentationSeconds;
             }
         }
 
@@ -334,7 +347,7 @@ namespace CK.SemesterProject.Tutorial
                 {
                     if (pending.Request.ActorId == "player" && pending.Request.TargetId == GetMonsterId(i))
                     {
-                        _presentations[i].Sample(pending, _elapsed / PresentationSeconds);
+                        _presentations[i].Sample(pending, _elapsed / PresentationSeconds, PresentationSeconds);
                     }
                     else if (pending.Request.ActorId == GetMonsterId(i) && pending.Request.TargetId == "player")
                     {

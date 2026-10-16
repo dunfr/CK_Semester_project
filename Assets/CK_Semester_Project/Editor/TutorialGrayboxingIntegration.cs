@@ -20,7 +20,6 @@ namespace CK.SemesterProject.Editor
         private const string NavigationPath = "Assets/CK_Semester_Project/Prototype/Data/TutorialGrayboxingNavMesh.asset";
 
         // 명시적으로 재생성할 때만 실행한다. 가져온 원본 맵은 수정하지 않는다.
-        [MenuItem("CK/Tutorial/Build Grayboxing Demo")]
         public static void Build()
         {
             Scene scene = EditorSceneManager.OpenScene(SourceScene);

@@ -10,8 +10,6 @@ namespace CK.SemesterProject.Tutorial
     // 임시 전투 연출. HP/턴 계산에는 관여하지 않으며 전투 자리로 반드시 복귀한다.
     public sealed class TutorialBattleActionPresentation
     {
-        private const float ImpactTime = 0.35f;
-        private const float ReturnTime = 0.55f;
         private const float EffectTailSeconds = .9f;
         private readonly List<GameObject> _effectTails = new List<GameObject>();
         private readonly Transform _actor;
@@ -36,6 +34,9 @@ namespace CK.SemesterProject.Tutorial
         private GameObject _effectInstance;
         private GameObject _chargeInstance;
         private float _chargeFraction;
+        private float _impactTime = .35f;
+        private float _returnTime = .55f;
+        private float _effectTailSeconds = EffectTailSeconds;
         private bool _hasSpawnedEffect;
         private PlayableGraph _animationGraph;
         private AnimationClipPlayable _animationPlayable;
@@ -91,7 +92,7 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
-        public void Sample(BattleActionResult result, float progress)
+        public void Sample(BattleActionResult result, float progress, float presentationSeconds = 1.2f)
         {
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == _actorId
@@ -111,18 +112,27 @@ namespace CK.SemesterProject.Tutorial
                 _hasSpawnedEffect = false;
                 BeginAnimation();
                 GameObject chargePrefab = _enhancement != null ? _enhancement.GetChargeEffect(result.Request.SkillId) : null;
-                _chargeFraction = chargePrefab != null ? _enhancement.ScaledChargeFraction : 0f;
+                _chargeFraction = chargePrefab != null
+                    ? _enhancement.GetChargeProgressFraction(result.Request.SkillId, _skillStage, presentationSeconds) : 0f;
+                _impactTime = _enhancement != null ? _enhancement.GetImpactFraction(result.Request.SkillId, _skillStage) : .35f;
+                _returnTime = Mathf.Min(.98f, Mathf.Max(.55f, _impactTime + .15f));
                 if (chargePrefab != null && progress < _chargeFraction)
                 {
                     _chargeInstance = Object.Instantiate(chargePrefab, _actor);
                     _chargeInstance.transform.localPosition = Vector3.zero;
                     _chargeInstance.transform.localRotation = Quaternion.identity;
+                    SkillVfxPlacement manualCharge = _enhancement.GetPlacement(result.Request.SkillId, _skillStage, true);
+                    if (manualCharge.Enabled)
+                    {
+                        _chargeInstance.transform.SetParent(null, true);
+                        manualCharge.Apply(_chargeInstance, _actor, _target);
+                    }
                     TutorialChargeVfxPlacement chargePlacement = _chargeInstance.GetComponent<TutorialChargeVfxPlacement>();
-                    if (chargePlacement != null)
+                    if (chargePlacement != null && !manualCharge.Enabled)
                     {
                         chargePlacement.Initialize(Camera.main);
                     }
-                    PlayParticles(_chargeInstance, _enhancement.ChargePlaybackSpeed);
+                    _chargeInstance.AddComponent<SkillVfxPlayback>().Initialize(manualCharge, _enhancement.ChargePlaybackSpeed);
                 }
             }
             bool isCharging = progress < _chargeFraction;
@@ -139,26 +149,33 @@ namespace CK.SemesterProject.Tutorial
                 _animationPlayable.SetTime(progress * _animation.length);
                 _animationGraph.Evaluate(0f);
             }
-            float approach = progress < ImpactTime ? Mathf.SmoothStep(0f, 1f, progress / ImpactTime)
-                : progress < ReturnTime ? 1f : 1f - Mathf.SmoothStep(0f, 1f, (progress - ReturnTime) / (1f - ReturnTime));
+            float approach = progress < _impactTime ? Mathf.SmoothStep(0f, 1f, progress / _impactTime)
+                : progress < _returnTime ? 1f : 1f - Mathf.SmoothStep(0f, 1f, (progress - _returnTime) / (1f - _returnTime));
             _actor.position = Vector3.Lerp(ActorHome, _attackPosition, approach);
             Vector3 facing = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up);
             if (facing.sqrMagnitude > 0.001f)
             {
                 _actor.rotation = Quaternion.LookRotation(facing);
             }
-            if (!_hasSpawnedEffect && progress >= ImpactTime)
+            if (!_hasSpawnedEffect && progress >= _impactTime)
             {
                 _hasSpawnedEffect = true;
                 if (_effectPrefab != null)
                 {
                     _effectInstance = Object.Instantiate(_effectPrefab, _target.position, _target.rotation);
+                    SkillVfxPlacement manualEffect = _enhancement.GetPlacement(result.Request.SkillId, _skillStage, false);
+                    if (manualEffect.Enabled)
+                    {
+                        manualEffect.Apply(_effectInstance, _actor, _target);
+                    }
                     TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
-                    if (placement != null)
+                    if (placement != null && !manualEffect.Enabled)
                     {
                         placement.Initialize(_actor, _target, Camera.main);
                     }
-                    PlayParticles(_effectInstance);
+                    _effectInstance.AddComponent<SkillVfxPlayback>().Initialize(manualEffect);
+                    _effectTailSeconds = Mathf.Max(EffectTailSeconds, Mathf.Max(0f, manualEffect.StartDelay)
+                        + (manualEffect.Lifetime > 0f ? manualEffect.Lifetime : SkillVfxPlayback.EstimateDuration(_effectInstance)));
                 }
             }
             bool tookDamage = false;
@@ -170,9 +187,9 @@ namespace CK.SemesterProject.Tutorial
                     break;
                 }
             }
-            float reaction = Mathf.Clamp01((progress - ImpactTime) / (ReturnTime - ImpactTime));
+            float reaction = Mathf.Clamp01((progress - _impactTime) / (_returnTime - _impactTime));
             bool reacts = tookDamage && result.Hit != null && result.Hit.IsHit
-                && progress >= ImpactTime && progress < ReturnTime;
+                && progress >= _impactTime && progress < _returnTime;
             float strength = reacts ? 1f - reaction : 0f;
             Vector3 forward = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up).normalized;
             Vector3 sideways = Vector3.Cross(Vector3.up, forward);
@@ -231,7 +248,7 @@ namespace CK.SemesterProject.Tutorial
                     }
                     _effectTails.RemoveAll(tail => tail == null);
                     _effectTails.Add(_effectInstance);
-                    Object.Destroy(_effectInstance, EffectTailSeconds);
+                    Object.Destroy(_effectInstance, _effectTailSeconds);
                 }
                 else
                 {
@@ -279,21 +296,6 @@ namespace CK.SemesterProject.Tutorial
             _effectPrefab = null;
             _hasSpawnedEffect = false;
             _chargeFraction = 0f;
-        }
-
-        private static void PlayParticles(GameObject effect, float speedMultiplier = 1f)
-        {
-            ParticleSystem[] particles = effect.GetComponentsInChildren<ParticleSystem>();
-            foreach (ParticleSystem particle in particles)
-            {
-                particle.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
-                var main = particle.main;
-                main.simulationSpeed *= speedMultiplier;
-            }
-            foreach (ParticleSystem particle in particles)
-            {
-                particle.Play(false);
-            }
         }
 
         private void BeginAnimation()

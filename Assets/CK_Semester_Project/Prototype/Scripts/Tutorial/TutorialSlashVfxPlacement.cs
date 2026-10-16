@@ -38,6 +38,29 @@ namespace CK.SemesterProject.Tutorial
         private Quaternion _fastSparksLocalRotation;
         private float _startedAt;
         private bool _hasTriggeredImpact;
+        private float _playbackSpeed = 1f;
+
+        public void SetPlaybackTiming(float delay, float speed)
+        {
+            _startedAt = Time.time + Mathf.Max(0f, delay);
+            _playbackSpeed = Mathf.Max(.05f, speed);
+        }
+
+        public void SamplePreview(float elapsedSeconds)
+        {
+            if (_impactStreak != null)
+            {
+                _hasTriggeredImpact = elapsedSeconds >= _impactDelay;
+                _impactStreak.gameObject.SetActive(_hasTriggeredImpact);
+            }
+            UpdatePlacement(elapsedSeconds);
+        }
+
+        public float GetPreviewParticleTime(ParticleSystem particle, float elapsedSeconds, float speed)
+        {
+            return _impactStreak != null && particle.transform.IsChildOf(_impactStreak)
+                ? Mathf.Max(0f, elapsedSeconds - _impactDelay / Mathf.Max(.05f, speed)) : elapsedSeconds;
+        }
 
         public void Initialize(Transform actor, Transform target, Camera camera)
         {
@@ -84,6 +107,11 @@ namespace CK.SemesterProject.Tutorial
 
         private void LateUpdate()
         {
+            UpdatePlacement((Time.time - _startedAt) * _playbackSpeed);
+        }
+
+        private void UpdatePlacement(float elapsedSeconds)
+        {
             if (_target == null || _camera == null || _slash == null)
             {
                 return;
@@ -123,7 +151,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 _impactStreak.SetPositionAndRotation(hitPosition,
                     Quaternion.LookRotation(-towardCamera, Vector3.up) * Quaternion.Euler(0f, 0f, -5f));
-                if (!_hasTriggeredImpact && Time.time - _startedAt >= _impactDelay)
+                if (!_hasTriggeredImpact && elapsedSeconds >= _impactDelay)
                 {
                     _hasTriggeredImpact = true;
                     _impactStreak.gameObject.SetActive(true);

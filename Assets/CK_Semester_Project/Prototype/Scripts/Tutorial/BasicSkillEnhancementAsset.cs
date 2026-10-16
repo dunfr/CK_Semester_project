@@ -26,6 +26,10 @@ namespace CK.SemesterProject.Tutorial
             private GameObject[] _effects = new GameObject[StageCount];
             [SerializeField, Tooltip("공격 전에 캐릭터를 기준으로 재생하는 차징 이펙트")]
             private GameObject _chargeEffect;
+            [SerializeField] private SkillVfxPlacement[] _effectPlacements = new SkillVfxPlacement[StageCount];
+            [SerializeField] private SkillVfxPlacement _chargePlacement;
+            [SerializeField] private float[] _actionSpeeds = new float[StageCount];
+            [SerializeField] private float[] _impactFractions = new float[StageCount];
 
             public string SkillId => _skillId;
             public string[] StageSkillIds => _stageSkillIds;
@@ -54,6 +58,54 @@ namespace CK.SemesterProject.Tutorial
             public GameObject GetEffect(int stage)
             {
                 return _effects != null && _effects.Length >= stage ? _effects[stage - 1] : null;
+            }
+
+            public float GetActionSpeed(int stage)
+            {
+                float speed = _actionSpeeds != null && _actionSpeeds.Length >= stage ? _actionSpeeds[stage - 1] : 0f;
+                return speed > 0f ? Mathf.Clamp(speed, .05f, 4f) : 1f;
+            }
+
+            public float GetImpactFraction(int stage)
+            {
+                float impact = _impactFractions != null && _impactFractions.Length >= stage ? _impactFractions[stage - 1] : 0f;
+                return impact > 0f ? Mathf.Clamp(impact, .05f, .9f) : .35f;
+            }
+
+            public void SetActionSettings(int stage, AnimationClip animation, float speed, float impact)
+            {
+                Array.Resize(ref _animations, StageCount);
+                Array.Resize(ref _actionSpeeds, StageCount);
+                Array.Resize(ref _impactFractions, StageCount);
+                _animations[stage - 1] = animation;
+                _actionSpeeds[stage - 1] = Mathf.Clamp(speed, .05f, 4f);
+                _impactFractions[stage - 1] = Mathf.Clamp(impact, .05f, .9f);
+            }
+
+            public SkillVfxPlacement GetPlacement(int stage, bool charge)
+            {
+                return charge ? _chargePlacement : _effectPlacements != null && _effectPlacements.Length >= stage
+                    ? _effectPlacements[stage - 1] : default;
+            }
+
+            public void SetPlacement(int stage, bool charge, GameObject prefab, SkillVfxPlacement placement)
+            {
+                if (charge)
+                {
+                    _chargeEffect = prefab;
+                    _chargePlacement = placement;
+                    return;
+                }
+                if (_effects == null || _effects.Length != StageCount)
+                {
+                    Array.Resize(ref _effects, StageCount);
+                }
+                if (_effectPlacements == null || _effectPlacements.Length != StageCount)
+                {
+                    Array.Resize(ref _effectPlacements, StageCount);
+                }
+                _effects[stage - 1] = prefab;
+                _effectPlacements[stage - 1] = placement;
             }
         }
 
@@ -126,6 +178,71 @@ namespace CK.SemesterProject.Tutorial
         public GameObject GetChargeEffect(string skillId)
         {
             return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.ChargeEffect;
+        }
+
+        public SkillVfxPlacement GetPlacement(string skillId, int stage, bool charge)
+        {
+            ValidateStage(stage);
+            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetPlacement(stage, charge) ?? default;
+        }
+
+        public void SetPlacement(string skillId, int stage, bool charge, GameObject prefab, SkillVfxPlacement placement)
+        {
+            ValidateStage(stage);
+            SkillStages settings = _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId));
+            if (settings == null)
+            {
+                throw new ArgumentException("이펙트 배치: 스킬 ID를 찾을 수 없습니다: " + skillId);
+            }
+            settings.SetPlacement(stage, charge, prefab, placement);
+        }
+
+        public float GetActionSpeed(string skillId, int stage)
+        {
+            ValidateStage(stage);
+            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetActionSpeed(stage) ?? 1f;
+        }
+
+        public float GetImpactFraction(string skillId, int stage)
+        {
+            ValidateStage(stage);
+            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetImpactFraction(stage) ?? .35f;
+        }
+
+        public void SetActionSettings(string skillId, int stage, AnimationClip animation, float speed, float impact)
+        {
+            ValidateStage(stage);
+            SkillStages settings = _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId));
+            if (settings == null)
+            {
+                throw new ArgumentException("공격 연출: 스킬 ID를 찾을 수 없습니다: " + skillId);
+            }
+            settings.SetActionSettings(stage, animation, speed, impact);
+        }
+
+        public float GetPresentationSeconds(string skillId, int stage, float baseSeconds)
+        {
+            float seconds = baseSeconds / GetActionSpeed(skillId, stage);
+            if (GetChargeEffect(skillId) == null)
+            {
+                return seconds;
+            }
+            SkillVfxPlacement charge = GetPlacement(skillId, stage, true);
+            float chargeSpeed = ChargePlaybackSpeed * charge.EffectivePlaybackSpeed;
+            return seconds * (1f - ChargeFraction + ChargeFraction / chargeSpeed) + Mathf.Max(0f, charge.StartDelay);
+        }
+
+        public float GetChargeProgressFraction(string skillId, int stage, float presentationSeconds)
+        {
+            if (GetChargeEffect(skillId) == null)
+            {
+                return 0f;
+            }
+            SkillVfxPlacement charge = GetPlacement(skillId, stage, true);
+            float delay = Mathf.Max(0f, charge.StartDelay);
+            float chargePart = ChargeFraction / (ChargePlaybackSpeed * charge.EffectivePlaybackSpeed);
+            float originalSeconds = Mathf.Max(0f, presentationSeconds - delay) / (1f - ChargeFraction + chargePart);
+            return Mathf.Clamp01((originalSeconds * chargePart + delay) / Mathf.Max(.001f, presentationSeconds));
         }
 
         private static void ValidateStage(int stage)
