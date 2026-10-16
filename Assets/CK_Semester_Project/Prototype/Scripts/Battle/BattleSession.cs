@@ -282,6 +282,10 @@ namespace CK.SemesterProject.Battle
             {
                 return BattleActionError.InsufficientMemory;
             }
+            if (skill.RageCost > actor.RageEnergy || (skill.RageCost > 0 && !_rules.Mechanics.EnableRage))
+            {
+                return BattleActionError.InsufficientRage;
+            }
             return BattleActionError.None;
         }
 
@@ -457,7 +461,8 @@ namespace CK.SemesterProject.Battle
                 _extraActorId = null;
             }
             PendingResult = new BattleActionResult(_turnId, request, wasSkipped, _outcome, changes,
-                hit, isTurnStartEffect);
+                hit, isTurnStartEffect, !wasSkipped && !isTurnStartEffect && request.Kind == BattleActionKind.Skill
+                    ? (_resolver as BattleActionResolver)?.TargetHits : null);
             _history.Add(new BattleHistoryEntry(PendingResult, _combatants[request.ActorId], _rules, GetSnapshot()));
         }
 

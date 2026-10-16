@@ -1,3 +1,4 @@
+using System.Linq;
 using CK.SemesterProject.Battle;
 using Semester.Enemies;
 using TMPro;
@@ -44,6 +45,19 @@ namespace CK.SemesterProject.Tutorial
         private BattleEntryCondition _entry;
         private TMP_Text _enhanceSkillLabel;
         private int _displayedSkillStage;
+        private MonsterBattleDefinition[] _definitions;
+        private TutorialMonster[] _monsterViews;
+        private readonly int[] _levels = { 1, 1, 1 };
+        private readonly UnityEngine.UI.Button[] _levelButtons = new UnityEngine.UI.Button[3];
+        private readonly TMP_Text[] _levelLabels = new TMP_Text[3];
+        private UnityEngine.UI.Button _startBattle;
+        private TMP_Text _groupLabel;
+        private GameObject _levelSelection;
+        private int _selectedPreset;
+        private static readonly int[][] LevelIndices =
+        {
+            new[] { 0, 1, 6 }, new[] { 2, 3, 7 }, new[] { 4, 5, 8 }
+        };
 
         private void Start()
         {
@@ -56,17 +70,34 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             _homes = new Pose[_monsters.Length];
+            _definitions = new MonsterBattleDefinition[_monsters.Length];
+            _monsterViews = new TutorialMonster[_monsters.Length];
             for (int i = 0; i < _monsters.Length; i++)
             {
                 _homes[i] = new Pose(_monsters[i].transform.position, _monsters[i].transform.rotation);
+                _monsterViews[i] = _monsters[i].GetComponent<TutorialMonster>();
+                if (_monsterViews[i] == null || _monsterViews[i].Definition == null)
+                {
+                    Debug.LogError("MonsterAiTestPanel: 몬스터 정의가 누락되었습니다.", this);
+                    enabled = false;
+                    return;
+                }
+                _definitions[i] = _monsterViews[i].Definition;
             }
             _fieldCamera.enabled = false;
             _presetActions = new UnityAction[_rosters.Length];
             for (int i = 0; i < _presets.Length; i++)
             {
                 int index = i;
-                _presetActions[i] = () => StartPreset(index);
+                _presetActions[i] = () => SelectPreset(index);
                 _presets[i].onClick.AddListener(_presetActions[i]);
+                TMP_Text presetLabel = _presets[i].GetComponentInChildren<TMP_Text>(true);
+                if (presetLabel != null)
+                {
+                    presetLabel.text = _rosters[i].Length + "기 " + string.Join(" · ", _rosters[i]
+                        .GroupBy(member => _definitions[member].Element)
+                        .Select(group => TutorialMonster.GetElementName(group.Key) + (group.Count() > 1 ? "×" + group.Count() : "")));
+                }
             }
             _entryActions = new UnityAction[3];
             for (int i = 0; i < _entryButtons.Length; i++)
@@ -80,8 +111,117 @@ namespace CK.SemesterProject.Tutorial
             _enhanceSkill.onClick.AddListener(EnhanceTestSkill);
             RefreshEnhanceButton();
             BattleHistoryPanel.Create(_controller, _entryLabel, _reset);
+            foreach (TMP_Text label in _selection.GetComponentsInChildren<TMP_Text>(true))
+            {
+                if (label.name == "AI Test Help")
+                {
+                    label.text = "진입 방식 선택 → 몬스터 그룹 선택 → 개별 레벨 지정 → 전투 시작";
+                }
+            }
+            CreateLevelSelection();
             SelectEntry(0);
             ResetTest();
+        }
+
+        private void CreateLevelSelection()
+        {
+            var panelObject = new GameObject("Monster Level Selection", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            _levelSelection = panelObject;
+            panelObject.layer = 5;
+            panelObject.transform.SetParent(_selection.transform, false);
+            var backdrop = panelObject.GetComponent<RectTransform>();
+            backdrop.anchorMin = Vector2.zero;
+            backdrop.anchorMax = Vector2.one;
+            backdrop.offsetMin = backdrop.offsetMax = Vector2.zero;
+            panelObject.GetComponent<UnityEngine.UI.Image>().color = new Color(0.04f, 0.05f, 0.07f, 0.97f);
+            var content = new GameObject("Level Selection Content", typeof(RectTransform));
+            content.layer = 5;
+            content.transform.SetParent(backdrop, false);
+            var panel = content.GetComponent<RectTransform>();
+            panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.sizeDelta = new Vector2(700, 350);
+            _groupLabel = Instantiate(_entryLabel, panel);
+            _groupLabel.name = "Selected Group";
+            _groupLabel.rectTransform.anchorMin = _groupLabel.rectTransform.anchorMax = new Vector2(0.5f, 1);
+            _groupLabel.rectTransform.anchoredPosition = new Vector2(0, -30);
+            _groupLabel.rectTransform.sizeDelta = new Vector2(610, 45);
+            _groupLabel.fontSize = 20;
+            _groupLabel.raycastTarget = false;
+            for (int i = 0; i < 3; i++)
+            {
+                int slot = i;
+                _levelButtons[i] = CreateSelectionButton(panel, "Monster Level " + (i + 1),
+                    new Vector2(-210 + i * 210, -105), new Vector2(200, 75));
+                _levelLabels[i] = _levelButtons[i].GetComponentInChildren<TMP_Text>(true);
+                _levelLabels[i].fontSize = 18;
+                _levelButtons[i].onClick.AddListener(() =>
+                {
+                    if (_controller.IsInBattle)
+                    {
+                        return;
+                    }
+                    _levels[slot] = _levels[slot] % 3 + 1;
+                    RefreshLevelSelection();
+                });
+            }
+            _startBattle = CreateSelectionButton(panel, "Start Selected Battle", new Vector2(0, -205), new Vector2(420, 60));
+            _startBattle.GetComponentInChildren<TMP_Text>(true).text = "선택한 그룹으로 전투 시작";
+            _startBattle.onClick.AddListener(() => StartPreset(_selectedPreset));
+            UnityEngine.UI.Button back = CreateSelectionButton(panel, "Back To Groups", new Vector2(0, -280), new Vector2(420, 50));
+            back.GetComponentInChildren<TMP_Text>(true).text = "그룹 다시 선택";
+            back.onClick.AddListener(() => _levelSelection.SetActive(false));
+            SelectPreset(0);
+            _levelSelection.SetActive(false);
+        }
+
+        private UnityEngine.UI.Button CreateSelectionButton(Transform parent, string objectName, Vector2 position, Vector2 size)
+        {
+            UnityEngine.UI.Button button = Instantiate(_reset, parent);
+            button.name = objectName;
+            button.onClick = new UnityEngine.UI.Button.ButtonClickedEvent();
+            RectTransform rect = button.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = size;
+            TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+            label.rectTransform.anchorMin = Vector2.zero;
+            label.rectTransform.anchorMax = Vector2.one;
+            label.rectTransform.offsetMin = new Vector2(5, 5);
+            label.rectTransform.offsetMax = new Vector2(-5, -5);
+            return button;
+        }
+
+        private void SelectPreset(int index)
+        {
+            if (_controller.IsInBattle || index < 0 || index >= _rosters.Length)
+            {
+                return;
+            }
+            _selectedPreset = index;
+            RefreshLevelSelection();
+            _levelSelection.SetActive(true);
+        }
+
+        private int GetLevelDefinitionIndex(int monsterIndex, int level)
+        {
+            BattleElement element = _definitions[monsterIndex].Element;
+            int group = element == BattleElement.Imprint ? 0 : element == BattleElement.Afterimage ? 1 : 2;
+            return LevelIndices[group][level - 1];
+        }
+
+        private void RefreshLevelSelection()
+        {
+            int[] roster = _rosters[_selectedPreset];
+            _groupLabel.text = "그룹 " + (_selectedPreset + 1) + " · " + roster.Length + "기 / 각 몬스터 레벨 선택";
+            for (int i = 0; i < 3; i++)
+            {
+                _levelButtons[i].gameObject.SetActive(i < roster.Length);
+                if (i < roster.Length)
+                {
+                    _levelLabels[i].text = (i + 1) + ". " + TutorialMonster.GetElementName(_definitions[roster[i]].Element)
+                        + " Lv." + _levels[i] + "\n클릭하여 변경";
+                }
+            }
         }
 
         private void Update()
@@ -125,7 +265,7 @@ namespace CK.SemesterProject.Tutorial
 
         public void StartPreset(int index)
         {
-            if (index < 0 || index >= _rosters.Length)
+            if (_controller.IsInBattle || index < 0 || index >= _rosters.Length)
             {
                 return;
             }
@@ -135,6 +275,8 @@ namespace CK.SemesterProject.Tutorial
             for (int i = 0; i < roster.Length; i++)
             {
                 members[i] = _monsters[roster[i]];
+                int definitionIndex = GetLevelDefinitionIndex(roster[i], _levels[i]);
+                _monsterViews[roster[i]].SetDefinition(_definitions[definitionIndex]);
             }
             if (!_controller.BeginBattle(members[0], _entry, members))
             {
@@ -145,10 +287,15 @@ namespace CK.SemesterProject.Tutorial
         public void ResetTest()
         {
             _controller.CancelBattle();
+            if (_levelSelection != null)
+            {
+                _levelSelection.SetActive(false);
+            }
             PlayerSessionState.Current.RestoreFull();
             for (int i = 0; i < _monsters.Length; i++)
             {
                 EnemyStateMachine monster = _monsters[i];
+                _monsterViews[i].SetDefinition(_definitions[i]);
                 NavMeshAgent agent = monster.GetComponent<NavMeshAgent>();
                 agent.enabled = false;
                 monster.transform.SetPositionAndRotation(_homes[i].position, _homes[i].rotation);

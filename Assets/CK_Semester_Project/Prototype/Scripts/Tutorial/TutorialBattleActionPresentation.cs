@@ -21,6 +21,7 @@ namespace CK.SemesterProject.Tutorial
         private readonly int _baseColorId = Shader.PropertyToID("_BaseColor");
         private readonly int _colorId = Shader.PropertyToID("_Color");
         private bool _hasApplied;
+        private bool _movesActor;
         private readonly string _targetId;
         private readonly string _actorId;
         private readonly Quaternion _actorRotation;
@@ -90,13 +91,14 @@ namespace CK.SemesterProject.Tutorial
         {
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == _actorId
-                && result.Request.TargetId == _targetId;
+                && (result.Request.TargetId == _targetId || result.TargetHits.ContainsKey(_targetId));
             if (!isAttack || progress >= 1f || _actor == null || _target == null)
             {
                 Restore();
                 return;
             }
             _hasApplied = true;
+            _movesActor = result.Request.TargetId == _targetId;
             progress = Mathf.Clamp01(progress);
             if (_actionId != result.ActionId)
             {
@@ -104,7 +106,10 @@ namespace CK.SemesterProject.Tutorial
                 _animation = _enhancement != null ? _enhancement.GetAnimation(result.Request.SkillId, _skillStage) : null;
                 _effectPrefab = _enhancement != null ? _enhancement.GetEffect(result.Request.SkillId, _skillStage) : null;
                 _hasSpawnedEffect = false;
-                BeginAnimation();
+                if (_movesActor)
+                {
+                    BeginAnimation();
+                }
             }
             if (_animationGraph.IsValid())
             {
@@ -113,9 +118,13 @@ namespace CK.SemesterProject.Tutorial
             }
             float approach = progress < ImpactTime ? Mathf.SmoothStep(0f, 1f, progress / ImpactTime)
                 : progress < ReturnTime ? 1f : 1f - Mathf.SmoothStep(0f, 1f, (progress - ReturnTime) / (1f - ReturnTime));
-            _actor.position = Vector3.Lerp(ActorHome, _attackPosition, approach);
+            bool primaryTarget = result.Request.TargetId == _targetId;
+            if (primaryTarget)
+            {
+                _actor.position = Vector3.Lerp(ActorHome, _attackPosition, approach);
+            }
             Vector3 facing = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up);
-            if (facing.sqrMagnitude > 0.001f)
+            if (primaryTarget && facing.sqrMagnitude > 0.001f)
             {
                 _actor.rotation = Quaternion.LookRotation(facing);
             }
@@ -137,7 +146,8 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             float reaction = Mathf.Clamp01((progress - ImpactTime) / (ReturnTime - ImpactTime));
-            bool reacts = tookDamage && result.Hit != null && result.Hit.IsHit
+            BattleHitResult targetHit = result.TargetHits.TryGetValue(_targetId, out BattleHitResult foundHit) ? foundHit : result.Hit;
+            bool reacts = tookDamage && targetHit != null && targetHit.IsHit
                 && progress >= ImpactTime && progress < ReturnTime;
             float strength = reacts ? 1f - reaction : 0f;
             Vector3 forward = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up).normalized;
@@ -188,7 +198,7 @@ namespace CK.SemesterProject.Tutorial
                     }
                 }
             }
-            if (_actor != null)
+            if (_movesActor && _actor != null)
             {
                 _actor.position = ActorHome;
                 _actor.rotation = _actorRotation;

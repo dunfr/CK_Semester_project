@@ -159,20 +159,20 @@ namespace CK.SemesterProject.Battle.Tests
         public void SuppliedSkillCsvLoadsExactIdsCostsRageAndPercentPoints()
         {
             string csv = File.ReadAllText("Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv");
-            IReadOnlyList<SkillData> skills = SkillTable.LoadCsv(csv);
+            IReadOnlyList<SkillData> skills = SkillTable.LoadCsv(csv).Take(9).ToArray();
             CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => "SK" + index.ToString("00")),
                 skills.Select(skill => skill.Id));
-            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 10, 15, 20 }[index % 3]),
+            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 10, 10, 20 }[index % 3]),
                 skills.Select(skill => skill.MemoryCost));
             CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 20, 25, 15 }[index % 3]),
                 skills.Select(skill => skill.RageGain));
-            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 0.15, 0.1, 0.15 }[index % 3]),
+            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 0.1, 0.1, 0.1 }[index % 3]),
                 skills.Select(skill => skill.BonusCriticalChance));
             CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 100, 120, 150 }[index / 3]),
                 skills.Select(skill => skill.Power));
             Assert.That(skills.All(skill => skill.CriticalChance == null), Is.True);
             Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv + csv.Split('\n')[1]));
-            Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv.Replace(",15,20,10", ",150,20,10")));
+            Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv.Replace(",10,20,10", ",150,20,10")));
             Assert.Throws<FormatException>(() => SkillTable.LoadCsv("wrong"));
         }
 

@@ -47,12 +47,20 @@ namespace CK.SemesterProject.Battle
             foreach (BattleStateChange change in Result.Changes)
             {
                 text.Append("\n  ").Append(change.After.Data.DisplayName).Append(" (").Append(change.After.InstanceId).Append(")");
+                if (Result.TargetHits.TryGetValue(change.After.InstanceId, out BattleHitResult targetHit))
+                {
+                    text.Append(targetHit.IsHit ? targetHit.IsCritical ? " 치명타" : " 명중" : " 회피");
+                }
                 if (change.HpDelta < 0)
                 {
                     text.Append(Result.IsTurnStartEffect && change.Before.ImprintDamage > 0 ? " 각인 피해 " : " 받은 피해 ").Append(-change.HpDelta);
                 }
                 text.Append(" · HP ").Append(change.Before.Hp).Append("→").Append(change.After.Hp)
                     .Append(" · 메모리 ").Append(change.Before.Memory).Append("→").Append(change.After.Memory);
+                if (change.Before.RageEnergy != change.After.RageEnergy)
+                {
+                    text.Append(" · 폭주 ").Append(change.Before.RageEnergy).Append("→").Append(change.After.RageEnergy);
+                }
                 if (change.After.HasAfterimageRecovery)
                 {
                     text.Append(" · 다음 행동 방어 시 잔상 회복");

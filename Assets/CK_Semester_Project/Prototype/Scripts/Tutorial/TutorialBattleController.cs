@@ -170,6 +170,21 @@ namespace CK.SemesterProject.Tutorial
             try
             {
                 _baseSkills = SkillTable.LoadCsv(_skillTable.text).ToArray();
+                if (_baseSkills.Length == 11)
+                {
+                    var buttons = _skillButtons.ToList();
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Button button = Instantiate(_skillButtons[0], _skillButtons[0].transform.parent);
+                        button.name = i == 0 ? "Special Skill" : "Ultimate Skill";
+                        button.onClick = new Button.ButtonClickedEvent();
+                        RectTransform rect = button.GetComponent<RectTransform>();
+                        RectTransform sourceRect = _skillButtons[i].GetComponent<RectTransform>();
+                        rect.anchoredPosition = sourceRect.anchoredPosition + new Vector2(0, -55);
+                        buttons.Add(button);
+                    }
+                    _skillButtons = buttons.ToArray();
+                }
                 _playerState = PlayerSessionState.Current;
                 RefreshPlayerData();
             }
@@ -190,6 +205,10 @@ namespace CK.SemesterProject.Tutorial
             RefreshFieldVitals();
             _enemyEnabled = new bool[_enemies.Length];
             _skillLabels = _skillButtons.Select(button => button.GetComponentInChildren<TMP_Text>(true)).ToArray();
+            foreach (TMP_Text label in _skillLabels.Where(label => label != null))
+            {
+                label.fontSize = 16;
+            }
             _skillActions = new UnityEngine.Events.UnityAction[_skills.Length];
             for (int i = 0; i < _skills.Length; i++)
             {
@@ -653,7 +672,8 @@ namespace CK.SemesterProject.Tutorial
         {
             if (!_session.TrySubmit(request, out BattleActionResult result, out BattleActionError error))
             {
-                _notice.text = error == BattleActionError.InsufficientMemory ? "메모리가 부족합니다. 투자 단계를 줄이거나 방어하세요." : "현재 행동할 수 없습니다.";
+                _notice.text = error == BattleActionError.InsufficientMemory ? "메모리가 부족합니다. 투자 단계를 줄이거나 방어하세요."
+                    : error == BattleActionError.InsufficientRage ? "폭주 에너지가 부족합니다." : "현재 행동할 수 없습니다.";
                 return;
             }
             _cachedSnapshot = null;
@@ -732,11 +752,14 @@ namespace CK.SemesterProject.Tutorial
             _investmentLabel.text = "투자 " + _investment + "단계 (" + _session.Rules.GetStageCost(_playerData, _investment) + ")";
             for (int i = 0; i < _skillButtons.Length; i++)
             {
-                _skillButtons[i].interactable = CanInput(state);
+                int cost = _session.Rules.GetStageCost(_playerData, _investment) + _skills[i].MemoryCost;
+                _skillButtons[i].interactable = CanInput(state) && player.Memory >= cost && player.RageEnergy >= _skills[i].RageCost;
                 if (_skillLabels[i] != null)
                 {
-                    _skillLabels[i].text = TutorialMonster.GetElementName(_skills[i].Element)
-                        + " " + _battleSkillStage + "단계\n위력 " + _skills[i].Power;
+                    _skillLabels[i].text = (i < 3 ? TutorialMonster.GetElementName(_skills[i].Element)
+                        + " " + _battleSkillStage + "단계" : _skills[i].DisplayName + (_skills[i].IsAreaOfEffect ? " (광역)" : ""))
+                        + "\n위력 " + _skills[i].Power + " · M" + _skills[i].MemoryCost
+                        + (_skills[i].RageCost > 0 ? " · 폭주" + _skills[i].RageCost : "");
                 }
             }
             _investmentButton.interactable = CanInput(state);
