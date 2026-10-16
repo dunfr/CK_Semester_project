@@ -59,6 +59,8 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private Transform _elevatorDestination;
         [SerializeField] private Transform _arrivalPoint;
         [SerializeField] private Transform _ductSection;
+        [SerializeField, Tooltip("덕트 관찰을 마친 플레이어가 이 구역 안에 있을 때만 붕괴를 실행합니다.")]
+        private BoxCollider _ductCollapseZone;
         [SerializeField] private Transform _ductCheckpoint;
         [SerializeField] private Transform _hallCheckpoint;
         [SerializeField] private Transform _startPoint;
@@ -303,11 +305,20 @@ namespace CK.SemesterProject.Tutorial
 
         public bool CollapseDuct()
         {
-            if (_hasCollapsed || _isBusy || _battle.IsInBattle || (Stage < TutorialLevelStage.ObserveGuard || Stage > TutorialLevelStage.DuctEscape))
+            if (_hasCollapsed || _isBusy || _battle.IsInBattle || Stage != TutorialLevelStage.DuctEscape)
             {
                 return false;
             }
-            Advance(TutorialLevelStage.DuctEscape);
+            if (_ductCollapseZone == null || !_ductCollapseZone.enabled || !_ductCollapseZone.gameObject.activeInHierarchy)
+            {
+                return false;
+            }
+            // 진행 단계가 유지된 채 다른 층으로 이동해도 덕트 위에 도착하기 전에는 붕괴하지 않는다.
+            Vector3 playerPosition = _ductCollapseZone.transform.InverseTransformPoint(_movement.transform.position + Vector3.up * 0.5f);
+            if (!new Bounds(_ductCollapseZone.center, _ductCollapseZone.size).Contains(playerPosition))
+            {
+                return false;
+            }
             _hasCollapsed = true;
             StartCoroutine(CollapseSection());
             return true;

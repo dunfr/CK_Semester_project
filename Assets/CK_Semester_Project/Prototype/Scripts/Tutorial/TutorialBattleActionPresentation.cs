@@ -117,6 +117,11 @@ namespace CK.SemesterProject.Tutorial
                     _chargeInstance = Object.Instantiate(chargePrefab, _actor);
                     _chargeInstance.transform.localPosition = Vector3.zero;
                     _chargeInstance.transform.localRotation = Quaternion.identity;
+                    TutorialChargeVfxPlacement chargePlacement = _chargeInstance.GetComponent<TutorialChargeVfxPlacement>();
+                    if (chargePlacement != null)
+                    {
+                        chargePlacement.Initialize(Camera.main);
+                    }
                     PlayParticles(_chargeInstance, _enhancement.ChargePlaybackSpeed);
                 }
             }

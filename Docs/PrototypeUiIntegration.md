@@ -136,3 +136,5 @@ BasicSkillEnhancement의 Charge Fraction=0.25로 기존 1.2초 행동 중 처음
 최종 BattleSkillMenu PlayMode 기능 테스트 5개 모두 통과(약 12.1초).
 
 프리팹 저장 후속 확인: 열려 있던 FuchsiaSkill01SakuraSlash Prefab Stage에 이전 계층이 남아 ImpactStreak 연결과 새 크기 설정이 저장 파일에서 누락된 것을 재확인했다. 실제 열린 Stage의 계층을 수정한 뒤 SavePrefab으로 저장했고, 디스크의 ImpactStreak 자식/재생 컴포넌트/직렬화 참조와 다시 로드한 에셋의 연결을 확인했다. ImpactStreak는 기본 비활성(0.17초 후 활성)이며 루트에는 Sakura Slash, SakuraSlashParticles, SakuraHitDetails, ImpactStreak가 있다.
+
+차징 중심 가시성 후속: FuchsiaChargeRed/Purple/Blue 프리팹의 TutorialChargeVfxPlacement가 Core Four Point Flare, Focus Ring, Core Soft Halo만 캐릭터 중심에서 카메라 쪽 수평 0.8m로 이동한다. 높이와 나머지 발밑 링/오라/궤도 리본 배치는 유지한다. Camera Side Offset으로 간격을 조절할 수 있다. 실제 전투 SK00 차징 캡처(Temp/ChargeCenterFrontCheck.png), 카메라를 옆으로 옮겼을 때 중심 효과 추적, 바닥 링 로컬 위치 유지, 세 색상 프리팹의 3개 참조를 확인했다. 차징 속도/시간은 변경하지 않았다.

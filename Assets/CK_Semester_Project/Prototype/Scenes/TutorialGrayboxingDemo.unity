@@ -82034,6 +82034,7 @@ MonoBehaviour:
   _elevatorDestination: {fileID: 1950198730}
   _arrivalPoint: {fileID: 781223384}
   _ductSection: {fileID: 570649036}
+  _ductCollapseZone: {fileID: 652422286}
   _ductCheckpoint: {fileID: 507085589}
   _hallCheckpoint: {fileID: 758787922}
   _startPoint: {fileID: 765813588}
@@ -287356,7 +287357,7 @@ MonoBehaviour:
   viewAngle: 100
   sightBlockingLayers:
     serializedVersion: 2
-    m_Bits: 4294967291
+    m_Bits: 51
   _maximumSightHeightDifference: 2.5
   _stationaryGuard: 0
   patrolCenter: {fileID: 0}

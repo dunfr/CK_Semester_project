@@ -123,6 +123,30 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [UnityTest]
+        public IEnumerator DuctCollapseRequiresObservationAndArrivalOnDuct()
+        {
+            Assert.That(Invoke(_flow, "CollapseDuct"), Is.False);
+            yield return WinFirstBattle();
+            yield return RideLift();
+            Teleport(new Vector3(-29.04f, -109.5f, -26.77f));
+            Assert.That(Invoke(_flow, "CollapseDuct"), Is.False, "관찰 전에 붕괴 구역에 도착해도 실행하지 않습니다.");
+            Teleport(new Vector3(-34.78f, -109.5f, -18));
+            Enter("DuctObservation");
+            yield return new WaitForSeconds(.2f);
+            Assert.That(Stage, Is.EqualTo("DuctEscape"));
+            Teleport(new Vector3(-4.47f, 1.05f, .88f));
+            Assert.That(Invoke(_flow, "CollapseDuct"), Is.False, "시작 층에서는 붕괴하지 않습니다.");
+            Teleport(new Vector3(-29.04f, -119.5f, -26.77f));
+            Assert.That(Invoke(_flow, "CollapseDuct"), Is.False, "덕트 바로 아래 바닥에서는 붕괴하지 않습니다.");
+            Assert.That(Get(_flow, "HasCollapsed"), Is.False);
+            Teleport(new Vector3(-29.04f, -109.5f, -26.77f));
+            yield return new WaitForFixedUpdate();
+            yield return new WaitForFixedUpdate();
+            Assert.That(Get(_flow, "HasCollapsed"), Is.True, "관찰을 마치고 덕트 위에 도착하면 트리거로 붕괴합니다.");
+            Assert.That(Invoke(_flow, "CollapseDuct"), Is.False, "붕괴는 한 번만 실행합니다.");
+        }
+
+        [UnityTest]
         public IEnumerator CharacterControllerTraversesNewMapLiftDuctHallAndExit()
         {
             yield return WinFirstBattle();

@@ -385,6 +385,12 @@ namespace CK.SemesterProject.Editor
             settings.FindProperty("_destination").enumValueIndex = (int)destination;
             settings.FindProperty("_collapse").boolValue = collapse;
             settings.ApplyModifiedPropertiesWithoutUndo();
+            if (collapse)
+            {
+                var flowSettings = new SerializedObject(_flow);
+                Set(flowSettings, "_ductCollapseZone", collider);
+                flowSettings.ApplyModifiedPropertiesWithoutUndo();
+            }
         }
 
         private static Transform Point(string name, Vector3 position, Transform parent = null)

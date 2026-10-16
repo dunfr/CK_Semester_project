@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 921308222468274880}
   - component: {fileID: 6544057266592096795}
   - component: {fileID: 4080956139673174546}
+  - component: {fileID: 4148514385012717191}
   m_Layer: 0
   m_Name: FuchsiaChargeBlue
   m_TagString: Untagged
@@ -4848,6 +4849,23 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
+--- !u!114 &4148514385012717191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 425000871882217287}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dadac44b3ffaeec468b5a388abc9b6d0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialChargeVfxPlacement
+  _centerEffects:
+  - {fileID: 6622526938911662918}
+  - {fileID: 2682781166554058221}
+  - {fileID: 614915359343597700}
+  _cameraSideOffset: 0.8
 --- !u!1 &1667983051641326894
 GameObject:
   m_ObjectHideFlags: 0
