@@ -12,11 +12,12 @@ namespace CK.SemesterProject.Tutorial
     // 테스트 씬에서만 전투를 초기화한다. 스킬 계산과 이펙트 생성은 기존 전투 시스템을 사용한다.
     public sealed class BattleVfxTestController : MonoBehaviour
     {
+        public const string Instructions = "이펙트 테스트\n↑/↓ 스킬 선택 · Enter 재생 · F5 재시작 · 우클릭 드래그 회전";
+
         [SerializeField] private TutorialBattleController _battle;
         [SerializeField] private PlayerMovement _player;
         [SerializeField] private EnemyStateMachine _dummy;
         [SerializeField] private Button _restart;
-        [SerializeField] private Button _stage;
         [SerializeField] private TMP_Text _status;
 
         private Pose _playerHome;
@@ -30,7 +31,6 @@ namespace CK.SemesterProject.Tutorial
             _playerHome = new Pose(_player.transform.position, _player.transform.rotation);
             _dummyHome = new Pose(_dummy.transform.position, _dummy.transform.rotation);
             _restart.onClick.AddListener(RestartBattle);
-            _stage.onClick.AddListener(NextStage);
             yield return null;
             RestartBattle();
         }
@@ -50,10 +50,6 @@ namespace CK.SemesterProject.Tutorial
             if (keyboard.f5Key.wasPressedThisFrame)
             {
                 RestartBattle();
-            }
-            if (keyboard.f6Key.wasPressedThisFrame)
-            {
-                NextStage();
             }
         }
 
@@ -79,8 +75,7 @@ namespace CK.SemesterProject.Tutorial
             Physics.SyncTransforms();
             bool started = _battle.BeginBattle(_dummy, BattleEntryCondition.PlayerInitiated);
             _selectTargetWhenReady = started;
-            _status.text = started ? "이펙트 테스트 · 강화 " + _battle.TestSkillStage
-                + "단계\n스킬 클릭 / ↑↓ 선택 · Enter 사용 · F 투자 · 우클릭 드래그 회전"
+            _status.text = started ? Instructions
                 : "전투 진입 실패 · NavMesh와 Console을 확인하세요.";
         }
 
@@ -89,10 +84,6 @@ namespace CK.SemesterProject.Tutorial
             if (_restart != null)
             {
                 _restart.onClick.RemoveListener(RestartBattle);
-            }
-            if (_stage != null)
-            {
-                _stage.onClick.RemoveListener(NextStage);
             }
         }
     }

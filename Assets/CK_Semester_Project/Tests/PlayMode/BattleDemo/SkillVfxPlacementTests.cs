@@ -93,6 +93,69 @@ namespace CK.SemesterProject.Battle.Tests
             }
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PreviewLoopsMeshFadeAndParticlesOnTheSameTimeline(bool manual)
+        {
+            Type windowType = AppDomain.CurrentDomain.GetAssemblies().Select(assembly => assembly.GetType(
+                "CK.SemesterProject.EditorTools.BattleVfxPlacementWindow")).First(type => type != null);
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic;
+            var window = ScriptableObject.CreateInstance(windowType);
+            var actor = new GameObject("Preview test actor");
+            var target = new GameObject("Preview test target");
+            try
+            {
+                target.transform.position = Vector3.forward * 3f;
+                object placement = Placement(Vector3.zero, Vector3.zero, false);
+                Type placementType = placement.GetType();
+                placementType.GetField("Enabled").SetValue(placement, manual);
+                placementType.GetField("StartDelay").SetValue(placement, .3f);
+                placementType.GetField("Lifetime").SetValue(placement, 0f);
+                windowType.GetField("_actor", flags).SetValue(window, actor.transform);
+                windowType.GetField("_target", flags).SetValue(window, target.transform);
+                windowType.GetField("_placement", flags).SetValue(window, placement);
+                windowType.GetField("_prefab", flags).SetValue(window, AssetDatabase.LoadAssetAtPath<GameObject>(
+                    "Assets/CK_Semester_Project/Prototype/Prefabs/BattleVfxTest/FuchsiaSkill01SakuraSlash.prefab"));
+                windowType.GetField("_status", flags).SetValue(window, new UnityEngine.UIElements.Label());
+                windowType.GetField("_previewStatus", flags).SetValue(window, new UnityEngine.UIElements.Label());
+                windowType.GetMethod("BuildPreview", flags).Invoke(window, null);
+                windowType.GetField("_playing", flags).SetValue(window, false);
+                var preview = (GameObject)windowType.GetField("_preview", flags).GetValue(window);
+                Renderer slash = preview.GetComponentsInChildren<Renderer>(true).First(item => item.name == "Sakura Slash");
+                Renderer streak = preview.GetComponentsInChildren<Renderer>(true).First(item => item.name == "ImpactStreak");
+                var block = new MaterialPropertyBlock();
+                var seek = windowType.GetMethod("Seek", flags);
+                seek.Invoke(window, new object[] { .1f });
+                Assert.That(preview.GetComponentsInChildren<Renderer>(true).All(item => !item.enabled), Is.True,
+                    "시작 지연 중에는 메시도 숨겨야 한다.");
+                seek.Invoke(window, new object[] { .46f });
+                slash.GetPropertyBlock(block);
+                float firstAlpha = block.GetFloat("_Body_Alpha");
+                int firstCount = preview.GetComponentsInChildren<ParticleSystem>(true).Sum(item => item.particleCount);
+                Assert.That(firstAlpha, Is.GreaterThan(0f));
+                Assert.That(firstCount, Is.GreaterThan(0));
+                seek.Invoke(window, new object[] { 1.4f });
+                slash.GetPropertyBlock(block);
+                Assert.That(block.GetFloat("_Body_Alpha"), Is.Zero, "0.5배속의 베기도 끝나면 사라져야 한다.");
+                streak.GetPropertyBlock(block);
+                Assert.That(block.GetFloat("_CoreAlpha"), Is.Zero);
+                seek.Invoke(window, new object[] { (float)windowType.GetField("_loopSeconds", flags).GetValue(window) });
+                Assert.That(preview.GetComponentsInChildren<ParticleSystem>(true).Sum(item => item.particleCount), Is.Zero);
+                seek.Invoke(window, new object[] { .46f });
+                slash.GetPropertyBlock(block);
+                Assert.That(block.GetFloat("_Body_Alpha"), Is.EqualTo(firstAlpha).Within(.001f));
+                Assert.That(preview.GetComponentsInChildren<ParticleSystem>(true).Sum(item => item.particleCount), Is.EqualTo(firstCount),
+                    "반복하거나 뒤로 탐색해도 메시와 파티클이 함께 재생되어야 한다.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+                Object.DestroyImmediate(target);
+                Object.DestroyImmediate(actor);
+            }
+        }
+
         [UnityTest]
         public IEnumerator RuntimePlaybackAppliesDelaySpeedAndLifetime()
         {

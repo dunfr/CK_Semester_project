@@ -155,16 +155,78 @@ namespace CK.SemesterProject.EditorTools
             scaler.referenceResolution = new Vector2(1920, 1080);
             TMP_Text status = Label(root.transform, "Test Instructions", font, new Vector2(0, -112), new Vector2(950, 60));
             status.color = new Color(.04f, .09f, .15f);
-            Button restart = Button(root.transform, "Restart", "다시 시작 [F5]", font, -135);
-            Button stage = Button(root.transform, "Skill Stage", "강화 단계 변경 [F6]", font, 135);
+            Button restart = Button(root.transform, "Restart", "재시작 [F5]", font, 0);
             var settings = new SerializedObject(root.GetComponent<BattleVfxTestController>());
             settings.FindProperty("_battle").objectReferenceValue = battle;
             settings.FindProperty("_player").objectReferenceValue = player;
             settings.FindProperty("_dummy").objectReferenceValue = dummy;
             settings.FindProperty("_restart").objectReferenceValue = restart;
-            settings.FindProperty("_stage").objectReferenceValue = stage;
             settings.FindProperty("_status").objectReferenceValue = status;
             settings.ApplyModifiedPropertiesWithoutUndo();
+            ConfigureControls(root.GetComponent<BattleVfxTestController>());
+        }
+
+        public static void ConfigureControls(BattleVfxTestController controls)
+        {
+            var settings = new SerializedObject(controls);
+            var restart = (Button)settings.FindProperty("_restart").objectReferenceValue;
+            var status = (TMP_Text)settings.FindProperty("_status").objectReferenceValue;
+            Canvas testCanvas = controls.GetComponent<Canvas>();
+            foreach (Canvas canvas in controls.gameObject.scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<Canvas>(true)))
+            {
+                if (canvas == testCanvas)
+                {
+                    continue;
+                }
+                // 참조와 키보드 조작을 유지하면서 테스트에 불필요한 HUD 표시·클릭만 끈다.
+                canvas.enabled = false;
+                GraphicRaycaster raycaster = canvas.GetComponent<GraphicRaycaster>();
+                if (raycaster != null)
+                {
+                    raycaster.enabled = false;
+                }
+            }
+            Transform stage = controls.transform.Find("Skill Stage");
+            if (stage != null)
+            {
+                Object.DestroyImmediate(stage.gameObject);
+            }
+            RectTransform restartRect = restart.GetComponent<RectTransform>();
+            restartRect.anchorMin = restartRect.anchorMax = Vector2.one;
+            restartRect.pivot = Vector2.one;
+            restartRect.anchoredPosition = new Vector2(-24f, -24f);
+            restartRect.sizeDelta = new Vector2(190f, 48f);
+            Navigation navigation = restart.navigation;
+            navigation.mode = Navigation.Mode.None;
+            restart.navigation = navigation;
+            restart.GetComponentInChildren<TMP_Text>(true).text = "재시작 [F5]";
+            status.rectTransform.anchorMin = status.rectTransform.anchorMax = new Vector2(0f, 1f);
+            status.rectTransform.pivot = new Vector2(0f, 1f);
+            status.rectTransform.anchoredPosition = new Vector2(24f, -24f);
+            status.rectTransform.sizeDelta = new Vector2(1300f, 76f);
+            status.alignment = TextAlignmentOptions.TopLeft;
+            status.fontSize = 26f;
+            status.fontStyle = FontStyles.Bold;
+            status.color = new Color(.93f, .96f, 1f);
+            status.raycastTarget = false;
+            status.text = BattleVfxTestController.Instructions;
+            Transform backgroundTransform = controls.transform.Find("Instruction Background");
+            if (backgroundTransform == null)
+            {
+                var background = new GameObject("Instruction Background", typeof(RectTransform), typeof(Image));
+                background.transform.SetParent(controls.transform, false);
+                backgroundTransform = background.transform;
+            }
+            backgroundTransform.SetAsFirstSibling();
+            var backgroundRect = (RectTransform)backgroundTransform;
+            backgroundRect.anchorMin = backgroundRect.anchorMax = new Vector2(0f, 1f);
+            backgroundRect.pivot = new Vector2(0f, 1f);
+            backgroundRect.anchoredPosition = new Vector2(12f, -12f);
+            backgroundRect.sizeDelta = new Vector2(1324f, 100f);
+            Image backgroundImage = backgroundTransform.GetComponent<Image>();
+            backgroundImage.color = new Color(.02f, .04f, .07f, .76f);
+            backgroundImage.raycastTarget = false;
         }
 
         private static Button Button(Transform parent, string name, string caption, TMP_FontAsset font, float x)

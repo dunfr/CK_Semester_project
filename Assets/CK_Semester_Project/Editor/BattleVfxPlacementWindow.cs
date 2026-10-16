@@ -42,6 +42,10 @@ namespace CK.SemesterProject.EditorTools
         private ParticleSystem[] _particles;
         private float[] _particleTimes;
         private TutorialSlashVfxPlacement _slashPreview;
+        private SakuraSlashFade[] _slashFades;
+        private SakuraImpactStreakPlayer[] _impactStreaks;
+        private Renderer[] _previewRenderers;
+        private bool[] _rendererEnabled;
         private float _loopSeconds = 1f;
         private bool _previewManual;
         private Label _previewStatus;
@@ -343,6 +347,23 @@ namespace CK.SemesterProject.EditorTools
             {
                 collider.enabled = false;
             }
+            // Play 모드에서도 런타임 Update와 에디터 시간 샘플링이 충돌하지 않게 한다.
+            _slashFades = _preview.GetComponentsInChildren<SakuraSlashFade>(true);
+            foreach (SakuraSlashFade fade in _slashFades)
+            {
+                fade.enabled = false;
+            }
+            _impactStreaks = _preview.GetComponentsInChildren<SakuraImpactStreakPlayer>(true);
+            foreach (SakuraImpactStreakPlayer streak in _impactStreaks)
+            {
+                streak.enabled = false;
+            }
+            _previewRenderers = _preview.GetComponentsInChildren<Renderer>(true);
+            _rendererEnabled = new bool[_previewRenderers.Length];
+            for (int i = 0; i < _previewRenderers.Length; i++)
+            {
+                _rendererEnabled[i] = _previewRenderers[i].enabled;
+            }
             _particles = _preview.GetComponentsInChildren<ParticleSystem>(true);
             _particleTimes = new float[_particles.Length];
             for (int i = 0; i < _particleTimes.Length; i++)
@@ -453,6 +474,23 @@ namespace CK.SemesterProject.EditorTools
         private void RefreshDuration()
         {
             float duration = _preview != null ? SkillVfxPlayback.EstimateDuration(_preview) : 1f;
+            float speed = PreviewEffectSpeed;
+            if (_slashFades != null)
+            {
+                foreach (SakuraSlashFade fade in _slashFades)
+                {
+                    duration = Mathf.Max(duration, fade.Duration / speed);
+                }
+            }
+            if (_impactStreaks != null)
+            {
+                foreach (SakuraImpactStreakPlayer streak in _impactStreaks)
+                {
+                    float offset = _slashPreview != null
+                        ? -_slashPreview.GetPreviewEffectTime(streak.transform, 0f, speed) : 0f;
+                    duration = Mathf.Max(duration, offset + streak.Duration / speed);
+                }
+            }
             if (_placement.Lifetime > 0f)
             {
                 duration = _placement.Lifetime;
@@ -519,12 +557,27 @@ namespace CK.SemesterProject.EditorTools
                 return;
             }
             float elapsed = _time - Mathf.Max(0f, _placement.StartDelay);
+            float speed = PreviewEffectSpeed;
             if (_slashPreview != null)
             {
-                _slashPreview.SamplePreview(elapsed * _placement.EffectivePlaybackSpeed);
+                _slashPreview.SamplePreview(elapsed * speed);
             }
             int count = 0;
             bool hidden = elapsed < 0f || (_placement.Lifetime > 0f && elapsed >= _placement.Lifetime);
+            for (int i = 0; i < _previewRenderers.Length; i++)
+            {
+                _previewRenderers[i].enabled = !hidden && _rendererEnabled[i];
+            }
+            foreach (SakuraSlashFade fade in _slashFades)
+            {
+                fade.Preview(hidden ? 1f : elapsed * speed / fade.Duration);
+            }
+            foreach (SakuraImpactStreakPlayer streak in _impactStreaks)
+            {
+                float streakTime = _slashPreview != null
+                    ? _slashPreview.GetPreviewEffectTime(streak.transform, elapsed, speed) : elapsed;
+                streak.Preview(hidden || streakTime < 0f ? 1f : streakTime * speed / streak.Duration);
+            }
             for (int i = 0; i < _particles.Length; i++)
             {
                 ParticleSystem particle = _particles[i];
@@ -539,7 +592,7 @@ namespace CK.SemesterProject.EditorTools
                     continue;
                 }
                 float particleTime = _slashPreview != null
-                    ? _slashPreview.GetPreviewParticleTime(particle, elapsed, _placement.EffectivePlaybackSpeed) : elapsed;
+                    ? _slashPreview.GetPreviewParticleTime(particle, elapsed, speed) : elapsed;
                 bool reset = restart || _particleTimes[i] < 0f || particleTime < _particleTimes[i];
                 // 짧은 에디터 갱신 간격이 고정 스텝에서 버려지지 않도록 직접 경과 시간을 샘플링한다.
                 particle.Simulate(reset ? particleTime : particleTime - _particleTimes[i], false, reset, false);
@@ -552,6 +605,9 @@ namespace CK.SemesterProject.EditorTools
                 + (hidden ? "\n시작 지연 또는 표시 시간 밖입니다." : count == 0 ? "\n현재 시점에 파티클이 없습니다. 시간 슬라이더와 프리팹을 확인하세요." : "");
             SceneView.RepaintAll();
         }
+
+        private float PreviewEffectSpeed => _placement.EffectivePlaybackSpeed
+            * (_charge ? _settings.ChargePlaybackSpeed : 1f);
 
         private void Tick()
         {
@@ -574,12 +630,14 @@ namespace CK.SemesterProject.EditorTools
             }
             if (_preview != null && _playing)
             {
+                bool restart = false;
                 _time += Mathf.Min(delta, .1f) * _previewSpeed;
                 if (_time >= _loopSeconds)
                 {
                     if (_loop)
                     {
                         _time = Mathf.Repeat(_time, _loopSeconds);
+                        restart = true;
                     }
                     else
                     {
@@ -588,7 +646,7 @@ namespace CK.SemesterProject.EditorTools
                     }
                 }
                 _timeline?.SetValueWithoutNotify(_time);
-                SampleParticles();
+                SampleParticles(restart);
             }
         }
 
@@ -599,6 +657,10 @@ namespace CK.SemesterProject.EditorTools
             _particles = null;
             _particleTimes = null;
             _slashPreview = null;
+            _slashFades = null;
+            _impactStreaks = null;
+            _previewRenderers = null;
+            _rendererEnabled = null;
             if (_preview != null)
             {
                 DestroyImmediate(_preview);

@@ -58,8 +58,13 @@ namespace CK.SemesterProject.Tutorial
 
         public float GetPreviewParticleTime(ParticleSystem particle, float elapsedSeconds, float speed)
         {
-            return _impactStreak != null && particle.transform.IsChildOf(_impactStreak)
-                ? Mathf.Max(0f, elapsedSeconds - _impactDelay / Mathf.Max(.05f, speed)) : elapsedSeconds;
+            return Mathf.Max(0f, GetPreviewEffectTime(particle.transform, elapsedSeconds, speed));
+        }
+
+        public float GetPreviewEffectTime(Transform effect, float elapsedSeconds, float speed)
+        {
+            return _impactStreak != null && effect.IsChildOf(_impactStreak)
+                ? elapsedSeconds - _impactDelay / Mathf.Max(.05f, speed) : elapsedSeconds;
         }
 
         public void Initialize(Transform actor, Transform target, Camera camera)
