@@ -8,6 +8,7 @@ namespace CK.SemesterProject.Battle
     public sealed class CombatantData
     {
         public MonsterBehaviorProfile MonsterProfile { get; }
+        public BossBehaviorProfile BossProfile { get; }
         public string Id { get; }
         public string DisplayName { get; }
         public BattleTeam Team { get; }
@@ -27,7 +28,8 @@ namespace CK.SemesterProject.Battle
             int maxMemory, int initialMemory, IEnumerable<SkillData> skills,
             BattleElement element = BattleElement.None, double evasion = 0,
             IEnumerable<BattleElement> weaknessChain = null, double? baseCriticalChance = null,
-            double? criticalDamageMultiplier = null, int? minMemoryInvestment = null, int? maxMemoryInvestment = null, MonsterBehaviorProfile monsterProfile = null)
+            double? criticalDamageMultiplier = null, int? minMemoryInvestment = null, int? maxMemoryInvestment = null,
+            MonsterBehaviorProfile monsterProfile = null, BossBehaviorProfile bossProfile = null)
         {
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(displayName))
             {
@@ -68,6 +70,13 @@ namespace CK.SemesterProject.Battle
                 throw new ArgumentException("몬스터 AI 프로필의 팀/속성이 정의와 다릅니다.");
             }
             MonsterProfile = monsterProfile;
+            if (bossProfile != null && (team != BattleTeam.Monster || element != BattleElement.Oblivion || monsterProfile == null
+                || !skillArray.Any(skill => skill.Id == bossProfile.SkillOneId)
+                || !skillArray.Any(skill => skill.Id == bossProfile.SkillTwoId)))
+            {
+                throw new ArgumentException("보스는 망각 AI와 선택표에 대응하는 스킬 2개가 필요합니다.");
+            }
+            BossProfile = bossProfile;
             BaseCriticalChance = baseCriticalChance;
             CriticalDamageMultiplier = criticalDamageMultiplier;
             MinMemoryInvestment = minMemoryInvestment;

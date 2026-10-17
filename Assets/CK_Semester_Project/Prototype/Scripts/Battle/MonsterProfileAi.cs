@@ -20,7 +20,7 @@ namespace CK.SemesterProject.Battle
             }
             if (useTrio && MonsterTrioAi.Applies(snapshot))
             {
-                return MonsterTrioAi.TryChooseAction(session, snapshot, actor, player, seed, out request);
+                return MonsterTrioAi.TryChooseAction(session, snapshot, actor, player, seed, out request, allowDefense);
             }
             CombatantState[] alive = snapshot.Combatants.Where(unit => !unit.IsDead && unit.Data.Team == BattleTeam.Monster).ToArray();
             BattleElement partner = alive.Length == 2 ? alive.First(unit => unit.InstanceId != actor.InstanceId).Data.Element : BattleElement.None;
@@ -150,13 +150,19 @@ namespace CK.SemesterProject.Battle
             request = null;
             var choices = new List<BattleActionRequest>();
             var estimator = new BattleActionResolver(session.Rules);
+            string bossSkillId = actor.Data.BossProfile?.ChooseSkill(actor.Memory, actor.Data.InitialMemory,
+                actor.Hp, actor.Data.MaxHp, target.Hp, target.Data.MaxHp);
+            if (bossSkillId != null && actor.Data.Skills.First(skill => skill.Id == bossSkillId).MemoryCost > actor.Memory)
+            {
+                bossSkillId = actor.Data.Skills.OrderBy(skill => skill.MemoryCost).First().Id;
+            }
             for (int stage = range.Min; stage <= range.Max; stage++)
             {
                 double bestScore = double.NegativeInfinity;
                 BattleActionRequest best = null;
                 foreach (SkillData skill in actor.Data.Skills)
                 {
-                    if (skill.Target != SkillTarget.Enemy)
+                    if (skill.Target != SkillTarget.Enemy || (bossSkillId != null && skill.Id != bossSkillId))
                     {
                         continue;
                     }

@@ -102,6 +102,7 @@ namespace CK.SemesterProject.Tutorial
         private TMP_Text[] _skillLabels;
         private SkillEnhancementRules _enhancementRules;
         private int _battleSkillStage;
+        private BattleActionResolver _damagePredictor;
         private int _testSkillStage;
         private bool _hasRecordedBattleResult;
         private EnemyStateMachine _encounter;
@@ -170,21 +171,7 @@ namespace CK.SemesterProject.Tutorial
             try
             {
                 _baseSkills = SkillTable.LoadCsv(_skillTable.text).ToArray();
-                if (_baseSkills.Length == 11)
-                {
-                    var buttons = _skillButtons.ToList();
-                    for (int i = 0; i < 2; i++)
-                    {
-                        Button button = Instantiate(_skillButtons[0], _skillButtons[0].transform.parent);
-                        button.name = i == 0 ? "Special Skill" : "Ultimate Skill";
-                        button.onClick = new Button.ButtonClickedEvent();
-                        RectTransform rect = button.GetComponent<RectTransform>();
-                        RectTransform sourceRect = _skillButtons[i].GetComponent<RectTransform>();
-                        rect.anchoredPosition = sourceRect.anchoredPosition + new Vector2(0, -55);
-                        buttons.Add(button);
-                    }
-                    _skillButtons = buttons.ToArray();
-                }
+                CreateAdditionalSkillButtons();
                 _playerState = PlayerSessionState.Current;
                 RefreshPlayerData();
             }
@@ -204,11 +191,7 @@ namespace CK.SemesterProject.Tutorial
             _playerState.Changed += RefreshFieldVitals;
             RefreshFieldVitals();
             _enemyEnabled = new bool[_enemies.Length];
-            _skillLabels = _skillButtons.Select(button => button.GetComponentInChildren<TMP_Text>(true)).ToArray();
-            foreach (TMP_Text label in _skillLabels.Where(label => label != null))
-            {
-                label.fontSize = 16;
-            }
+            ConfigureSkillLayout();
             _skillActions = new UnityEngine.Events.UnityAction[_skills.Length];
             for (int i = 0; i < _skills.Length; i++)
             {
@@ -513,6 +496,7 @@ namespace CK.SemesterProject.Tutorial
                 return false;
             }
             _session = session;
+            _damagePredictor = new BattleActionResolver(session.Rules);
             _hasRecordedBattleResult = false;
             _cachedSnapshot = null;
             _battleYaw = 0f;
@@ -759,7 +743,8 @@ namespace CK.SemesterProject.Tutorial
                     _skillLabels[i].text = (i < 3 ? TutorialMonster.GetElementName(_skills[i].Element)
                         + " " + _battleSkillStage + "단계" : _skills[i].DisplayName + (_skills[i].IsAreaOfEffect ? " (광역)" : ""))
                         + "\n위력 " + _skills[i].Power + " · M" + _skills[i].MemoryCost
-                        + (_skills[i].RageCost > 0 ? " · 폭주" + _skills[i].RageCost : "");
+                        + (_skills[i].RageCost > 0 ? " · 폭주-" + _skills[i].RageCost : " · 폭주+" + _skills[i].RageGain)
+                        + "\n" + GetDamagePreview(state, _skills[i]);
                 }
             }
             _investmentButton.interactable = CanInput(state);
@@ -784,6 +769,91 @@ namespace CK.SemesterProject.Tutorial
                     : remaining > 0 ? " · 누적 " + _playerState.VictoryCount + "승 / 다음 강화까지 " + remaining + "승"
                     : " · 기본 스킬 최대 단계";
             }
+        }
+
+        private void CreateAdditionalSkillButtons()
+        {
+            if (_baseSkills.Length == 11)
+            {
+                var buttons = _skillButtons.ToList();
+                for (int i = 0; i < 2; i++)
+                {
+                    Button button = Instantiate(_skillButtons[0], _skillButtons[0].transform.parent);
+                    button.name = i == 0 ? "Special Skill" : "Ultimate Skill";
+                    button.onClick = new Button.ButtonClickedEvent();
+                    RectTransform rect = button.GetComponent<RectTransform>();
+                    RectTransform sourceRect = _skillButtons[i].GetComponent<RectTransform>();
+                    rect.anchoredPosition = sourceRect.anchoredPosition + new Vector2(0, -55);
+                    buttons.Add(button);
+                }
+                _skillButtons = buttons.ToArray();
+            }
+        }
+
+        private void ConfigureSkillLayout()
+        {
+            _skillLabels = _skillButtons.Select(button => button.GetComponentInChildren<TMP_Text>(true)).ToArray();
+            foreach (TMP_Text label in _skillLabels.Where(label => label != null))
+            {
+                label.fontSize = 16;
+                label.rectTransform.anchorMin = Vector2.zero;
+                label.rectTransform.anchorMax = Vector2.one;
+                label.rectTransform.offsetMin = new Vector2(6, 4);
+                label.rectTransform.offsetMax = new Vector2(-6, -4);
+            }
+            for (int i = 0; i < _skillButtons.Length; i++)
+            {
+                RectTransform rect = _skillButtons[i].GetComponent<RectTransform>();
+                rect.anchorMin = rect.anchorMax = new Vector2(1, 0);
+                rect.sizeDelta = new Vector2(280, 95);
+                int column = i < 3 ? i : i - 3;
+                rect.anchoredPosition = new Vector2(-735 + column * 290, i < 3 ? 150 : 50);
+            }
+            _investmentButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(-435, 225);
+            _defendButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(-145, 225);
+            _status.rectTransform.anchoredPosition = new Vector2(0, 275);
+            _hpBar.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 305);
+            _continueButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(-240, 340);
+            _notice.rectTransform.anchorMin = _notice.rectTransform.anchorMax = new Vector2(0, 1);
+            _notice.rectTransform.anchoredPosition = new Vector2(350, -30);
+            _notice.rectTransform.sizeDelta = new Vector2(660, 48);
+            _notice.fontSize = 18;
+        }
+
+        private string GetDamagePreview(BattleSnapshot state, SkillData skill)
+        {
+            if (_damagePredictor == null || _targetId == null || state.Outcome != BattleOutcome.None)
+            {
+                return "대상 없음";
+            }
+            var request = new BattleActionRequest(state.TurnId, "player", BattleActionKind.Skill,
+                skill.Id, _targetId, investmentStage: _investment);
+            BattleActionError error = _damagePredictor.ResolveOutcome(state, request, true, false, out _, out _);
+            if (error != BattleActionError.None)
+            {
+                return error == BattleActionError.InsufficientRage ? "폭주 부족" : "메모리 부족";
+            }
+            BattleHitResult[] normal = _damagePredictor.TargetHits.Values.ToArray();
+            _damagePredictor.ResolveOutcome(state, request, true, true, out _, out _);
+            BattleHitResult[] critical = _damagePredictor.TargetHits.Values.ToArray();
+            CombatantState player = state.Combatants.First(unit => unit.InstanceId == "player");
+            CombatantState target = state.Combatants.First(unit => unit.InstanceId == _targetId);
+            string normalText = DamageRange(normal);
+            string criticalText = DamageRange(critical);
+            return (skill.IsAreaOfEffect ? "적별 " : "") + "명중 " + normalText + " / 치명 " + criticalText
+                + "\n명중 " + (BattleActionResolver.GetHitChance(target, skill) * 100).ToString("0")
+                + "% · 치명 " + (_damagePredictor.GetCriticalChance(player, skill) * 100).ToString("0") + "%";
+        }
+
+        private static string DamageRange(BattleHitResult[] hits)
+        {
+            if (hits.Length == 0)
+            {
+                return "0";
+            }
+            int min = hits.Min(hit => hit.Damage);
+            int max = hits.Max(hit => hit.Damage);
+            return min == max ? min.ToString() : min + "~" + max;
         }
 
         public void ReturnToExploration()

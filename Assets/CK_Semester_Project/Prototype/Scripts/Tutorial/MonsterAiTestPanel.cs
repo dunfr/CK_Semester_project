@@ -16,6 +16,10 @@ namespace CK.SemesterProject.Tutorial
         private TutorialBattleController _controller;
         [SerializeField, Tooltip("각인 A/B, 잔상 A/B, 망각 A/B, 각인 C, 잔상 C, 망각 C 순서")]
         private EnemyStateMachine[] _monsters;
+        [SerializeField, Tooltip("각인·잔상·망각 순서의 Lv.4 정의. 일반 1기 전투에 고정 적용")]
+        private MonsterBattleDefinition[] _levelFourDefinitions;
+        [SerializeField, Tooltip("MO09 보스 정의. 테스트 박스는 첫 망각 몬스터 자리를 재사용합니다")]
+        private MonsterBattleDefinition _bossDefinition;
         [SerializeField, Tooltip("기존 1~2기 조합 9개, 3기 조합 10개")]
         private Button[] _presets;
         [SerializeField, Tooltip("일반, 플레이어 선제, 몬스터 선제 선택 버튼")]
@@ -54,6 +58,7 @@ namespace CK.SemesterProject.Tutorial
         private TMP_Text _groupLabel;
         private GameObject _levelSelection;
         private int _selectedPreset;
+        private bool _isBossSelected;
         private static readonly int[][] LevelIndices =
         {
             new[] { 0, 1, 6 }, new[] { 2, 3, 7 }, new[] { 4, 5, 8 }
@@ -63,7 +68,9 @@ namespace CK.SemesterProject.Tutorial
         {
             if (_controller == null || _monsters == null || _monsters.Length != 9
                 || _presets == null || _presets.Length != _rosters.Length || _entryButtons == null || _entryButtons.Length != 3
-                || _reset == null || _enhanceSkill == null || _selection == null || _entryLabel == null || _fieldCamera == null)
+                || _reset == null || _enhanceSkill == null || _selection == null || _entryLabel == null || _fieldCamera == null
+                || _levelFourDefinitions == null || _levelFourDefinitions.Length != 3 || _levelFourDefinitions.Any(definition => definition == null)
+                || _bossDefinition == null)
             {
                 Debug.LogError("MonsterAiTestPanel: 테스트 씬 참조가 누락되었습니다.", this);
                 enabled = false;
@@ -119,6 +126,7 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             CreateLevelSelection();
+            CreateBossButton();
             SelectEntry(0);
             ResetTest();
         }
@@ -160,13 +168,23 @@ namespace CK.SemesterProject.Tutorial
                     {
                         return;
                     }
-                    _levels[slot] = _levels[slot] % 3 + 1;
+                    _levels[slot] = _levels[slot] % 4 + 1;
                     RefreshLevelSelection();
                 });
             }
             _startBattle = CreateSelectionButton(panel, "Start Selected Battle", new Vector2(0, -205), new Vector2(420, 60));
             _startBattle.GetComponentInChildren<TMP_Text>(true).text = "선택한 그룹으로 전투 시작";
-            _startBattle.onClick.AddListener(() => StartPreset(_selectedPreset));
+            _startBattle.onClick.AddListener(() =>
+            {
+                if (_isBossSelected)
+                {
+                    StartBoss();
+                }
+                else
+                {
+                    StartPreset(_selectedPreset);
+                }
+            });
             UnityEngine.UI.Button back = CreateSelectionButton(panel, "Back To Groups", new Vector2(0, -280), new Vector2(420, 50));
             back.GetComponentInChildren<TMP_Text>(true).text = "그룹 다시 선택";
             back.onClick.AddListener(() => _levelSelection.SetActive(false));
@@ -198,6 +216,7 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             _selectedPreset = index;
+            _isBossSelected = false;
             RefreshLevelSelection();
             _levelSelection.SetActive(true);
         }
@@ -209,17 +228,68 @@ namespace CK.SemesterProject.Tutorial
             return LevelIndices[group][level - 1];
         }
 
+        private MonsterBattleDefinition GetLevelDefinition(int monsterIndex, int level)
+        {
+            BattleElement element = _definitions[monsterIndex].Element;
+            int group = element == BattleElement.Imprint ? 0 : element == BattleElement.Afterimage ? 1 : 2;
+            return level == 4 ? _levelFourDefinitions[group] : _definitions[GetLevelDefinitionIndex(monsterIndex, level)];
+        }
+
+        private void CreateBossButton()
+        {
+            var button = Instantiate(_presets[_presets.Length - 1], _presets[_presets.Length - 1].transform.parent);
+            button.name = "Boss Test";
+            button.onClick = new UnityEngine.UI.Button.ButtonClickedEvent();
+            button.GetComponent<RectTransform>().anchoredPosition += new Vector2(280, 0);
+            button.GetComponentInChildren<TMP_Text>(true).text = "보스 MO09";
+            button.onClick.AddListener(() =>
+            {
+                if (_controller.IsInBattle)
+                {
+                    return;
+                }
+                _isBossSelected = true;
+                CombatantData boss = _bossDefinition.CreateData();
+                _groupLabel.text = "보스 " + boss.Id + " · HP " + boss.MaxHp + " / 메모리 " + boss.InitialMemory
+                    + " / 스킬 " + boss.Skills.Count + "종";
+                foreach (UnityEngine.UI.Button levelButton in _levelButtons)
+                {
+                    levelButton.gameObject.SetActive(false);
+                }
+                _levelSelection.SetActive(true);
+            });
+        }
+
+        private void StartBoss()
+        {
+            if (_controller.IsInBattle)
+            {
+                return;
+            }
+            ResetTest();
+            const int BossSlot = 4;
+            _monsterViews[BossSlot].SetDefinition(_bossDefinition);
+            var members = new[] { _monsters[BossSlot] };
+            if (!_controller.BeginBattle(members[0], _entry, members))
+            {
+                _entryLabel.text = "보스 전투 진입 실패: Console과 전투 자리를 확인하세요.";
+            }
+        }
+
         private void RefreshLevelSelection()
         {
             int[] roster = _rosters[_selectedPreset];
-            _groupLabel.text = "그룹 " + (_selectedPreset + 1) + " · " + roster.Length + "기 / 각 몬스터 레벨 선택";
+            _groupLabel.text = "그룹 " + (_selectedPreset + 1) + " · " + roster.Length + "기 / "
+                + (roster.Length == 1 ? "1기 전투는 Lv.4 고정" : "각 몬스터 레벨 선택");
             for (int i = 0; i < 3; i++)
             {
                 _levelButtons[i].gameObject.SetActive(i < roster.Length);
                 if (i < roster.Length)
                 {
+                    int level = roster.Length == 1 ? 4 : _levels[i];
+                    _levelButtons[i].interactable = roster.Length != 1;
                     _levelLabels[i].text = (i + 1) + ". " + TutorialMonster.GetElementName(_definitions[roster[i]].Element)
-                        + " Lv." + _levels[i] + "\n클릭하여 변경";
+                        + " Lv." + level + (roster.Length == 1 ? "\n1기 전투 고정" : "\n클릭하여 변경");
                 }
             }
         }
@@ -275,8 +345,7 @@ namespace CK.SemesterProject.Tutorial
             for (int i = 0; i < roster.Length; i++)
             {
                 members[i] = _monsters[roster[i]];
-                int definitionIndex = GetLevelDefinitionIndex(roster[i], _levels[i]);
-                _monsterViews[roster[i]].SetDefinition(_definitions[definitionIndex]);
+                _monsterViews[roster[i]].SetDefinition(GetLevelDefinition(roster[i], roster.Length == 1 ? 4 : _levels[i]));
             }
             if (!_controller.BeginBattle(members[0], _entry, members))
             {

@@ -124,7 +124,8 @@ namespace CK.SemesterProject.Battle
                 // 광역 강탈도 합산 회복량만큼만 대상에게서 빼서 메모리를 보존한다.
                 int stolen = Math.Min(-targetEffect.MemoryDelta, capacity - recovered);
                 changes.Add(new BattleEffect(target.InstanceId, targetEffect.HpDelta, -stolen,
-                    targetEffect.SkippedTurns, chainStep: targetEffect.ChainStep, imprintDamage: targetEffect.ImprintDamage));
+                    targetEffect.SkippedTurns, isDefending: targetEffect.IsDefending,
+                    chainStep: targetEffect.ChainStep, imprintDamage: targetEffect.ImprintDamage));
                 memoryDelta += recovered + stolen - (first ? paid : 0);
                 if (first)
                 {
@@ -243,7 +244,7 @@ namespace CK.SemesterProject.Battle
                         hasAfterimageRecovery: afterimage));
                 }
                 changes.Add(new BattleEffect(target.InstanceId, -roundedDamage, -stolen,
-                    skipped, chainStep: nextChain, imprintDamage: imprint));
+                    skipped, isDefending: hostile ? false : (bool?)null, chainStep: nextChain, imprintDamage: imprint));
                 effects = changes.AsReadOnly();
             }
             return BattleActionError.None;

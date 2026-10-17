@@ -9570,6 +9570,11 @@ MonoBehaviour:
   - {fileID: 51578646}
   - {fileID: 155926758}
   - {fileID: 379691196}
+  _levelFourDefinitions:
+  - {fileID: 11400000, guid: 4f5ea6fc0de23c34c90284815f9f0ca2, type: 2}
+  - {fileID: 11400000, guid: 6cba5ad41d095ea4b9ec98418d7fff76, type: 2}
+  - {fileID: 11400000, guid: 56b62908024fbaf4db1a20347fe650ae, type: 2}
+  _bossDefinition: {fileID: 11400000, guid: 71d18b8eeda5276419445f6e1da2fadc, type: 2}
   _presets:
   - {fileID: 603044693}
   - {fileID: 1215127095}
@@ -15820,29 +15825,6 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
---- !u!1660057539 &9223372036854775807
-SceneRoots:
-  m_ObjectHideFlags: 0
-  m_Roots:
-  - {fileID: 254295225}
-  - {fileID: 1900768018}
-  - {fileID: 795648640}
-  - {fileID: 964235276}
-  - {fileID: 735737147}
-  - {fileID: 1502198925}
-  - {fileID: 850278678}
-  - {fileID: 781214440}
-  - {fileID: 1880028618}
-  - {fileID: 880000000027}
-  - {fileID: 441749862}
-  - {fileID: 578964824}
-  - {fileID: 1958907418}
-  - {fileID: 1905232435}
-  - {fileID: 694244137}
-  - {fileID: 1440740203}
-  - {fileID: 51578648}
-  - {fileID: 155926760}
-  - {fileID: 379691198}
 --- !u!1 &880000000200
 GameObject:
   m_ObjectHideFlags: 0
@@ -16021,7 +16003,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uc2a4\ud0ac \uac15\ud654 (1 \u2192 2\ub2e8\uacc4)"
+  m_text: "\uC2A4\uD0AC \uAC15\uD654 (1 \u2192 2\uB2E8\uACC4)"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: bdc4cb69f12937943a896e7ca3344af6, type: 2}
   m_sharedMaterial: {fileID: 8328809218535397802, guid: bdc4cb69f12937943a896e7ca3344af6, type: 2}
@@ -16101,3 +16083,26 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 880000000205}
   m_CullTransparentMesh: 1
+--- !u!1660057539 &9223372036854775807
+SceneRoots:
+  m_ObjectHideFlags: 0
+  m_Roots:
+  - {fileID: 254295225}
+  - {fileID: 1900768018}
+  - {fileID: 795648640}
+  - {fileID: 964235276}
+  - {fileID: 735737147}
+  - {fileID: 1502198925}
+  - {fileID: 850278678}
+  - {fileID: 781214440}
+  - {fileID: 1880028618}
+  - {fileID: 880000000027}
+  - {fileID: 441749862}
+  - {fileID: 578964824}
+  - {fileID: 1958907418}
+  - {fileID: 1905232435}
+  - {fileID: 694244137}
+  - {fileID: 1440740203}
+  - {fileID: 51578648}
+  - {fileID: 155926760}
+  - {fileID: 379691198}

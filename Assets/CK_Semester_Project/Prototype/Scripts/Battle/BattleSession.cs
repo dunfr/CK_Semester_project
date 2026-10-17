@@ -17,6 +17,8 @@ namespace CK.SemesterProject.Battle
         private readonly IBattleActionResolver _resolver;
         private readonly BattleRules _rules;
         private readonly Random _random;
+        private readonly int _sessionSeed;
+        private readonly List<int> _randomBounds = new List<int>();
         private readonly Dictionary<string, CombatantState> _combatants = new Dictionary<string, CombatantState>();
         private readonly List<string> _roster = new List<string>();
         private readonly HashSet<string> _remaining = new HashSet<string>();
@@ -37,12 +39,58 @@ namespace CK.SemesterProject.Battle
         public BattleRules Rules => _rules;
         public string EntryInitiatorId { get; private set; }
 
+        // AI 선읽기는 불변 상태를 공유하고 별도 세션에만 쓴다. 실제 난수·이력은 소비하지 않는다.
+        internal BattleSession PreviewAction(BattleActionRequest request)
+        {
+            var preview = new BattleSession(rules: _rules, randomSeed: _sessionSeed);
+            foreach (int bound in _randomBounds)
+            {
+                preview.NextIndex(bound);
+            }
+            foreach (var pair in _combatants)
+            {
+                preview._combatants.Add(pair.Key, pair.Value);
+            }
+            foreach (var pair in _actionsTaken)
+            {
+                preview._actionsTaken.Add(pair.Key, pair.Value);
+            }
+            preview._roster.AddRange(_roster);
+            preview._remaining.UnionWith(_remaining);
+            preview._turnOrder.AddRange(_turnOrder);
+            preview._damagedByPlayer.UnionWith(_damagedByPlayer);
+            preview._lastAfterimageHitId = _lastAfterimageHitId;
+            preview._attackImprintId = _attackImprintId;
+            preview._phase = _phase;
+            preview._outcome = _outcome;
+            preview._entryCondition = _entryCondition;
+            preview._currentActorId = _currentActorId;
+            preview._round = _round;
+            preview._turnId = _turnId;
+            preview._extraActorId = _extraActorId;
+            preview._openingActorId = _openingActorId;
+            preview._isBonusAction = _isBonusAction;
+            preview.EntryInitiatorId = EntryInitiatorId;
+            if (!preview.TrySubmit(request, out BattleActionResult result, out _))
+            {
+                return null;
+            }
+            preview.CompletePresentation(result.ActionId);
+            while (preview.PendingResult != null && preview.PendingResult.IsTurnStartEffect
+                && !preview.PendingResult.WasSkipped)
+            {
+                preview.CompletePresentation(preview.PendingResult.ActionId);
+            }
+            return preview;
+        }
+
         public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null, BattleRules rules = null)
         {
             History = _history.AsReadOnly();
             _rules = (resolver as BattleActionResolver)?.Rules ?? rules ?? new BattleRules();
             _resolver = resolver ?? new BattleActionResolver(_rules, randomSeed);
-            _random = randomSeed.HasValue ? new Random(randomSeed.Value) : new Random();
+            _sessionSeed = randomSeed ?? Guid.NewGuid().GetHashCode();
+            _random = new Random(_sessionSeed);
         }
 
         public BattleSnapshot GetSnapshot()
@@ -105,7 +153,7 @@ namespace CK.SemesterProject.Battle
             CombatantState[] imprints = monsters.Where(unit => unit.Data.Element == BattleElement.Imprint).ToArray();
             if (monsters.Length == 3 && imprints.Length == 2)
             {
-                _attackImprintId = imprints[_random.Next(imprints.Length)].InstanceId;
+                _attackImprintId = imprints[NextIndex(imprints.Length)].InstanceId;
             }
             _outcome = EvaluateOutcome();
             if (_outcome != BattleOutcome.None)
@@ -347,6 +395,12 @@ namespace CK.SemesterProject.Battle
             return (int)Math.Max(0L, Math.Min(maximum, value));
         }
 
+        private int NextIndex(int maximum)
+        {
+            _randomBounds.Add(maximum);
+            return _random.Next(maximum);
+        }
+
         private void BeginRound()
         {
             _round++;
@@ -376,7 +430,7 @@ namespace CK.SemesterProject.Battle
             // 비교 함수에서 난수를 뽑으면 정렬 규칙이 깨지므로 미리 섞고 안정 정렬한다.
             for (int i = candidates.Count - 1; i > 0; i--)
             {
-                int other = _random.Next(i + 1);
+                int other = NextIndex(i + 1);
                 string previous = candidates[i];
                 candidates[i] = candidates[other];
                 candidates[other] = previous;

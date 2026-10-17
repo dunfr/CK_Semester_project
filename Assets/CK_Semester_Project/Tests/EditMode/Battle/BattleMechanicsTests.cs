@@ -544,7 +544,7 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [Test]
-        public void PlayerDefenseProtectsFromThreeInvestedCriticalHitsAndExpiresAtOwnAction()
+        public void PlayerDefenseProtectsOnlyTheNextAttack()
         {
             var skill = new SkillData("hit", "Hit", 100, criticalChance: 1);
             var player = new CombatantData("p", "Player", BattleTeam.Player, 1000, 100, 100, new[] { skill });
@@ -566,13 +566,13 @@ namespace CK.SemesterProject.Battle.Tests
                 Assert.That(session.TrySubmit(new BattleActionRequest(state.TurnId, state.CurrentActorId,
                     BattleActionKind.Skill, "hit", "p", investmentStage: 2), out BattleActionResult result, out _), Is.True);
                 Assert.That(result.Hit.IsCritical, Is.True);
-                Assert.That(result.Hit.Damage, Is.EqualTo(72));
-                Assert.That(result.Hit.DefenseMultiplier, Is.EqualTo(0.5));
-                Assert.That(session.GetSnapshot().Combatants[0].IsDefending, Is.True);
+                Assert.That(result.Hit.Damage, Is.EqualTo(i == 0 ? 72 : 144));
+                Assert.That(result.Hit.DefenseMultiplier, Is.EqualTo(i == 0 ? 0.5 : 1));
+                Assert.That(session.GetSnapshot().Combatants[0].IsDefending, Is.False);
                 Finish(session);
             }
             Assert.That(session.GetSnapshot().CurrentActorId, Is.EqualTo("p"));
-            Assert.That(session.GetSnapshot().Combatants[0].Hp, Is.EqualTo(784));
+            Assert.That(session.GetSnapshot().Combatants[0].Hp, Is.EqualTo(640));
             Assert.That(session.GetSnapshot().Combatants[0].IsDefending, Is.False);
             Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p",
                 BattleActionKind.Wait), out _, out _), Is.True);
