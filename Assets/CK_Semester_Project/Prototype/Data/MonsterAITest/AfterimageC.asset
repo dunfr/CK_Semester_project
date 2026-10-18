@@ -13,13 +13,19 @@ MonoBehaviour:
   m_Name: AfterimageC
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.MonsterBattleDefinition
   _id: MO06
-  _displayName: "\uc794\uc0c1_\ud14c\uc2a4\ud2b8_\ubaac\uc2a4\ud130 3"
+  _displayName: "\uC794\uC0C1_\uD14C\uC2A4\uD2B8_\uBAAC\uC2A4\uD130 3"
   _element: 1
-  _maxHp: 400
-  _memory: 270
+  _maxHp: 420
+  _memory: 280
   _power: 20
   _accuracy: 1
   _evasion: 0.1
+  _isBoss: 0
+  _bossSkillOneBonus: 20
+  _bossSkillTwoBonus: 40
+  _bossSkillOneCost: 10
+  _bossSkillTwoCost: 20
+  _bossSkillRules: []
   _weaknessChain: 03000000020000000100000003000000
   _costPercent: 00000000050000000a0000000f000000140000001e000000
   _multipliers:
