@@ -1,9 +1,9 @@
 using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
@@ -11,74 +11,83 @@ namespace CK.SemesterProject.Battle.Tests
 {
     public sealed class BattleVfxTestSceneTests
     {
-        [UnityTearDown]
-        public IEnumerator StopBattle()
+        private const string ScenePath = "Assets/CK_Semester_Project/Prototype/Scenes/BattleVfxTest.unity";
+
+        [UnitySetUp]
+        public IEnumerator LoadWorkspace()
         {
-            GameObject controls = GameObject.Find("VFX Test Controls");
-            if (controls != null)
-            {
-                Component lab = controls.GetComponent("BattleVfxTestController");
-                Component battle = (Component)lab.GetType().GetProperty("Battle").GetValue(lab);
-                battle.GetType().GetMethod("CancelBattle").Invoke(battle, null);
-            }
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
+                ScenePath, new LoadSceneParameters(LoadSceneMode.Single));
+            yield return null;
+            yield return null;
+        }
+
+        [UnityTearDown]
+        public IEnumerator ReleaseMouse()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
             yield return null;
         }
 
         [UnityTest]
-        public IEnumerator AllSkillStagesSpawnConfiguredEffectsAndCanRestart()
+        public IEnumerator WorkspaceKeepsDummyStillWithoutStartingCombat()
         {
-            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(
-                "Assets/CK_Semester_Project/Prototype/Scenes/BattleVfxTest.unity",
-                new LoadSceneParameters(LoadSceneMode.Single));
-            yield return null;
-            yield return null;
+            GameObject controls = GameObject.Find("VFX Test Controls");
+            Assert.That(controls, Is.Not.Null);
+            Assert.That(controls.GetComponent("BattleVfxTestController"), Is.Not.Null);
+            Assert.That(controls.GetComponentsInChildren<UnityEngine.UI.Graphic>(true), Is.Empty);
+            Assert.That(controls.GetComponent<Canvas>(), Is.Null);
+            Assert.That(Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+                .Any(component => component.GetType().Name == "TutorialBattleController"), Is.False);
+            Assert.That(Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+                .Any(component => component.GetType().Name == "PrototypeHudPresenter"), Is.False);
+            Assert.That(Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+                .Any(component => component.GetType().Name == "BattleVfxSavedEffects"), Is.True);
+
+            GameObject dummy = GameObject.Find("VFX Training Dummy");
+            Assert.That(dummy, Is.Not.Null);
+            Vector3 position = dummy.transform.position;
+            Quaternion rotation = dummy.transform.rotation;
+            Assert.That(((Behaviour)dummy.GetComponent("EnemyStateMachine")).enabled, Is.False);
+            Assert.That(dummy.GetComponent<NavMeshAgent>().enabled, Is.False);
+
             yield return new WaitForSeconds(.25f);
-            Component lab = GameObject.Find("VFX Test Controls").GetComponent("BattleVfxTestController");
-            Component battle = (Component)lab.GetType().GetProperty("Battle").GetValue(lab);
-            battle.GetType().GetField("_actionSeconds", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(battle, .3f);
-            object enhancement = battle.GetType().GetField("_basicSkillEnhancement", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(battle);
-            string[] colors = { "Red", "Purple", "Blue" };
-            for (int stage = 1; stage <= 3; stage++)
-            {
-                Assert.That((int)battle.GetType().GetProperty("TestSkillStage").GetValue(battle), Is.EqualTo(stage));
-                for (int skill = 0; skill < 3; skill++)
-                {
-                    lab.GetType().GetMethod("RestartBattle").Invoke(lab, null);
-                    Assert.That((bool)battle.GetType().GetProperty("IsInBattle").GetValue(battle), Is.True);
-                    float deadline = Time.time + 5f;
-                    while ((!(bool)battle.GetType().GetProperty("CanChooseAction").GetValue(battle)
-                        || !(bool)battle.GetType().GetProperty("HasSelectedBattleTarget").GetValue(battle)) && Time.time < deadline)
-                    {
-                        yield return null;
-                    }
-                    Assert.That((bool)battle.GetType().GetProperty("CanChooseAction").GetValue(battle), Is.True);
-                    Assert.That((bool)battle.GetType().GetProperty("HasSelectedBattleTarget").GetValue(battle), Is.True);
-                    var skills = (IReadOnlyList<SkillData>)battle.GetType().GetProperty("Skills").GetValue(battle);
-                    var effect = (GameObject)enhancement.GetType().GetMethod("GetEffect").Invoke(enhancement, new object[] { skills[skill].Id, stage });
-                    battle.GetType().GetMethod("UseSkill").Invoke(battle, new object[] { skill });
-                    bool sawCharge = false;
-                    bool sawEffect = effect == null;
-                    deadline = Time.time + 2f;
-                    while (Time.time < deadline && (!sawCharge || !sawEffect))
-                    {
-                        string[] names = Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None)
-                            .Select(particle => particle.transform.root.name).ToArray();
-                        sawCharge |= Object.FindObjectsByType<Transform>(FindObjectsSortMode.None)
-                            .Any(item => item.name == "FuchsiaCharge" + colors[skill] + "(Clone)");
-                        sawEffect |= effect != null && names.Any(name => name == effect.name + "(Clone)");
-                        yield return null;
-                    }
-                    Assert.That(sawCharge, Is.True, "차징 누락: 단계 " + stage + " 스킬 " + skill);
-                    Assert.That(sawEffect, Is.True, "타격 이펙트 누락: 단계 " + stage + " 스킬 " + skill);
-                }
-                if (stage < 3)
-                {
-                    lab.GetType().GetMethod("NextStage").Invoke(lab, null);
-                }
-            }
-            lab.GetType().GetMethod("NextStage").Invoke(lab, null);
-            Assert.That((int)battle.GetType().GetProperty("TestSkillStage").GetValue(battle), Is.EqualTo(1));
-            battle.GetType().GetMethod("CancelBattle").Invoke(battle, null);
+
+            Assert.That(Vector3.Distance(dummy.transform.position, position), Is.LessThan(.001f));
+            Assert.That(Quaternion.Angle(dummy.transform.rotation, rotation), Is.LessThan(.01f));
+        }
+
+        [UnityTest]
+        public IEnumerator RestartRestoresPlayerAndDummyWithoutChangingSavedEffects()
+        {
+            Component controls = GameObject.Find("VFX Test Controls").GetComponent("BattleVfxTestController");
+            FieldInfo playerField = controls.GetType().GetField("_player", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo dummyField = controls.GetType().GetField("_dummy", BindingFlags.Instance | BindingFlags.NonPublic);
+            Component player = (Component)playerField.GetValue(controls);
+            Component dummy = (Component)dummyField.GetValue(controls);
+            Pose playerHome = (Pose)controls.GetType().GetField("_playerHome", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(controls);
+            Pose dummyHome = (Pose)controls.GetType().GetField("_dummyHome", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(controls);
+            GameObject library = Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+                .Single(component => component.GetType().Name == "BattleVfxSavedEffects").gameObject;
+            Vector3 libraryPosition = library.transform.position;
+
+            player.GetType().GetMethod("Teleport").Invoke(player, new object[] { playerHome.position + Vector3.right * 3f });
+            player.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+            dummy.transform.SetPositionAndRotation(dummyHome.position + Vector3.back * 2f, Quaternion.identity);
+            dummy.gameObject.SetActive(false);
+            controls.GetType().GetMethod("RestartPreview").Invoke(controls, null);
+
+            Assert.That(Vector3.Distance(player.transform.position, playerHome.position), Is.LessThan(.001f));
+            Assert.That(Quaternion.Angle(player.transform.rotation, playerHome.rotation), Is.LessThan(.01f));
+            Assert.That(Vector3.Distance(dummy.transform.position, dummyHome.position), Is.LessThan(.001f));
+            Assert.That(Quaternion.Angle(dummy.transform.rotation, dummyHome.rotation), Is.LessThan(.01f));
+            Assert.That(dummy.gameObject.activeSelf, Is.True);
+            Assert.That(((Behaviour)dummy).enabled, Is.False);
+            Assert.That(dummy.GetComponent<NavMeshAgent>().enabled, Is.False);
+            Assert.That(library.transform.position, Is.EqualTo(libraryPosition));
+            Assert.That(library.activeSelf, Is.True);
+            yield return null;
         }
     }
 }
