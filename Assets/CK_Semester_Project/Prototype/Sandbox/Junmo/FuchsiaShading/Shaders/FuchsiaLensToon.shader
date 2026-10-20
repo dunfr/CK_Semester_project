@@ -2,6 +2,9 @@ Shader "Semester/Fuchsia/Lens Toon"
 {
     Properties
     {
+        [HideInInspector] _CharacterKeyDirection("Character key direction and blend", Vector) = (0,1,0,0)
+        [HideInInspector] _CharacterKeyColor("Character key linear color", Vector) = (1,1,1,0)
+        _EnvironmentShadowStrength("Environment shadow dimming", Range(0,1)) = 1
         _BaseColor("Lens tint", Color) = (.86,.95,1,1)
         _Opacity("Lens opacity", Range(0,1)) = .035
         _EdgeOpacity("Edge opacity", Range(0,1)) = .16
@@ -26,10 +29,17 @@ Shader "Semester/Fuchsia/Lens Toon"
             #pragma target 3.5
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RealtimeLights.hlsl"
+            #include "FuchsiaLighting.hlsl"
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor, _HighlightColor;
+                half4 _CharacterKeyDirection, _CharacterKeyColor;
+                half _EnvironmentShadowStrength;
                 half _Opacity, _EdgeOpacity, _EdgePower, _HighlightStrength;
                 half _HighlightSize, _HighlightFeather, _Cull;
             CBUFFER_END
@@ -47,13 +57,16 @@ Shader "Semester/Fuchsia/Lens Toon"
             {
                 half3 n = normalize(i.normalWS);
                 half3 view = GetWorldSpaceNormalizeViewDir(i.positionWS);
-                Light light = GetMainLight();
+                Light light = FuchsiaKeyLight(i.positionWS);
+                half environmentVisibility = FuchsiaEnvironmentVisibility(light.shadowAttenuation,
+                    _CharacterKeyDirection.w, 1.0h, _EnvironmentShadowStrength);
+                FuchsiaApplyCharacterKey(light, _CharacterKeyDirection, _CharacterKeyColor.rgb);
                 half edge = pow(saturate(1.0h - abs(dot(n, view))), _EdgePower);
                 half specular = saturate(dot(n, SafeNormalize(light.direction + view)));
                 half band = smoothstep(1.0h - _HighlightSize - _HighlightFeather, 1.0h - _HighlightSize + _HighlightFeather, specular);
-                band *= saturate(dot(n, light.direction));
+                band *= saturate(dot(n, light.direction)) * light.shadowAttenuation * min(light.distanceAttenuation, 1.0);
                 half alpha = saturate(_Opacity + edge * _EdgeOpacity + band * _HighlightStrength);
-                half3 color = _BaseColor.rgb + _HighlightColor.rgb * light.color * band * _HighlightStrength;
+                half3 color = _BaseColor.rgb + _HighlightColor.rgb * light.color * band * _HighlightStrength * environmentVisibility;
                 return half4(color, alpha);
             }
             ENDHLSL

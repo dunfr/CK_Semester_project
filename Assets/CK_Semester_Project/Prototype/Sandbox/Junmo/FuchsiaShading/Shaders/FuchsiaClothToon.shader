@@ -2,17 +2,26 @@ Shader "Semester/Fuchsia/Cloth Toon"
 {
     Properties
     {
+        [HideInInspector] _CharacterKeyDirection("Character key direction and blend", Vector) = (0,1,0,0)
+        [HideInInspector] _CharacterKeyColor("Character key linear color", Vector) = (1,1,1,0)
+        _EnvironmentShadowStrength("Environment shadow dimming", Range(0,1)) = 1
         _BaseMap("Color", 2D) = "white" {}
         _BaseColor("Tint", Color) = (1,1,1,1)
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull mode", Float) = 2
-        _ShadeColor("First shade tint", Color) = (.65,.69,.78,1)
-        _DeepShadeColor("Deep shade tint", Color) = (.38,.43,.55,1)
+        _ShadeColor("Single shadow tint", Color) = (.65,.69,.78,1)
+        [HideInInspector] _DeepShadeColor("Deep shade tint", Color) = (.38,.43,.55,1)
         _ShadeStep("Light / shade boundary", Range(0,1)) = .57
-        _DeepShadeStep("Deep shade boundary", Range(0,1)) = .29
+        [HideInInspector] _DeepShadeStep("Deep shade boundary", Range(0,1)) = .29
         _ShadeFeather("Boundary softness", Range(.001,.2)) = .025
-        _AmbientStrength("Ambient fill", Range(0,1)) = .12
+        _AmbientStrength("Environment and probe fill", Range(0,2)) = 1
+        _DirectLightStrength("Key light response", Range(0,2)) = 1
+        _DirectLightCeiling("Key + local light brightness ceiling", Range(.25,4)) = 2
+        _AdditionalLightStrength("Additional light color fill", Range(0,1)) = .12
+        _AdditionalLightCeiling("Additional fill brightness ceiling", Range(0,1)) = .20
+        _AdditionalShadowFill("Additional fill in shade", Range(0,1)) = .35
         _ReceiveShadowStrength("Received shadow strength", Range(0,1)) = 1
         _ShadingStrength("Toon shading strength", Range(0,1)) = 1
+        _StyleNormalStrength("Authored shading normal", Range(0,1)) = 0
         [HideInInspector] [HDR] _HighlightColor("Highlight color", Color) = (1,.95,1,1)
         [HideInInspector] _HighlightStrength("Highlight strength", Range(0,1)) = .15
         [HideInInspector] _HighlightSize("Highlight band size", Range(.001,.3)) = .04
@@ -42,6 +51,9 @@ Shader "Semester/Fuchsia/Cloth Toon"
             #pragma fragment Frag
             #pragma shader_feature_local_fragment _EMISSION
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile_fragment _ _LIGHT_COOKIES
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RealtimeLights.hlsl"

@@ -32,27 +32,49 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _FaceShadowMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AmbientStrength: 0.1
+    - _AdditionalLightCeiling: 0.35
+    - _AdditionalLightStrength: 0.35
+    - _AdditionalShadowFill: 0.8
+    - _AmbientStrength: 0.8
     - _Cull: 0
     - _DeepShadeStep: 0.17
+    - _DirectLightCeiling: 0.48
+    - _DirectLightStrength: 1.6
+    - _EnvironmentShadowStrength: 1
+    - _FaceAmbientFill: 0.5
+    - _FaceShadowFeather: 0.04
+    - _FaceShadowOffset: 0.08
+    - _FaceStyleStrength: 0
+    - _HairShadowBias: 0.003
+    - _HairShadowDistance: 0.03
+    - _HairShadowStrength: 0
     - _HighlightFeather: 0.015
     - _HighlightSize: 0.055
     - _HighlightStrength: 0
-    - _ReceiveShadowStrength: 0
+    - _ReceiveShadowStrength: 0.25
     - _RimPower: 5
     - _RimStrength: 0
-    - _ShadeFeather: 0.035
-    - _ShadeStep: 0.35
+    - _ShadeFeather: 0.009
+    - _ShadeStep: 0.38
     - _ShadingStrength: 0.15
     - _UseEmission: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _CharacterKeyColor: {r: 1, g: 1, b: 1, a: 0}
+    - _CharacterKeyDirection: {r: 0, g: 1, b: 0, a: 0}
     - _DeepShadeColor: {r: 0.82, g: 0.69, b: 0.74, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _HighlightColor: {r: 0.85, g: 0.86, b: 0.96, a: 1}
     - _RimColor: {r: 0.75, g: 0.85, b: 1, a: 1}
-    - _ShadeColor: {r: 0.95, g: 0.86, b: 0.88, a: 1}
+    - _ShadeColor: {r: 0.72, g: 0.74, b: 0.8, a: 1}
+    - _StyleForwardOS: {r: 0, g: -1, b: 0, a: 0}
+    - _StyleRightOS: {r: 1, g: 0, b: 0, a: 0}
+    - _StyleUpOS: {r: 0, g: 0, b: 1, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
