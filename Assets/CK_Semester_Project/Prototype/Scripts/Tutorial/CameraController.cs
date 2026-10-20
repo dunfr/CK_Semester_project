@@ -18,12 +18,14 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Range(-80f, 80f)] private float _pitch = 16f;
 
         private CinemachineFollow _follow;
+        private FloorTravelButtons _floorTravelButtons;
         private float _yaw;
         private bool _skipMouseDelta;
 
         private void Awake()
         {
             _follow = GetComponent<CinemachineFollow>();
+            _floorTravelButtons = GetComponentInParent<FloorTravelButtons>();
             _follow.TrackerSettings.BindingMode = BindingMode.WorldSpace;
             Vector3 offset = _follow.FollowOffset;
             _yaw = Mathf.Atan2(-offset.x, -offset.z) * Mathf.Rad2Deg;
@@ -51,7 +53,8 @@ namespace CK.SemesterProject.Tutorial
 
             if (Cursor.lockState != CursorLockMode.Locked)
             {
-                if (mouse.leftButton.wasPressedThisFrame)
+                if (mouse.leftButton.wasPressedThisFrame
+                    && (_floorTravelButtons == null || !_floorTravelButtons.ContainsScreenPoint(mouse.position.ReadValue())))
                 {
                     SetCursorLocked(true);
                 }
