@@ -29,14 +29,16 @@ public static class FuchsiaOutlineThicknessBaker
     {
         var baked = new HashSet<Mesh>();
         var lines = new List<string>();
-        foreach (MeshRenderer renderer in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+        // 정적 메시(MeshFilter)와 스킨 메시 모두 굽는다. 스킨 메시도 정점 색은 뼈 변형과 무관하게 정점에 붙어 다닌다.
+        foreach (Renderer renderer in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
         {
-            if (!UsesThickness(renderer))
+            if (!(renderer is MeshRenderer || renderer is SkinnedMeshRenderer) || !UsesThickness(renderer))
             {
                 continue;
             }
             var filter = renderer.GetComponent<MeshFilter>();
-            Mesh mesh = filter != null ? filter.sharedMesh : null;
+            Mesh mesh = renderer is SkinnedMeshRenderer skinned ? skinned.sharedMesh
+                : filter != null ? filter.sharedMesh : null;
             if (mesh == null || baked.Contains(mesh))
             {
                 continue;

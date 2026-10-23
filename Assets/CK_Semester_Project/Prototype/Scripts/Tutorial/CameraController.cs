@@ -18,12 +18,14 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Range(-80f, 80f)] private float _pitch = 16f;
 
         private CinemachineFollow _follow;
+        private FloorTravelButtons _floorTravelButtons;
         private float _yaw;
         private bool _skipMouseDelta;
 
         private void Awake()
         {
             _follow = GetComponent<CinemachineFollow>();
+            _floorTravelButtons = GetComponentInParent<FloorTravelButtons>();
             _follow.TrackerSettings.BindingMode = BindingMode.WorldSpace;
             Vector3 offset = _follow.FollowOffset;
             _yaw = Mathf.Atan2(-offset.x, -offset.z) * Mathf.Rad2Deg;
@@ -51,7 +53,10 @@ namespace CK.SemesterProject.Tutorial
 
             if (Cursor.lockState != CursorLockMode.Locked)
             {
-                if (mouse.leftButton.wasPressedThisFrame)
+                if (mouse.leftButton.wasPressedThisFrame
+                    && (UnityEngine.EventSystems.EventSystem.current == null
+                        || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+                    && (_floorTravelButtons == null || !_floorTravelButtons.ContainsScreenPoint(mouse.position.ReadValue())))
                 {
                     SetCursorLocked(true);
                 }
@@ -69,6 +74,16 @@ namespace CK.SemesterProject.Tutorial
             _yaw = Mathf.Repeat(_yaw + delta.x * _sensitivity, 360f);
             _pitch = Mathf.Clamp(_pitch - delta.y * _sensitivity, _minPitch, _maxPitch);
             ApplyOrbit();
+        }
+
+        public void FaceDirection(Vector3 direction)
+        {
+            if (direction.sqrMagnitude > 0.001f)
+            {
+                _yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+                ApplyOrbit();
+                _skipMouseDelta = true;
+            }
         }
 
         private void ApplyOrbit()

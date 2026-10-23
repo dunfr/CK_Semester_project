@@ -37,6 +37,8 @@ Material:
     - _AdditionalLightStrength: 0.65
     - _AdditionalShadowFill: 0.8
     - _AmbientStrength: 0.8
+    - _BacklightHighlightFade: 0.85
+    - _BacklightShadeDim: 0.25
     - _Cull: 0
     - _DeepShadeStep: 0.17
     - _DepthRimShadowFade: 0.35
@@ -51,14 +53,22 @@ Material:
     - _HighlightStrength: 0.4
     - _LightNormalize: 1
     - _LitBrightness: 1
+    - _OutlineDarkWiden: 0
     - _OutlineLightTint: 0.3
+    - _OutlineMaxScale: 3
+    - _OutlineMinScale: 0.2
     - _OutlineSaturation: 1.5
+    - _OutlineShadeWiden: 0
+    - _OutlineThinScale: 0.25
+    - _OutlineUseThickness: 0
     - _OutlineWidth: 0.6
     - _OutlineZOffset: 0.2
-    - _ReceiveShadowStrength: 1
+    - _ReceiveShadowStrength: 0.413
     - _RimPower: 5
     - _RimStrength: 0.02
     - _ShadeAmbientTint: 0.3
+    - _ShadeEdgeHardness: 0
+    - _ShadeEdgeSaturation: 1.6
     - _ShadeEdgeWidth: 0.12
     - _ShadeFeather: 0.014
     - _ShadeSaturation: 1.3
@@ -67,8 +77,10 @@ Material:
     - _UseEmission: 0
     m_Colors:
     - _BaseColor: {r: 0.45, g: 0.42, b: 0.5, a: 1}
+    - _CharacterBrightness: {r: 1, g: 0.35, b: 1.15, a: 0}
     - _CharacterKeyColor: {r: 1, g: 1, b: 1, a: 0}
     - _CharacterKeyDirection: {r: 0, g: 1, b: 0, a: 0}
+    - _CharacterRimTint: {r: 1, g: 1, b: 1, a: 1}
     - _DeepShadeColor: {r: 0.64, g: 0.66, b: 0.78, a: 1}
     - _DepthRimColor: {r: 1, g: 0.96, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}

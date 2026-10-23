@@ -31,6 +31,7 @@ Shader "Semester/Fuchsia/Hair Toon"
         _HairHighlightMap("Hair control (R mask, G height, B width)", 2D) = "gray" {}
         _HairHighlightMaskStrength("Hair clump control strength", Range(0,1)) = 0
         _HairAmbientFill("Hair environment fill", Range(0,1)) = .3
+        [HideInInspector] _StyleAxesSpace("Style axes space (0 object, 1 world)", Float) = 0
         [HideInInspector] _StyleRightOS("Style right axis", Vector) = (1,0,0,0)
         [HideInInspector] _StyleUpOS("Style up axis", Vector) = (0,0,1,0)
         [HideInInspector] _StyleForwardOS("Style forward axis", Vector) = (0,-1,0,0)

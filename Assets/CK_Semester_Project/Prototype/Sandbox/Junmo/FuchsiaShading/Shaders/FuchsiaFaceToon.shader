@@ -31,6 +31,7 @@ Shader "Semester/Fuchsia/Face Toon"
         _HairShadowDistance("Front hair shadow reach (m)", Range(0,.08)) = .03
         _HairShadowBias("Front hair shadow bias (m)", Range(.0005,.02)) = .003
         _FaceAmbientFill("Face environment fill", Range(0,1)) = .5
+        [HideInInspector] _StyleAxesSpace("Style axes space (0 object, 1 world)", Float) = 0
         [HideInInspector] _StyleRightOS("Style right axis", Vector) = (1,0,0,0)
         [HideInInspector] _StyleUpOS("Style up axis", Vector) = (0,0,1,0)
         [HideInInspector] _StyleForwardOS("Style forward axis", Vector) = (0,-1,0,0)

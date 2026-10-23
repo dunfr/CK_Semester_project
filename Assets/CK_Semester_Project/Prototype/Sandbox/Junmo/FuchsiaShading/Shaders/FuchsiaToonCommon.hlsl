@@ -27,6 +27,8 @@ CBUFFER_START(UnityPerMaterial)
     half _FaceShadowOffset, _HairShadowStrength, _HairShadowDistance, _HairShadowBias;
     half _HairStyleStrength, _HairBandHeight, _HairBandWidth, _HairBandFeather, _HairAmbientFill;
     half _HairHighlightMaskStrength;
+    // 0: _Style*OS가 오브젝트 공간(정적 메시). 1: 월드 공간(스킨 메시, FuchsiaStyleAxes가 머리 뼈 회전으로 매 프레임 채움).
+    half _StyleAxesSpace;
     // 애니메 룩: 텍스처 색을 그대로 보여주는 밝은 면, 채도를 올린 그늘, 경계 띠, 깊이 림, 외곽선
     half4 _ShadeEdgeColor, _OutlineColor, _DepthRimColor;
     half _LitBrightness, _LightNormalize, _ShadeSaturation, _ShadeEdgeWidth, _ShadeAmbientTint;
@@ -76,6 +78,12 @@ half FuchsiaDepthRim(float4 positionCS, half3 normalWS, half3 viewWS)
     return rim * smoothstep(.05h, .55h, 1.0h - saturate(dot(normalWS, viewWS)));
 }
 
+// 얼굴/머리 기준 축. 스킨 메시는 머리 뼈를 따라 도는 월드 축을 받는다.
+half3 FuchsiaStyleAxis(half4 axis)
+{
+    return normalize(_StyleAxesSpace > .5h ? axis.xyz : TransformObjectToWorldDir(axis.xyz));
+}
+
 struct Attributes
 {
     float4 positionOS : POSITION;
@@ -102,7 +110,10 @@ Varyings Vert(Attributes v)
     o.positionCS = TransformWorldToHClip(o.positionWS);
     o.normalWS = TransformObjectToWorldNormal(v.normalOS);
     o.tangentWS = TransformObjectToWorldDir(v.tangentOS.xyz);
-    o.styleNormalWS = TransformObjectToWorldNormal(v.styleNormalOS, false);
+    // 스킨 메시: UV1은 머리 기준축(오른쪽, 위, 앞) 성분으로 구워져 있어, 머리 뼈를 따라 도는 축으로 다시 조립한다.
+    o.styleNormalWS = _StyleAxesSpace > .5
+        ? v.styleNormalOS.x * _StyleRightOS.xyz + v.styleNormalOS.y * _StyleUpOS.xyz + v.styleNormalOS.z * _StyleForwardOS.xyz
+        : TransformObjectToWorldNormal(v.styleNormalOS, false);
     o.styleData = v.styleData;
     o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
     return o;
@@ -136,14 +147,14 @@ half4 FuchsiaFrag(Varyings i)
     #if defined(FUCHSIA_FACE) || defined(FUCHSIA_HAIR)
         if (faceStyleStrength + hairStyleStrength > .001h)
         {
-            styleUp = normalize(TransformObjectToWorldDir(_StyleUpOS.xyz));
+            styleUp = FuchsiaStyleAxis(_StyleUpOS);
         }
     #endif
     #if defined(FUCHSIA_FACE)
         if (faceStyleStrength > .001h)
         {
-            half3 faceForward = normalize(TransformObjectToWorldDir(_StyleForwardOS.xyz));
-            half3 faceRight = normalize(TransformObjectToWorldDir(_StyleRightOS.xyz));
+            half3 faceForward = FuchsiaStyleAxis(_StyleForwardOS);
+            half3 faceRight = FuchsiaStyleAxis(_StyleRightOS);
             half3 horizontalLight = light.direction - styleUp * dot(light.direction, styleUp);
             horizontalLight = dot(horizontalLight, horizontalLight) > .015h
                 ? normalize(horizontalLight) : faceForward;
@@ -239,7 +250,7 @@ half4 FuchsiaFrag(Varyings i)
         #if defined(FUCHSIA_HAIR)
             if (hairStyleStrength > .001h)
             {
-                half3 styleRight = normalize(TransformObjectToWorldDir(_StyleRightOS.xyz));
+                half3 styleRight = FuchsiaStyleAxis(_StyleRightOS);
                 // 원통 투영 제어맵으로 모발 덩어리별 띠의 끊김·높이·폭을 지정한다.
                 float2 controlUV = float2(atan2(i.styleData.x, i.styleData.z) / TWO_PI + .5, i.styleData.y);
                 half3 control = SAMPLE_TEXTURE2D(_HairHighlightMap, sampler_HairHighlightMap, controlUV).rgb;
