@@ -21,7 +21,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: WallInsetCoating
-  m_Shader: {fileID: 4800000, guid: ee7e4c9a5f6364b688a332c67fc32cca, type: 3}
+  m_Shader: {fileID: 4800000, guid: 1b217817d4db4f7fa5dbc5d8f6778851, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
@@ -36,8 +36,7 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap:
     RenderType: Opaque
-  disabledShaderPasses:
-  - MOTIONVECTORS
+  disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
@@ -127,6 +126,11 @@ Material:
     - _Metallic: 1
     - _OcclusionStrength: 0.6
     - _Parallax: 0.005
+    - _PunctualAttenuationKnee: 0.4
+    - _PunctualMetalWash: 0.35
+    - _PunctualMinRoughness: 0.55
+    - _PunctualSpecular: 0.6
+    - _PunctualWrap: 0.3
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _Smoothness: 1

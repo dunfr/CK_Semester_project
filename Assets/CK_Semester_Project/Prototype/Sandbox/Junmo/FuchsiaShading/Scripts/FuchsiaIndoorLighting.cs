@@ -51,6 +51,14 @@ public sealed class FuchsiaIndoorLighting : MonoBehaviour
             return;
         }
 
+        // CharacterLightZone + CharacterLighting으로 대체되었다. 둘이 같은 속성을 덮어쓰지 않게 한쪽만 동작시킨다.
+        if (_characterRoot.GetComponentInParent<CK.SemesterProject.Rendering.CharacterLighting>() != null)
+        {
+            Debug.LogWarning("캐릭터에 CharacterLighting이 있어 FuchsiaIndoorLighting을 끕니다. CharacterLightZone을 사용하세요.", this);
+            enabled = false;
+            return;
+        }
+
         RefreshLighting();
     }
 

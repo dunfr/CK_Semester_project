@@ -32,6 +32,13 @@ CBUFFER_START(UnityPerMaterial)
     half _LitBrightness, _LightNormalize, _ShadeSaturation, _ShadeEdgeWidth, _ShadeAmbientTint;
     half _OutlineWidth, _OutlineZOffset, _OutlineSaturation, _OutlineLightTint;
     half _DepthRimWidth, _DepthRimThreshold, _DepthRimStrength, _DepthRimShadowFade;
+    half _ShadeEdgeSaturation, _ShadeEdgeHardness, _BacklightShadeDim, _BacklightHighlightFade;
+    half _OutlineDarkWiden, _OutlineShadeWiden, _OutlineUseThickness, _OutlineThinScale;
+    half _OutlineMinScale, _OutlineMaxScale;
+    // CharacterLighting 컴포넌트가 렌더러별로 채운다. x 기준 광량, y 최소, z 최대, w 반응 정도.
+    half4 _CharacterBrightness;
+    // 구역/보스 연출용 림 색조. rgb 색, a 세기 배율.
+    half4 _CharacterRimTint;
 CBUFFER_END
 
 // 휘도를 유지한 채 채도만 조절한다.
@@ -178,8 +185,12 @@ half4 FuchsiaFrag(Varyings i)
     // 스타레일/젠레스식 구성: 밝은 면은 원화 색 x 광원 색조, 그늘은 채도를 올린 그늘 색.
     // 실제 광량은 색조만 빌리고, 밝기는 _LitBrightness로 아트 디렉팅한다.
     half3 keyRadiance = light.color * light.distanceAttenuation * _DirectLightStrength;
-    half keyLuminance = dot(keyRadiance, half3(.2126h, .7152h, .0722h));
-    half keyBrightness = lerp(min(keyLuminance, _DirectLightCeiling), 1.0h, _LightNormalize)
+    // 부분 밝기 반응: 반응 0이면 원화 밝기를 고정하고, 1이면 (광량 / 기준 광량)을 [최소, 최대] 안에서 따른다.
+    // 재질별 _DirectLightStrength 차이가 부위별 밝기 차이로 번지지 않도록 광원 자체의 광량만 쓴다.
+    half sceneLuminance = dot(light.color * light.distanceAttenuation, half3(.2126h, .7152h, .0722h));
+    half relativeBrightness = clamp(sceneLuminance / max(_CharacterBrightness.x, .001h),
+        _CharacterBrightness.y, _CharacterBrightness.z);
+    half keyBrightness = lerp(1.0h, relativeBrightness, saturate(_CharacterBrightness.w))
         * _LitBrightness * environmentVisibility;
     half3 directResponse = FuchsiaLightHue(keyRadiance) * keyBrightness;
 
@@ -195,9 +206,14 @@ half4 FuchsiaFrag(Varyings i)
     half3 shadeAlbedo = FuchsiaSaturation(baseColor, _ShadeSaturation) * _ShadeColor.rgb * ambientHue;
     shadeAlbedo = lerp(shadeAlbedo, baseColor, shadeLift);
     // 명암 경계 바로 안쪽에 채도 높은 띠를 둬서 램프 텍스처의 따뜻한 경계를 흉내 낸다.
-    half edgeBand = saturate(litSoft - lit) * _ShadeEdgeColor.a;
-    shadeAlbedo = lerp(shadeAlbedo, FuchsiaSaturation(shadeAlbedo, 1.6h) * _ShadeEdgeColor.rgb, edgeBand);
+    half edgeBand = saturate(litSoft - lit);
+    // 경도를 올리면 퍼지는 그라데이션 대신 일정 폭의 선명한 색 선이 된다.
+    edgeBand = lerp(edgeBand, smoothstep(.3h, .5h, edgeBand), _ShadeEdgeHardness) * _ShadeEdgeColor.a;
+    shadeAlbedo = lerp(shadeAlbedo, FuchsiaSaturation(shadeAlbedo, _ShadeEdgeSaturation) * _ShadeEdgeColor.rgb, edgeBand);
     shadeAlbedo = lerp(baseColor, shadeAlbedo, _ShadingStrength);
+    // 역광: 광원이 시선 뒤편에 있을수록 보이는 면 대부분이 그늘이 되므로 그늘을 더 낮춰 실루엣 림이 살아나게 한다.
+    half backlit = smoothstep(.15h, .85h, saturate(-dot(light.direction, view)));
+    shadeAlbedo *= 1.0h - _BacklightShadeDim * backlit;
     // 그늘 밝기 자체도 주변광 세기에 약하게 반응한다(어두운 구역에서 캐릭터만 떠 보이지 않게).
     half ambientLevel = lerp(1.0h, saturate(dot(ambient, half3(.2126h, .7152h, .0722h)) * 2.0h),
         saturate(1.0h - _AmbientStrength));
@@ -235,8 +251,10 @@ half4 FuchsiaFrag(Varyings i)
                 half bandFeather = max(_HairBandFeather, fwidth(i.styleData.y));
                 half bandWidth = _HairBandWidth * lerp(.5h, 1.4h, control.b);
                 band = 1.0h - smoothstep(bandWidth, bandWidth + bandFeather, distanceToBand);
-                band *= control.r * smoothstep(.0h, .45h, dot(n, view)) * lerp(.65h, 1.0h, lit)
-                    * lerp(.65h, 1.0h, saturate(dot(n, light.direction))) * shadow;
+                // 그늘과 역광에서는 띠 광택을 거의 지운다. 예전에는 그늘에서도 40% 남아 역광 때 앞머리가 빛났다.
+                band *= control.r * smoothstep(.0h, .45h, dot(n, view))
+                    * lerp(.08h, 1.0h, lit * smoothstep(0.0h, .35h, dot(n, light.direction))) * shadow
+                    * (1.0h - _BacklightHighlightFade * backlit);
                 half3 highlightLight = directResponse + fill * .2h;
                 color += _HighlightColor.rgb * highlightLight
                     * band * _HighlightStrength * hairStyleStrength;
@@ -246,7 +264,8 @@ half4 FuchsiaFrag(Varyings i)
         {
             // 반대편 광택과 그림자 안의 광택을 억제한다.
             band *= saturate(dot(n, light.direction)) * shadow;
-            color += _HighlightColor.rgb * directResponse * band * _HighlightStrength;
+            color += _HighlightColor.rgb * directResponse * band * _HighlightStrength
+                * (1.0h - _BacklightHighlightFade * backlit);
         }
     #endif
     #if defined(FUCHSIA_HAIR) || defined(FUCHSIA_ACCESSORY)
@@ -256,8 +275,8 @@ half4 FuchsiaFrag(Varyings i)
     // 실루엣 림: 그늘 쪽에서도 약하게 남겨 배경과 캐릭터를 분리한다.
     half depthRim = FuchsiaDepthRim(i.positionCS, n, view) * _DepthRimStrength;
     half rimLighting = lerp(_DepthRimShadowFade, 1.0h, saturate(dot(n, light.direction)) * shadow);
-    color += lerp(half3(1, 1, 1), baseColor, .35h) * _DepthRimColor.rgb * directResponse
-        * depthRim * rimLighting;
+    color += lerp(half3(1, 1, 1), baseColor, .35h) * _DepthRimColor.rgb * _CharacterRimTint.rgb * directResponse
+        * depthRim * rimLighting * _CharacterRimTint.a;
     #if defined(_EMISSION)
         color += SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
     #endif
@@ -271,6 +290,7 @@ struct OutlineAttributes
     float4 positionOS : POSITION;
     float3 normalOS : NORMAL;
     float2 uv : TEXCOORD0;
+    float4 color : COLOR;
 };
 struct OutlineVaryings
 {
@@ -281,19 +301,34 @@ struct OutlineVaryings
 OutlineVaryings OutlineVert(OutlineAttributes v)
 {
     OutlineVaryings o;
-    float3 positionVS = TransformWorldToView(TransformObjectToWorld(v.positionOS.xyz));
-    float3 normalVS = TransformWorldToViewNormal(TransformObjectToWorldNormal(v.normalOS), true);
+    float3 positionWS = TransformObjectToWorld(v.positionOS.xyz);
+    float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
+    float3 positionVS = TransformWorldToView(positionWS);
+    float3 normalVS = TransformWorldToViewNormal(normalWS, true);
     normalVS.z = -.1;
     float distanceScale = IsPerspectiveProjection()
         ? -positionVS.z * 1.732 / unity_CameraProjection._m11
         : 1.0 / unity_CameraProjection._m11;
+
+    // 선 굵기 강약: 짙은 텍스처와 그늘 쪽은 굵게, 얇은 부위(구운 두께)는 가늘게.
+    float2 uv = TRANSFORM_TEX(v.uv, _BaseMap);
+    half3 texel = SAMPLE_TEXTURE2D_LOD(_BaseMap, sampler_BaseMap, uv, 0).rgb * _BaseColor.rgb;
+    half darkness = 1.0h - saturate(dot(texel, half3(.2126h, .7152h, .0722h)));
+    Light light = GetMainLight();
+    FuchsiaApplyCharacterKey(light, _CharacterKeyDirection, _CharacterKeyColor.rgb);
+    half shade = 1.0h - smoothstep(_ShadeStep - .2h, _ShadeStep + .1h, saturate(dot(normalWS, light.direction)));
+    // 두께는 정점 색 A에 0~1로 구워 둔다(FuchsiaOutlineThicknessBaker). 사용하지 않는 재질은 1로 본다.
+    half thickness = lerp(1.0h, lerp(_OutlineThinScale, 1.0h, v.color.a), _OutlineUseThickness);
+    half widthScale = (1.0h + _OutlineDarkWiden * darkness) * (1.0h + _OutlineShadeWiden * shade) * thickness;
+    widthScale = clamp(widthScale, _OutlineMinScale, _OutlineMaxScale);
+
     // _OutlineWidth 1 ≈ 시야각 60도, 1080p에서 약 1픽셀
-    float width = _OutlineWidth * .00107 * clamp(distanceScale, .35, 8.0);
+    float width = _OutlineWidth * widthScale * .00107 * clamp(distanceScale, .35, 8.0);
     positionVS += normalize(normalVS) * width;
     positionVS.z -= _OutlineZOffset * .01;
     o.positionCS = _OutlineWidth > .001 ? TransformWViewToHClip(positionVS) : float4(0, 0, 0, 0);
     o.positionWS = TransformViewToWorld(positionVS);
-    o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
+    o.uv = uv;
     return o;
 }
 half4 OutlineFrag(OutlineVaryings i) : SV_Target

@@ -4,6 +4,8 @@ Shader "Semester/Fuchsia/Accessory Toon"
     {
         [HideInInspector] _CharacterKeyDirection("Character key direction and blend", Vector) = (0,1,0,0)
         [HideInInspector] _CharacterKeyColor("Character key linear color", Vector) = (1,1,1,0)
+        [HideInInspector] _CharacterBrightness("Character brightness (reference, min, max, response)", Vector) = (1,.35,1.15,0)
+        [HideInInspector] _CharacterRimTint("Character rim tint (A = strength)", Vector) = (1,1,1,1)
         _EnvironmentShadowStrength("Environment shadow dimming", Range(0,1)) = 1
         _BaseMap("Color", 2D) = "white" {}
         _BaseColor("Tint", Color) = (1,1,1,1)
@@ -30,17 +32,27 @@ Shader "Semester/Fuchsia/Accessory Toon"
         _RimPower("Rim power", Range(1,12)) = 4
         [Header(Anime Look)]
         _LitBrightness("Lit side brightness", Range(0,2)) = 1
-        _LightNormalize("Ignore key light intensity (keep texture color)", Range(0,1)) = 1
+        [HideInInspector] _LightNormalize("(Unused) replaced by CharacterLighting brightness response", Range(0,1)) = 1
         _ShadeSaturation("Shade saturation", Range(0,2)) = 1.3
         _ShadeAmbientTint("Shade picks environment hue", Range(0,1)) = .3
         _ShadeEdgeColor("Terminator band tint (A = strength)", Color) = (1,.96,.98,1)
         _ShadeEdgeWidth("Terminator band width", Range(0,.4)) = .12
+        _ShadeEdgeSaturation("Terminator band saturation", Range(0,4)) = 1.6
+        _ShadeEdgeHardness("Terminator band hardness", Range(0,1)) = 0
+        _BacklightShadeDim("Backlight: darken shade", Range(0,1)) = .25
+        _BacklightHighlightFade("Backlight: fade highlights", Range(0,1)) = .85
         [Header(Outline)]
         _OutlineWidth("Outline width (px at 1080p)", Range(0,5)) = 1.2
         _OutlineColor("Outline color (multiplies texture)", Color) = (.42,.3,.4,1)
         _OutlineSaturation("Outline saturation", Range(0,2)) = 1.5
         _OutlineLightTint("Outline takes light hue", Range(0,1)) = .3
         _OutlineZOffset("Outline push back (cm)", Range(0,5)) = .2
+        _OutlineDarkWiden("Outline: widen on dark texture", Range(0,2)) = 0
+        _OutlineShadeWiden("Outline: widen on shaded side", Range(0,2)) = 0
+        [ToggleUI] _OutlineUseThickness("Outline: thin parts thinner (baked vertex color A)", Float) = 0
+        _OutlineThinScale("Outline: width at thinnest part", Range(0,1)) = .25
+        _OutlineMinScale("Outline: min width scale", Range(0,1)) = .2
+        _OutlineMaxScale("Outline: max width scale", Range(1,4)) = 3
         [Header(Silhouette Rim)]
         [HDR] _DepthRimColor("Rim color", Color) = (1,.96,1,1)
         _DepthRimStrength("Rim strength", Range(0,1)) = .6

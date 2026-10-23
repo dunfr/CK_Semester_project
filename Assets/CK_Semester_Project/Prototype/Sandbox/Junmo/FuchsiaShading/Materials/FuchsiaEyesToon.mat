@@ -25,7 +25,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 2963e57c56067c54e89c2eaa791cf783, type: 3}
+        m_Texture: {fileID: 2800000, guid: edddbd428c1f4e84690902f741c71815, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
@@ -38,6 +38,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _ShadeSaturation: 1
     - _DepthRimStrength: 0
     - _OutlineWidth: 0
     - _AdditionalLightCeiling: 0.35
@@ -67,6 +68,7 @@ Material:
     - _ShadingStrength: 0.15
     - _UseEmission: 0
     m_Colors:
+    - _ShadeEdgeColor: {r: 1, g: 1, b: 1, a: 0}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _CharacterKeyColor: {r: 1, g: 1, b: 1, a: 0}
     - _CharacterKeyDirection: {r: 0, g: 1, b: 0, a: 0}
