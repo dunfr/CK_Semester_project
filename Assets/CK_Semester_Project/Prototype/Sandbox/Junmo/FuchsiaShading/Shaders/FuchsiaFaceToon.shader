@@ -39,6 +39,25 @@ Shader "Semester/Fuchsia/Face Toon"
         [HideInInspector] [HDR] _RimColor("Rim color", Color) = (.75,.85,1,1)
         [HideInInspector] _RimStrength("Rim strength", Range(0,1)) = .03
         [HideInInspector] _RimPower("Rim power", Range(1,12)) = 4
+        [Header(Anime Look)]
+        _LitBrightness("Lit side brightness", Range(0,2)) = 1
+        _LightNormalize("Ignore key light intensity (keep texture color)", Range(0,1)) = 1
+        _ShadeSaturation("Shade saturation", Range(0,2)) = 1.3
+        _ShadeAmbientTint("Shade picks environment hue", Range(0,1)) = .3
+        _ShadeEdgeColor("Terminator band tint (A = strength)", Color) = (1,.96,.98,1)
+        _ShadeEdgeWidth("Terminator band width", Range(0,.4)) = .12
+        [Header(Outline)]
+        _OutlineWidth("Outline width (px at 1080p)", Range(0,5)) = 1.1
+        _OutlineColor("Outline color (multiplies texture)", Color) = (.42,.3,.4,1)
+        _OutlineSaturation("Outline saturation", Range(0,2)) = 1.5
+        _OutlineLightTint("Outline takes light hue", Range(0,1)) = .3
+        _OutlineZOffset("Outline push back (cm)", Range(0,5)) = .2
+        [Header(Silhouette Rim)]
+        [HDR] _DepthRimColor("Rim color", Color) = (1,.96,1,1)
+        _DepthRimStrength("Rim strength", Range(0,1)) = .6
+        _DepthRimWidth("Rim width (px at 1m)", Range(0,12)) = 4
+        _DepthRimThreshold("Rim depth gap (m)", Range(.01,1)) = .12
+        _DepthRimShadowFade("Rim in shade", Range(0,1)) = .35
         [Toggle(_EMISSION)] _UseEmission("Enable emission", Float) = 0
         _EmissionMap("Emission mask", 2D) = "black" {}
         [HDR] _EmissionColor("Emission", Color) = (0,0,0,1)
@@ -71,6 +90,18 @@ Shader "Semester/Fuchsia/Face Toon"
             {
                 return FuchsiaFrag(i);
             }
+            ENDHLSL
+        }
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode"="SRPDefaultUnlit" }
+            Cull Front
+            ZWrite On
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex OutlineVert
+            #pragma fragment OutlineFrag
             ENDHLSL
         }
         Pass
