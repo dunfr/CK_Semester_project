@@ -19,6 +19,9 @@ namespace CK.SemesterProject.EditorTools
         private float[] _particleTimes;
         private SakuraSlashFade[] _fades;
         private SakuraImpactStreakPlayer[] _streaks;
+        private EffectLightPulse[] _lightPulses;
+        private Light[] _lights;
+        private bool[] _lightEnabled;
         private Renderer[] _renderers;
         private bool[] _rendererEnabled;
         private Transform _dummy;
@@ -84,6 +87,8 @@ namespace CK.SemesterProject.EditorTools
                 }
                 _instance.SetActive(true);
                 _placement.Apply(_instance, dummy);
+                _lightPulses = _instance.GetComponentsInChildren<EffectLightPulse>(true)
+                    .Where(item => item.enabled).ToArray();
                 foreach (MonoBehaviour behaviour in _instance.GetComponentsInChildren<MonoBehaviour>(true))
                 {
                     behaviour.enabled = false;
@@ -98,6 +103,8 @@ namespace CK.SemesterProject.EditorTools
                 }
                 _fades = _instance.GetComponentsInChildren<SakuraSlashFade>(true);
                 _streaks = _instance.GetComponentsInChildren<SakuraImpactStreakPlayer>(true);
+                _lights = _instance.GetComponentsInChildren<Light>(true);
+                _lightEnabled = _lights.Select(item => item.enabled).ToArray();
                 _renderers = _instance.GetComponentsInChildren<Renderer>(true);
                 _rendererEnabled = _renderers.Select(item => item.enabled).ToArray();
                 _particles = _instance.GetComponentsInChildren<ParticleSystem>(true);
@@ -120,6 +127,10 @@ namespace CK.SemesterProject.EditorTools
                 foreach (SakuraImpactStreakPlayer streak in _streaks)
                 {
                     _effectDuration = Mathf.Max(_effectDuration, streak.Duration / _effectSpeed);
+                }
+                foreach (EffectLightPulse lightPulse in _lightPulses)
+                {
+                    _effectDuration = Mathf.Max(_effectDuration, lightPulse.Duration / _effectSpeed);
                 }
                 if (_placement.Lifetime > 0f)
                 {
@@ -156,6 +167,13 @@ namespace CK.SemesterProject.EditorTools
                     _renderers[i].enabled = !hidden && _rendererEnabled[i];
                 }
             }
+            for (int i = 0; i < _lights.Length; i++)
+            {
+                if (_lights[i] != null)
+                {
+                    _lights[i].enabled = !hidden && _lightEnabled[i];
+                }
+            }
             foreach (SakuraSlashFade fade in _fades)
             {
                 if (fade != null)
@@ -168,6 +186,13 @@ namespace CK.SemesterProject.EditorTools
                 if (streak != null)
                 {
                     streak.Preview(hidden ? 1f : elapsed * _effectSpeed / streak.Duration);
+                }
+            }
+            foreach (EffectLightPulse lightPulse in _lightPulses)
+            {
+                if (lightPulse != null)
+                {
+                    lightPulse.Preview(hidden ? 1f : elapsed * _effectSpeed / lightPulse.Duration);
                 }
             }
             for (int i = 0; i < _particles.Length; i++)
@@ -234,6 +259,9 @@ namespace CK.SemesterProject.EditorTools
             _particleTimes = null;
             _fades = null;
             _streaks = null;
+            _lightPulses = null;
+            _lights = null;
+            _lightEnabled = null;
             _renderers = null;
             _rendererEnabled = null;
             Time = 0f;

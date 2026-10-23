@@ -50,9 +50,33 @@ Shader "Semester/Character Toon"
             #pragma fragment Frag
             #pragma shader_feature_local_fragment _EMISSION
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            #pragma multi_compile_fragment _ _LIGHT_COOKIES
+            #pragma multi_compile _ _LIGHT_LAYERS
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonLighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RealtimeLights.hlsl"
+
+            half3 CalculateAdditionalToonLight(Light light, half3 normalWS, uint meshRenderingLayers)
+            {
+                #if defined(_LIGHT_LAYERS)
+                    if (!IsMatchingLightLayer(light.layerMask, meshRenderingLayers))
+                    {
+                        return 0;
+                    }
+                #endif
+
+                // Add colored light in toon bands without lifting surfaces facing away from it.
+                half illumination = saturate(dot(normalWS, light.direction));
+                half deepStep = min(_DeepShadeStep, _ShadeStep);
+                half shade = smoothstep(deepStep - _ShadeFeather, deepStep + _ShadeFeather, illumination);
+                half lit = smoothstep(_ShadeStep - _ShadeFeather, _ShadeStep + _ShadeFeather, illumination);
+                half diffuse = lerp(.5h * shade, 1.0h, lit) * saturate(illumination / _ShadeFeather);
+                return light.color * (diffuse * light.distanceAttenuation * light.shadowAttenuation);
+            }
+
             half4 Frag(Varyings i):SV_Target
             {
                 half3 n = normalize(i.normalWS);
@@ -72,6 +96,34 @@ Shader "Semester/Character Toon"
                 // Constant ambient SH term: no reflection probe texture or per-pixel SH evaluation.
                 half3 ambient = max(half3(unity_SHAr.w, unity_SHAg.w, unity_SHAb.w), 0) * _AmbientStrength;
                 half3 color = baseColor * (tint * light.color * light.distanceAttenuation + ambient);
+
+                #if defined(_ADDITIONAL_LIGHTS) || defined(_ADDITIONAL_LIGHTS_VERTEX)
+                    // LIGHT_LOOP_BEGIN uses these fields to find Forward+ punctual lights.
+                    InputData inputData = (InputData)0;
+                    inputData.positionWS = i.positionWS;
+                    inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
+                    uint meshRenderingLayers = GetMeshRenderingLayer();
+                    half3 additionalLighting = 0;
+                    half4 shadowMask = half4(1, 1, 1, 1);
+
+                    #if USE_CLUSTER_LIGHT_LOOP
+                        [loop] for (uint lightIndex = 0; lightIndex < min(URP_FP_DIRECTIONAL_LIGHTS_COUNT, MAX_VISIBLE_LIGHTS); lightIndex++)
+                        {
+                            CLUSTER_LIGHT_LOOP_SUBTRACTIVE_LIGHT_CHECK
+                            Light additionalLight = GetAdditionalLight(lightIndex, i.positionWS, shadowMask);
+                            additionalLighting += CalculateAdditionalToonLight(additionalLight, n, meshRenderingLayers);
+                        }
+                    #endif
+
+                    // Evaluate per pixel even in the Forward vertex-light variant to keep toon boundaries stable.
+                    uint pixelLightCount = GetAdditionalLightsCount();
+                    LIGHT_LOOP_BEGIN(pixelLightCount)
+                        Light additionalLight = GetAdditionalLight(lightIndex, i.positionWS, shadowMask);
+                        additionalLighting += CalculateAdditionalToonLight(additionalLight, n, meshRenderingLayers);
+                    LIGHT_LOOP_END
+                    color += baseColor * additionalLighting;
+                #endif
+
                 #if defined(_EMISSION)
                     color += SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
                 #endif
