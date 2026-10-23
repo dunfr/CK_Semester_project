@@ -113,6 +113,8 @@ foreach (var entry in parts)
 {
     var combined = new Mesh { name = "CorridorArchitecture_" + entry.Key };
     combined.CombineMeshes(entry.Value.ToArray(), true, true);
+    // Baked GI용 라이트맵 UV(UV1). 합친 메시는 원본 UV1이 겹칠 수 있으므로 새로 만든다.
+    Unwrapping.GenerateSecondaryUVSet(combined);
     combined.RecalculateBounds();
     string path = root + "Models/Corridor/Architecture_" + entry.Key + ".asset";
     var stored = AssetDatabase.LoadAssetAtPath<Mesh>(path);

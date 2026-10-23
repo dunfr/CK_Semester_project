@@ -89,6 +89,8 @@ public static class CorridorDetailMeshBuilder
         mesh.SetTriangles(triangles, 0);
         mesh.RecalculateTangents();
         mesh.RecalculateBounds();
+        // 배경은 정적 오브젝트로 간접광을 굽는다. 라이트맵 UV(UV1)를 같이 만든다.
+        UnityEditor.Unwrapping.GenerateSecondaryUVSet(mesh);
         return mesh;
     }
 
