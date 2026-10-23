@@ -121,7 +121,7 @@ namespace CK.SemesterProject.Battle
                 int gain = (actorEffect?.MemoryDelta ?? 0) + paid;
                 int capacity = Math.Max(0, actor.Data.MaxMemory - (actor.Memory + memoryDelta - (first ? paid : 0)));
                 int recovered = Math.Min(gain + targetEffect.MemoryDelta, capacity);
-                // 광역 강탈도 합산 회복량만큼만 대상에게서 빼서 메모리를 보존한다.
+                // 회복 상한은 공유한다. 플레이어 망각의 최소 회복분은 대상 소모와 분리해 합산한다.
                 int stolen = Math.Min(-targetEffect.MemoryDelta, capacity - recovered);
                 changes.Add(new BattleEffect(target.InstanceId, targetEffect.HpDelta, -stolen,
                     targetEffect.SkippedTurns, isDefending: targetEffect.IsDefending,
@@ -222,7 +222,15 @@ namespace CK.SemesterProject.Battle
             }
             int stolen = actor.InstanceId == target.InstanceId ? 0
                 : (int)Math.Min(steal, Math.Min(target.Memory, Math.Max(0, actor.Data.MaxMemory - remaining)));
-            int actorDelta = -(int)cost + recovered + stolen;
+            int received = stolen;
+            if (elementEffects && skill.Element == BattleElement.Oblivion
+                && actor.Data.Team == BattleTeam.Player && target.Data.Team == BattleTeam.Monster)
+            {
+                // 10-23 확정: 적 메모리가 0~9여도 명중 시 최소 10 회복. 최대 메모리는 넘지 않는다.
+                received = Math.Max(stolen, Math.Min(mechanics.OblivionSteal,
+                    Math.Max(0, actor.Data.MaxMemory - remaining)));
+            }
+            int actorDelta = -(int)cost + recovered + received;
             int rageGain = mechanics.EnableRage && actor.Data.Team == BattleTeam.Player ? skill.RageGain - skill.RageCost : 0;
             int? imprint = elementEffects && skill.Element == BattleElement.Imprint
                 ? BattleMath.RoundDamage(roundedDamage * mechanics.ImprintRatio) : (int?)null;

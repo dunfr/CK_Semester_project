@@ -138,14 +138,14 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [Test]
-        public void AfterimageArmsRecoveryAndOblivionStealIsCapped()
+        public void AfterimageArmsRecoveryAndPlayerOblivionRecoversMinimum()
         {
             BattleSession session = Start(new[] { new SkillData("hit", "Hit", 0, BattleElement.Afterimage) });
             Attack(session);
             Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(50));
             session = Start(new[] { new SkillData("hit", "Hit", 0, BattleElement.Oblivion) }, monsterMemory: 1);
             Attack(session);
-            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(51));
+            Assert.That(session.GetSnapshot().Combatants[0].Memory, Is.EqualTo(60));
             Assert.That(session.GetSnapshot().Combatants[1].Memory, Is.Zero);
         }
 
