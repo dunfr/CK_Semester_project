@@ -37,11 +37,22 @@ half3 FuchsiaFillContribution(Light source, half3 normalWS, half receiveShadows)
     return source.color * source.distanceAttenuation * visibility * facing;
 }
 
+void FuchsiaAccumulateLocal(Light source, half3 normalWS, half receiveShadows,
+    inout half3 fill, inout half3 rim)
+{
+    fill += FuchsiaFillContribution(source, normalWS, receiveShadows);
+    half visibility = lerp(1.0h, source.shadowAttenuation, receiveShadows);
+    rim += source.color * source.distanceAttenuation * visibility
+        * saturate(dot(normalWS, source.direction));
+}
+
 // 보조광은 색 보충만 맡는다. 주광의 명암 경계와 얼굴 방향을 바꾸지 않는다.
 half3 FuchsiaAdditionalFill(float3 positionWS, float2 screenUV, half3 normalWS,
-    half receiveShadows, half strength, half ceiling)
+    half3 viewWS, half receiveShadows, half strength, half ceiling,
+    half rimPower, out half3 rim)
 {
     half3 fill = 0;
+    rim = 0;
     #if defined(_ADDITIONAL_LIGHTS) || defined(_ADDITIONAL_LIGHTS_VERTEX) || USE_CLUSTER_LIGHT_LOOP
         InputData inputData = (InputData)0;
         inputData.positionWS = positionWS;
@@ -51,17 +62,21 @@ half3 FuchsiaAdditionalFill(float3 positionWS, float2 screenUV, half3 normalWS,
             {
                 CLUSTER_LIGHT_LOOP_SUBTRACTIVE_LIGHT_CHECK
                 Light additional = GetAdditionalLight(lightIndex, positionWS, half4(1, 1, 1, 1));
-                fill += FuchsiaFillContribution(additional, normalWS, receiveShadows);
+                FuchsiaAccumulateLocal(additional, normalWS, receiveShadows, fill, rim);
             }
         #endif
         uint count = GetAdditionalLightsCount();
         LIGHT_LOOP_BEGIN(count)
             Light additional = GetAdditionalLight(lightIndex, positionWS, half4(1, 1, 1, 1));
-            fill += FuchsiaFillContribution(additional, normalWS, receiveShadows);
+            FuchsiaAccumulateLocal(additional, normalWS, receiveShadows, fill, rim);
         LIGHT_LOOP_END
     #endif
     fill *= strength;
     half luminance = dot(fill, half3(.2126h, .7152h, .0722h));
+    half edge = pow(saturate(1.0h - saturate(dot(normalWS, viewWS))), max(rimPower, 1.0h));
+    rim *= edge * strength;
+    half rimLuminance = dot(rim, half3(.2126h, .7152h, .0722h));
+    rim *= ceiling / max(ceiling + rimLuminance, .0001h);
     // RGB를 같은 비율로 연속 압축해 광원 수가 늘어도 색조와 밝기 상한을 유지한다.
     return fill * (ceiling / max(ceiling + luminance, .0001h));
 }

@@ -9,9 +9,7 @@ Shader "Semester/Fuchsia/Hair Toon"
         _BaseColor("Tint", Color) = (1,1,1,1)
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull mode", Float) = 2
         _ShadeColor("Single shadow tint", Color) = (.65,.69,.78,1)
-        [HideInInspector] _DeepShadeColor("Deep shade tint", Color) = (.38,.43,.55,1)
         _ShadeStep("Light / shade boundary", Range(0,1)) = .57
-        [HideInInspector] _DeepShadeStep("Deep shade boundary", Range(0,1)) = .29
         _ShadeFeather("Boundary softness", Range(.001,.2)) = .025
         _AmbientStrength("Environment and probe fill", Range(0,2)) = 1
         _DirectLightStrength("Key light response", Range(0,2)) = 1
@@ -39,9 +37,8 @@ Shader "Semester/Fuchsia/Hair Toon"
         [HDR] _RimColor("Rim color", Color) = (.75,.85,1,1)
         _RimStrength("Rim strength", Range(0,1)) = .03
         _RimPower("Rim power", Range(1,12)) = 4
-        [Toggle(_EMISSION)] _UseEmission("Enable emission", Float) = 0
-        _EmissionMap("Emission mask", 2D) = "black" {}
-        [HDR] _EmissionColor("Emission", Color) = (0,0,0,1)
+        _OutlineWidth("Outline width (pixels)", Range(0,2)) = .7
+        _OutlineColor("Outline color", Color) = (.12,.09,.16,1)
     }
     SubShader
     {
@@ -55,11 +52,19 @@ Shader "Semester/Fuchsia/Hair Toon"
         {
             Name "Forward"
             Tags { "LightMode"="UniversalForwardOnly" }
+            // URP StencilUsage reserves bits 0-3 for users; bit 0 marks visible character pixels.
+            Stencil
+            {
+                Ref 1
+                ReadMask 1
+                WriteMask 1
+                Comp Always
+                Pass Replace
+            }
             HLSLPROGRAM
             #pragma target 3.5
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma shader_feature_local_fragment _EMISSION
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
@@ -71,6 +76,28 @@ Shader "Semester/Fuchsia/Hair Toon"
             {
                 return FuchsiaFrag(i);
             }
+            ENDHLSL
+        }
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode"="FuchsiaOutline" }
+            Cull Front
+            ZWrite Off
+            ZTest LEqual
+            Stencil
+            {
+                Ref 1
+                ReadMask 1
+                WriteMask 0
+                Comp NotEqual
+                Pass Keep
+            }
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex FuchsiaOutlineVert
+            #pragma fragment FuchsiaOutlineFrag
+            #include "FuchsiaOutline.hlsl"
             ENDHLSL
         }
         Pass

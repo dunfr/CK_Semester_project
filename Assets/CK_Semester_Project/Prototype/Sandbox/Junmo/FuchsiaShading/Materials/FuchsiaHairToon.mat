@@ -28,51 +28,45 @@ Material:
         m_Texture: {fileID: 2800000, guid: 2ec0cdb5be8e50942afa94e0d49032c9, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
-    - _EmissionMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _HairHighlightMap:
         m_Texture: {fileID: 2800000, guid: 88ec3659910d9c644a6e3a407ba53673, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AdditionalLightCeiling: 0.55
+    - _AdditionalLightCeiling: 0.32
     - _AdditionalLightStrength: 0.65
-    - _AdditionalShadowFill: 0.8
-    - _AmbientStrength: 0.95
+    - _AdditionalShadowFill: 1
+    - _AmbientStrength: 0.55
     - _Cull: 0
-    - _DeepShadeStep: 0.25
-    - _DirectLightCeiling: 0.55
+    - _DirectLightCeiling: 0.68
     - _DirectLightStrength: 1.6
     - _EnvironmentShadowStrength: 1
-    - _HairAmbientFill: 0.18
-    - _HairBandFeather: 0.012
+    - _HairAmbientFill: 0.06
+    - _HairBandFeather: 0.008
     - _HairBandHeight: 0.62
-    - _HairBandWidth: 0.033
+    - _HairBandWidth: 0.025
     - _HairHighlightMaskStrength: 1
     - _HairStyleStrength: 1
     - _HighlightFeather: 0.002
     - _HighlightSize: 0.008
-    - _HighlightStrength: 0.65
+    - _HighlightStrength: 0.16
+    - _OutlineWidth: 0.6
     - _ReceiveShadowStrength: 0.5
-    - _RimPower: 5
-    - _RimStrength: 0.035
-    - _ShadeFeather: 0.014
-    - _ShadeStep: 0.38
-    - _ShadingStrength: 1
-    - _StyleNormalStrength: 0.65
-    - _UseEmission: 0
+    - _RimPower: 6
+    - _RimStrength: 0.05
+    - _ShadeFeather: 0.016
+    - _ShadeStep: 0.32
+    - _ShadingStrength: 0.85
+    - _StyleNormalStrength: 0.8
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _CharacterKeyColor: {r: 1, g: 1, b: 1, a: 0}
     - _CharacterKeyDirection: {r: 0, g: 1, b: 0, a: 0}
-    - _DeepShadeColor: {r: 0.58, g: 0.56, b: 0.71, a: 1}
-    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _HighlightColor: {r: 0.92, g: 0.9, b: 1, a: 1}
-    - _RimColor: {r: 0.75, g: 0.85, b: 1, a: 1}
-    - _ShadeColor: {r: 0.69, g: 0.73, b: 0.85, a: 1}
+    - _OutlineColor: {r: 0.19, g: 0.12, b: 0.18, a: 1}
+    - _RimColor: {r: 1, g: 1, b: 1, a: 1}
+    - _ShadeColor: {r: 0.78, g: 0.74, b: 0.8, a: 1}
     - _StyleForwardOS: {r: 0, g: -1.0000001, b: -0.00000011920929, a: 0}
     - _StyleRightOS: {r: 1, g: 0, b: 0, a: 0}
     - _StyleUpOS: {r: 0, g: -0.00000011920929, b: 1.0000001, a: 0}

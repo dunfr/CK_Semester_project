@@ -4,7 +4,6 @@
 #include "FuchsiaLighting.hlsl"
 
 TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
-TEXTURE2D(_EmissionMap); SAMPLER(sampler_EmissionMap);
 TEXTURE2D(_FaceShadowMap); SAMPLER(sampler_FaceShadowMap);
 TEXTURE2D(_HairHighlightMap); SAMPLER(sampler_HairHighlightMap);
 TEXTURE2D_X_FLOAT(_FuchsiaHairDepthTexture); SAMPLER(sampler_FuchsiaHairDepthTexture);
@@ -12,11 +11,11 @@ float4 _FuchsiaHairDepthParams;
 // 모든 패스의 상수 배치를 맞춰 SRP Batcher 호환성을 유지한다.
 CBUFFER_START(UnityPerMaterial)
     float4 _BaseMap_ST;
-    half4 _BaseColor, _ShadeColor, _DeepShadeColor, _EmissionColor;
+    half4 _BaseColor, _ShadeColor;
     half4 _HighlightColor, _RimColor;
     half4 _CharacterKeyDirection, _CharacterKeyColor;
     half _EnvironmentShadowStrength;
-    half _ShadeStep, _DeepShadeStep, _ShadeFeather, _AmbientStrength, _UseEmission, _Cull;
+    half _ShadeStep, _ShadeFeather, _AmbientStrength, _Cull;
     half _ReceiveShadowStrength, _ShadingStrength, _DirectLightStrength, _DirectLightCeiling;
     half _AdditionalLightStrength, _AdditionalLightCeiling, _AdditionalShadowFill;
     half _HighlightStrength, _HighlightSize, _HighlightFeather;
@@ -26,6 +25,8 @@ CBUFFER_START(UnityPerMaterial)
     half _FaceShadowOffset, _HairShadowStrength, _HairShadowDistance, _HairShadowBias;
     half _HairStyleStrength, _HairBandHeight, _HairBandWidth, _HairBandFeather, _HairAmbientFill;
     half _HairHighlightMaskStrength;
+    half4 _OutlineColor;
+    half _OutlineWidth;
 CBUFFER_END
 
 struct Attributes
@@ -43,7 +44,6 @@ struct Varyings
     float3 positionWS : TEXCOORD0;
     half3 normalWS : TEXCOORD1;
     float2 uv : TEXCOORD2;
-    half3 tangentWS : TEXCOORD3;
     half3 styleNormalWS : TEXCOORD4;
     half4 styleData : TEXCOORD5;
 };
@@ -53,7 +53,6 @@ Varyings Vert(Attributes v)
     o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
     o.positionCS = TransformWorldToHClip(o.positionWS);
     o.normalWS = TransformObjectToWorldNormal(v.normalOS);
-    o.tangentWS = TransformObjectToWorldDir(v.tangentOS.xyz);
     o.styleNormalWS = TransformObjectToWorldNormal(v.styleNormalOS, false);
     o.styleData = v.styleData;
     o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
@@ -75,8 +74,10 @@ half4 FuchsiaFrag(Varyings i)
     half environmentVisibility = FuchsiaEnvironmentVisibility(light.shadowAttenuation,
         _CharacterKeyDirection.w, _ReceiveShadowStrength, _EnvironmentShadowStrength);
     FuchsiaApplyCharacterKey(light, _CharacterKeyDirection, _CharacterKeyColor.rgb);
+    half3 localRim;
     half3 fill = FuchsiaAdditionalFill(i.positionWS, GetNormalizedScreenSpaceUV(i.positionCS),
-        n, _ReceiveShadowStrength, _AdditionalLightStrength, _AdditionalLightCeiling);
+        n, view, _ReceiveShadowStrength, _AdditionalLightStrength, _AdditionalLightCeiling,
+        _RimPower, localRim);
     half shadow = lerp(1.0h, light.shadowAttenuation, _ReceiveShadowStrength);
     // 그림자 한 단계의 방향은 주광으로만 결정한다. 보조광의 수와 위치는 경계를 바꾸지 않는다.
     half illumination = saturate(dot(n, light.direction)) * shadow;
@@ -102,8 +103,11 @@ half4 FuchsiaFrag(Varyings i)
             half faceThreshold = saturate(acos(clamp(dot(horizontalLight, faceForward), -.9999h, .9999h))
                 / PI + _FaceShadowOffset);
             half faceField = SAMPLE_TEXTURE2D(_FaceShadowMap, sampler_FaceShadowMap, faceUV).r;
-            half faceLit = smoothstep(faceThreshold - _FaceShadowFeather,
-                faceThreshold + _FaceShadowFeather, faceField);
+            // 코·입 주변의 작은 메시 면 대신 마스크로 얼굴 경계를 만들되,
+            // 화면에서 작아질 때만 미분값으로 최소 안티앨리어싱 폭을 보장한다.
+            half faceFeather = max(_FaceShadowFeather, fwidth(faceField) * .75h);
+            half faceLit = smoothstep(faceThreshold - faceFeather,
+                faceThreshold + faceFeather, faceField);
             // 별도 머리 깊이 패스에서, 주광 쪽으로 조금 이동한 지점의 가림을 검사한다.
             // 양의 시선 깊이를 저장해 플랫폼별 reversed-Z 규칙에 의존하지 않는다.
             if (_HairShadowStrength > .001h && _FuchsiaHairDepthParams.w > .5)
@@ -141,30 +145,20 @@ half4 FuchsiaFrag(Varyings i)
     // 밝은 실내의 광원 수가 늘어도 캐릭터의 텍스처와 색을 보존한다.
     // RGB를 같은 배율로 제한하여 주변 조명의 색조는 유지한다.
     half3 directResponse = light.color * light.distanceAttenuation * _DirectLightStrength * environmentVisibility;
-    half responseLuminance = dot(directResponse, half3(.2126h,.7152h,.0722h));
-    directResponse *= min(1.0h, _DirectLightCeiling / max(responseLuminance, .0001h));
-    // 실제 실내광도 한 단계 명암 안에서 작동한다. 주광과 보조광을 합친 뒤
-    // 같은 RGB 배율로 제한하여 광원 반응을 키워도 흰색으로 날아가지 않게 한다.
-    half3 surfaceLighting = directResponse + fill * lerp(_AdditionalShadowFill, 1.0h, lit);
+    // 합산 밝기는 한 번만 제한하되 실제 실내광은 주광 반대편에서도 살아 있게 한다.
+    half3 fillResponse = fill * lerp(_AdditionalShadowFill, 1.0h, lit);
+    half3 surfaceLighting = directResponse + fillResponse;
     half surfaceLuminance = dot(surfaceLighting, half3(.2126h, .7152h, .0722h));
-    surfaceLighting *= min(1.0h, _DirectLightCeiling / max(surfaceLuminance, .0001h));
-    half3 color = baseColor * (ambient + surfaceLighting) * tint;
+    half lightingScale = min(1.0h, _DirectLightCeiling / max(surfaceLuminance, .0001h));
+    // 간접광은 주광의 그림자에 묻히지 않게 남기고 직접광만 선명한 한 단계로 나눈다.
+    half3 ambientTint = lerp(lerp(half3(1, 1, 1), shadeTint, .35h), half3(1, 1, 1), lit);
+    half3 localTint = lerp(half3(1, 1, 1), tint, .35h);
+    half3 color = baseColor * (ambient * ambientTint
+        + (directResponse * tint + fillResponse * localTint) * lightingScale);
 
     #if defined(FUCHSIA_HAIR) || defined(FUCHSIA_ACCESSORY)
         half3 halfDirection = SafeNormalize(light.direction + view);
-        half highlight;
-        #if defined(FUCHSIA_HAIR)
-            // UV 접선에서 수직인 결 방향을 이용해 머리카락의 띠 광택을 만든다.
-            half3 tangent = i.tangentWS - n * dot(n, i.tangentWS);
-            half3 axis = abs(n.y) < 0.95h ? half3(0, 1, 0) : half3(1, 0, 0);
-            if (dot(tangent, tangent) < 0.0001h) { tangent = cross(axis, n); }
-            half3 strand = normalize(cross(n, normalize(tangent)));
-            half alongStrand = dot(strand, halfDirection);
-            highlight = sqrt(saturate(1.0h - alongStrand * alongStrand));
-        #else
-            highlight = saturate(dot(n, halfDirection));
-        #endif
-        half band = smoothstep(1.0h - _HighlightSize - _HighlightFeather, 1.0h - _HighlightSize + _HighlightFeather, highlight);
+        half band;
         #if defined(FUCHSIA_HAIR)
             if (hairStyleStrength > .001h)
             {
@@ -189,19 +183,19 @@ half4 FuchsiaFrag(Varyings i)
             else
         #endif
         {
+            // 원본 메시와 금속 소품은 단일 광택만 사용한다.
+            half highlight = saturate(dot(n, halfDirection));
+            band = smoothstep(1.0h - _HighlightSize - _HighlightFeather,
+                1.0h - _HighlightSize + _HighlightFeather, highlight);
             // 반대편 광택과 그림자 안의 광택을 억제한다.
             band *= saturate(dot(n, light.direction)) * shadow;
             color += _HighlightColor.rgb * light.color * min(light.distanceAttenuation, 1.0)
                 * band * _HighlightStrength * _DirectLightStrength;
         }
     #endif
-    #if defined(FUCHSIA_HAIR) || defined(FUCHSIA_ACCESSORY)
-        half rim = pow(1.0h - saturate(dot(n, view)), _RimPower);
-        color += _RimColor.rgb * light.color * min(light.distanceAttenuation, 1.0) * rim * _RimStrength * _DirectLightStrength * saturate(dot(n, light.direction)) * shadow;
-    #endif
-    #if defined(_EMISSION)
-        color += SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
-    #endif
+    half rim = pow(saturate(1.0h - saturate(dot(n, view))), max(_RimPower, 1.0h));
+    half3 keyRim = directResponse * rim * saturate(dot(n, light.direction)) * shadow;
+    color += _RimColor.rgb * (keyRim + localRim) * _RimStrength;
     return half4(color, 1);
 }
 #endif

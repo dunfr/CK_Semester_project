@@ -9,12 +9,10 @@ Shader "Semester/Fuchsia/Face Toon"
         _BaseColor("Tint", Color) = (1,1,1,1)
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull mode", Float) = 2
         _ShadeColor("Single shadow tint", Color) = (.65,.69,.78,1)
-        [HideInInspector] _DeepShadeColor("Deep shade tint", Color) = (.38,.43,.55,1)
         _ShadeStep("Light / shade boundary", Range(0,1)) = .57
-        [HideInInspector] _DeepShadeStep("Deep shade boundary", Range(0,1)) = .29
         _ShadeFeather("Boundary softness", Range(.001,.2)) = .025
         _AmbientStrength("Environment and probe fill", Range(0,2)) = 1
-        _DirectLightStrength("Key light response", Range(0,2)) = 1
+        _DirectLightStrength("Key light response", Range(0,4)) = 1
         _DirectLightCeiling("Key + local light brightness ceiling", Range(.25,4)) = 2
         _AdditionalLightStrength("Additional light color fill", Range(0,1)) = .12
         _AdditionalLightCeiling("Additional fill brightness ceiling", Range(0,1)) = .20
@@ -23,6 +21,7 @@ Shader "Semester/Fuchsia/Face Toon"
         _ShadingStrength("Toon shading strength", Range(0,1)) = 1
         _FaceShadowMap("Face shadow threshold map", 2D) = "white" {}
         _FaceStyleStrength("Face specific shadow shape", Range(0,1)) = 0
+        _StyleNormalStrength("Smooth face lighting normal", Range(0,1)) = 0
         _FaceShadowFeather("Face shadow edge softness", Range(.005,.15)) = .04
         _FaceShadowOffset("Face shadow coverage offset", Range(-.25,.25)) = .08
         _HairShadowStrength("Front hair shadow strength", Range(0,1)) = 0
@@ -36,12 +35,11 @@ Shader "Semester/Fuchsia/Face Toon"
         [HideInInspector] _HighlightStrength("Highlight strength", Range(0,1)) = .15
         [HideInInspector] _HighlightSize("Highlight band size", Range(.001,.3)) = .04
         [HideInInspector] _HighlightFeather("Highlight softness", Range(.001,.1)) = .015
-        [HideInInspector] [HDR] _RimColor("Rim color", Color) = (.75,.85,1,1)
-        [HideInInspector] _RimStrength("Rim strength", Range(0,1)) = .03
-        [HideInInspector] _RimPower("Rim power", Range(1,12)) = 4
-        [Toggle(_EMISSION)] _UseEmission("Enable emission", Float) = 0
-        _EmissionMap("Emission mask", 2D) = "black" {}
-        [HDR] _EmissionColor("Emission", Color) = (0,0,0,1)
+        [HDR] _RimColor("Rim color", Color) = (.75,.85,1,1)
+        _RimStrength("Rim strength", Range(0,1)) = .03
+        _RimPower("Rim power", Range(1,12)) = 4
+        _OutlineWidth("Outline width (pixels)", Range(0,2)) = .7
+        _OutlineColor("Outline color", Color) = (.12,.09,.16,1)
     }
     SubShader
     {
@@ -55,11 +53,19 @@ Shader "Semester/Fuchsia/Face Toon"
         {
             Name "Forward"
             Tags { "LightMode"="UniversalForwardOnly" }
+            // Match every opaque character part so open hair pieces cannot outline the face interior.
+            Stencil
+            {
+                Ref 1
+                ReadMask 1
+                WriteMask 1
+                Comp Always
+                Pass Replace
+            }
             HLSLPROGRAM
             #pragma target 3.5
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma shader_feature_local_fragment _EMISSION
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
@@ -71,6 +77,28 @@ Shader "Semester/Fuchsia/Face Toon"
             {
                 return FuchsiaFrag(i);
             }
+            ENDHLSL
+        }
+        Pass
+        {
+            Name "Outline"
+            Tags { "LightMode"="FuchsiaOutline" }
+            Cull Front
+            ZWrite Off
+            ZTest LEqual
+            Stencil
+            {
+                Ref 1
+                ReadMask 1
+                WriteMask 0
+                Comp NotEqual
+                Pass Keep
+            }
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex FuchsiaOutlineVert
+            #pragma fragment FuchsiaOutlineFrag
+            #include "FuchsiaOutline.hlsl"
             ENDHLSL
         }
         Pass
