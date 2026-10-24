@@ -772,8 +772,40 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2492308724071087409}
+  - {fileID: 1772441017762028046}
   m_Father: {fileID: 2208186196754293039}
   m_LocalEulerAnglesHint: {x: 90, y: -90, z: 0}
+--- !u!1 &2090985356730351877
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1772441017762028046}
+  m_Layer: 0
+  m_Name: BladeSocket
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1772441017762028046
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090985356730351877}
+  serializedVersion: 2
+  m_LocalRotation: {x: 1, y: 0.000000025465859, z: 7.2732476e-10, w: 0.00001064036}
+  m_LocalPosition: {x: -0.75276965, y: 0.05214173, z: 0.00012096993}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6792663352807558442}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2190540648561416390
 GameObject:
   m_ObjectHideFlags: 0
@@ -3944,6 +3976,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2562260652433674071}
   - component: {fileID: 3812201731063162255}
+  - component: {fileID: 7097692554540280018}
   m_Layer: 0
   m_Name: FuchsiaUpdatedAnimated
   m_TagString: Untagged
@@ -3990,6 +4023,19 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &7097692554540280018
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8882425705783539570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25a347226f70c4545aa3ff49b246599d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponEffectSocket
+  _bladeSocket: {fileID: 1772441017762028046}
 --- !u!1 &9087757266191473389
 GameObject:
   m_ObjectHideFlags: 0

@@ -24625,6 +24625,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5781303953134422960}
   - component: {fileID: 9193190258398234911}
+  - component: {fileID: 4915769333226297109}
   m_Layer: 0
   m_Name: FuchsiaSkill01SakuraSlash
   m_TagString: Untagged
@@ -24675,6 +24676,23 @@ MonoBehaviour:
   _rightRotation: {x: 315.1155, y: 0.0000060249563, z: 328.70914}
   _slashScale: 6
   _surfacePadding: 0.6
+--- !u!114 &4915769333226297109
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5471995936799284913}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 230e444d4000b30438ecf5dd967e08b4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SocketSlashEffect
+  _impactRoots:
+  - {fileID: 8088330788933978774}
+  - {fileID: 6980073407677519703}
+  _swingLeadFraction: 0.12
+  _swingTailFraction: 0.12
 --- !u!1 &5478688744117487351
 GameObject:
   m_ObjectHideFlags: 0
@@ -44368,7 +44386,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &6980073407677519703
 Transform:
   m_ObjectHideFlags: 0
@@ -44713,9 +44731,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6476735003873675632}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.36760774, y: -0.10295215, z: -0.2492589, w: 0.8900199}
-  m_LocalPosition: {x: 0, y: 1.1, z: 0}
-  m_LocalScale: {x: 6, y: 6, z: 6}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1.8, y: 1.8, z: 1.8}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 5781303953134422960}
@@ -44950,7 +44968,7 @@ Transform:
   m_GameObject: {fileID: 6510983669332213915}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.2, z: -0.25}
+  m_LocalPosition: {x: 0, y: 0.1, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -55053,15 +55071,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8424010191028243307, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
       propertyPath: m_LocalScale.x
-      value: 6
+      value: 1.8
       objectReference: {fileID: 0}
     - target: {fileID: 8424010191028243307, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
       propertyPath: m_LocalScale.y
-      value: 6
+      value: 1.8
       objectReference: {fileID: 0}
     - target: {fileID: 8424010191028243307, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
       propertyPath: m_LocalScale.z
-      value: 6
+      value: 1.8
       objectReference: {fileID: 0}
     - target: {fileID: 8424010191028243307, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
       propertyPath: m_LocalPosition.x
@@ -55069,7 +55087,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8424010191028243307, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8424010191028243307, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
       propertyPath: m_LocalPosition.z

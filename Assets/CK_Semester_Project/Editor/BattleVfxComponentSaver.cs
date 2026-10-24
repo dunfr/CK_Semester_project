@@ -46,7 +46,12 @@ namespace CK.SemesterProject.EditorTools
             {
                 throw new ArgumentException("Project 에셋이 아닌 씬에 놓은 이펙트에서 저장하세요.");
             }
-            Transform dummy = root.scene.GetRootGameObjects()
+            if (root.GetComponentInChildren<WeaponEffectSocket>(true) != null)
+            {
+                throw new ArgumentException("캐릭터나 칼날 소켓이 아닌, 그 아래 배치한 이펙트 프리팹에 저장 컴포넌트를 추가하세요.");
+            }
+            Transform socket = BattleVfxScenePlacementSaver.FindBladeSocketParent(root.transform);
+            Transform dummy = socket != null ? socket : root.scene.GetRootGameObjects()
                 .SelectMany(item => item.GetComponentsInChildren<Transform>(true))
                 .FirstOrDefault(item => item.name == DummyName);
             if (dummy == null)
@@ -63,6 +68,21 @@ namespace CK.SemesterProject.EditorTools
             if (component == null)
             {
                 return null;
+            }
+            Transform socket = BattleVfxScenePlacementSaver.FindBladeSocketParent(component.transform);
+            if (socket != null)
+            {
+                GameObject nestedRoot = PrefabUtility.GetNearestPrefabInstanceRoot(component.gameObject);
+                if (nestedRoot != null && nestedRoot.transform.IsChildOf(socket))
+                {
+                    return nestedRoot;
+                }
+                Transform effectRoot = component.transform;
+                while (effectRoot.parent != null && effectRoot.parent != socket)
+                {
+                    effectRoot = effectRoot.parent;
+                }
+                return effectRoot.gameObject;
             }
             GameObject root = PrefabUtility.IsAnyPrefabInstanceRoot(component.gameObject) ? component.gameObject
                 : PrefabUtility.GetNearestPrefabInstanceRoot(component.gameObject);

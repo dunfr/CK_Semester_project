@@ -25,6 +25,14 @@ public class SakuraImpactStreakPlayer : MonoBehaviour
     private bool playing;
 
     public float Duration => Mathf.Max(0.01f, duration);
+    public Vector3 AuthoredLocalScale
+    {
+        get
+        {
+            Initialize();
+            return baseScale;
+        }
+    }
 
     private void Awake()
     {
@@ -62,6 +70,12 @@ public class SakuraImpactStreakPlayer : MonoBehaviour
         Initialize();
         InitializeEmptyCurves();
         ApplyEffect(Mathf.Clamp01(normalizedTime));
+    }
+
+    public void ResetToAuthoredScale()
+    {
+        Initialize();
+        transform.localScale = baseScale;
     }
 
     private void Update()

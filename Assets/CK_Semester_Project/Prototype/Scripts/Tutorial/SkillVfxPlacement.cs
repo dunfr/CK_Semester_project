@@ -5,8 +5,9 @@ namespace CK.SemesterProject.Tutorial
 {
     public enum SkillVfxAnchor
     {
-        Actor,
-        Target
+        Actor = 0,
+        Target = 1,
+        BladeSocket = 2
     }
 
     [Serializable]
@@ -32,18 +33,37 @@ namespace CK.SemesterProject.Tutorial
 
         public Transform GetAnchor(Transform actor, Transform target)
         {
+            if (Anchor == SkillVfxAnchor.BladeSocket)
+            {
+                Transform socket = WeaponEffectSocket.Find(actor);
+                if (socket == null)
+                {
+                    throw new InvalidOperationException("칼날 소켓(BladeSocket)을 찾을 수 없습니다.");
+                }
+                return socket;
+            }
             return Anchor == SkillVfxAnchor.Actor ? actor : target;
         }
 
         public void Apply(GameObject instance, Transform actor, Transform target)
         {
             Transform anchor = GetAnchor(actor, target);
-            instance.transform.SetPositionAndRotation(anchor.position + anchor.rotation * Position,
-                anchor.rotation * Quaternion.Euler(Rotation));
-            instance.transform.localScale *= Scale > 0f ? Scale : 1f;
-            if (Follow)
+            if (Anchor == SkillVfxAnchor.BladeSocket)
             {
-                instance.transform.SetParent(anchor, true);
+                instance.transform.SetParent(anchor, false);
+                instance.transform.localPosition = Position;
+                instance.transform.localRotation = Quaternion.Euler(Rotation);
+                instance.transform.localScale *= Scale > 0f ? Scale : 1f;
+            }
+            else
+            {
+                instance.transform.SetPositionAndRotation(anchor.position + anchor.rotation * Position,
+                    anchor.rotation * Quaternion.Euler(Rotation));
+                instance.transform.localScale *= Scale > 0f ? Scale : 1f;
+                if (Follow)
+                {
+                    instance.transform.SetParent(anchor, true);
+                }
             }
             // 수동 배치는 프리팹에 저장된 자식 배치를 사용한다. 자동 배치가 값을 덮어쓰지 않게 한다.
             foreach (TutorialSlashVfxPlacement placement in instance.GetComponentsInChildren<TutorialSlashVfxPlacement>(true))

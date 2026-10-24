@@ -110,8 +110,12 @@ namespace CK.SemesterProject.EditorTools
         {
             Transform source = sceneEffect.transform;
             GetPlayback(sceneEffect, out BattleVfxEffectPlacement playback, out float basePlaybackSpeed);
-            playback.Position = Quaternion.Inverse(target.rotation) * (source.position - target.position);
-            playback.Rotation = (Quaternion.Inverse(target.rotation) * source.rotation).eulerAngles;
+            Transform socket = FindBladeSocketParent(source);
+            playback.AttachmentAnchor = socket != null ? BattleVfxEffectAnchor.BladeSocket : BattleVfxEffectAnchor.Target;
+            Transform anchor = socket != null ? socket : target;
+            playback.Position = socket != null ? socket.InverseTransformPoint(source.position)
+                : Quaternion.Inverse(anchor.rotation) * (source.position - anchor.position);
+            playback.Rotation = (Quaternion.Inverse(anchor.rotation) * source.rotation).eulerAngles;
             playback.Scale = 1f;
             Vector3 worldScale = source.lossyScale;
             string sourceGuid = GetSourceGuid(sceneEffect);
@@ -193,6 +197,24 @@ namespace CK.SemesterProject.EditorTools
             }
             while (!string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path)));
             return path;
+        }
+
+        public static Transform FindBladeSocketParent(Transform effect)
+        {
+            for (Transform parent = effect != null ? effect.parent : null; parent != null; parent = parent.parent)
+            {
+                if (parent.name == "BladeSocket")
+                {
+                    return parent;
+                }
+                WeaponEffectSocket binding = parent.GetComponent<WeaponEffectSocket>();
+                if (binding != null && binding.BladeSocket != null && effect != binding.BladeSocket
+                    && effect.IsChildOf(binding.BladeSocket))
+                {
+                    return binding.BladeSocket;
+                }
+            }
+            return null;
         }
 
         private static string GetUniqueDisplayName(string displayName)

@@ -32,12 +32,18 @@ namespace CK.SemesterProject.Tutorial
         private AnimationClip _animation;
         private GameObject _effectPrefab;
         private GameObject _effectInstance;
+        private SocketSlashEffect _socketEffect;
         private GameObject _chargeInstance;
         private float _chargeFraction;
         private float _impactTime = .35f;
         private float _returnTime = .55f;
         private float _effectTailSeconds = EffectTailSeconds;
         private bool _hasSpawnedEffect;
+        private bool _isSocketSlash;
+        private bool _hasTriggeredSocketImpact;
+        private bool _hasFinishedSocketSwing;
+        private float _slashStartTime;
+        private float _slashEndTime;
         private PlayableGraph _animationGraph;
         private AnimationClipPlayable _animationPlayable;
         private Transform[] _animatedTransforms;
@@ -55,6 +61,10 @@ namespace CK.SemesterProject.Tutorial
             _enhancement = enhancement;
             _skillStage = skillStage;
             _animator = actor.GetComponent<Animator>();
+            if (_animator == null)
+            {
+                _animator = actor.GetComponentsInChildren<Animator>(true).FirstOrDefault(item => item.isActiveAndEnabled);
+            }
             _actorId = actorId;
             _actorRotation = actor.rotation;
             _targetId = targetId;
@@ -106,16 +116,28 @@ namespace CK.SemesterProject.Tutorial
             progress = Mathf.Clamp01(progress);
             if (_actionId != result.ActionId)
             {
+                if (_actionId != 0)
+                {
+                    Restore(false);
+                    _hasApplied = true;
+                }
                 _actionId = result.ActionId;
                 _animation = _enhancement != null ? _enhancement.GetAnimation(result.Request.SkillId, _skillStage) : null;
                 _effectPrefab = _enhancement != null ? _enhancement.GetEffect(result.Request.SkillId, _skillStage) : null;
                 _hasSpawnedEffect = false;
+                _hasTriggeredSocketImpact = false;
+                _hasFinishedSocketSwing = false;
+                _isSocketSlash = _effectPrefab != null && (_effectPrefab.GetComponent<SocketSlashEffect>() != null
+                    || _effectPrefab.GetComponent<TutorialSlashVfxPlacement>() != null);
                 BeginAnimation();
                 GameObject chargePrefab = _enhancement != null ? _enhancement.GetChargeEffect(result.Request.SkillId) : null;
                 _chargeFraction = chargePrefab != null
                     ? _enhancement.GetChargeProgressFraction(result.Request.SkillId, _skillStage, presentationSeconds) : 0f;
                 _impactTime = _enhancement != null ? _enhancement.GetImpactFraction(result.Request.SkillId, _skillStage) : .35f;
                 _returnTime = Mathf.Min(.98f, Mathf.Max(.55f, _impactTime + .15f));
+                SocketSlashEffect socketSettings = _effectPrefab != null ? _effectPrefab.GetComponent<SocketSlashEffect>() : null;
+                _slashStartTime = Mathf.Max(0f, _impactTime - (socketSettings != null ? socketSettings.SwingLeadFraction : .12f));
+                _slashEndTime = Mathf.Min(.98f, _impactTime + (socketSettings != null ? socketSettings.SwingTailFraction : .12f));
                 if (chargePrefab != null && progress < _chargeFraction)
                 {
                     _chargeInstance = Object.Instantiate(chargePrefab, _actor);
@@ -157,26 +179,42 @@ namespace CK.SemesterProject.Tutorial
             {
                 _actor.rotation = Quaternion.LookRotation(facing);
             }
-            if (!_hasSpawnedEffect && progress >= _impactTime)
+            float effectStartTime = _isSocketSlash ? _slashStartTime : _impactTime;
+            if (!_hasSpawnedEffect && !isCharging && progress >= effectStartTime)
             {
                 _hasSpawnedEffect = true;
                 if (_effectPrefab != null)
                 {
-                    _effectInstance = Object.Instantiate(_effectPrefab, _target.position, _target.rotation);
                     SkillVfxPlacement manualEffect = _enhancement.GetPlacement(result.Request.SkillId, _skillStage, false);
-                    if (manualEffect.Enabled)
+                    if (_isSocketSlash)
                     {
-                        manualEffect.Apply(_effectInstance, _actor, _target);
+                        SpawnSocketSlash(manualEffect);
                     }
-                    TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
-                    if (placement != null && !manualEffect.Enabled)
+                    else
                     {
-                        placement.Initialize(_actor, _target, Camera.main);
+                        _effectInstance = Object.Instantiate(_effectPrefab, _target.position, _target.rotation);
+                        if (manualEffect.Enabled)
+                        {
+                            manualEffect.Apply(_effectInstance, _actor, _target);
+                        }
                     }
-                    _effectInstance.AddComponent<SkillVfxPlayback>().Initialize(manualEffect);
-                    _effectTailSeconds = Mathf.Max(EffectTailSeconds, Mathf.Max(0f, manualEffect.StartDelay)
-                        + (manualEffect.Lifetime > 0f ? manualEffect.Lifetime : SkillVfxPlayback.EstimateDuration(_effectInstance)));
+                    if (_effectInstance != null)
+                    {
+                        _effectInstance.AddComponent<SkillVfxPlayback>().Initialize(manualEffect);
+                        _effectTailSeconds = Mathf.Max(EffectTailSeconds, Mathf.Max(0f, manualEffect.StartDelay)
+                            + (manualEffect.Lifetime > 0f ? manualEffect.Lifetime : SkillVfxPlayback.EstimateDuration(_effectInstance)));
+                    }
                 }
+            }
+            if (_socketEffect != null && !_hasTriggeredSocketImpact && progress >= _impactTime)
+            {
+                _hasTriggeredSocketImpact = true;
+                _socketEffect.ReleaseImpact(_target, Camera.main);
+            }
+            if (_socketEffect != null && !_hasFinishedSocketSwing && progress >= _slashEndTime)
+            {
+                _hasFinishedSocketSwing = true;
+                _socketEffect.FinishSwing();
             }
             bool tookDamage = false;
             foreach (BattleStateChange change in result.Changes)
@@ -239,16 +277,29 @@ namespace CK.SemesterProject.Tutorial
             }
             if (_effectInstance != null)
             {
-                if (letEffectFinish)
+                if (_socketEffect != null)
+                {
+                    _socketEffect.FinishSwing();
+                    if (letEffectFinish)
+                    {
+                        QueueTail(_socketEffect.TakeImpact());
+                    }
+                    else
+                    {
+                        _socketEffect.ClearImpact();
+                    }
+                    _effectInstance.SetActive(false);
+                    Object.Destroy(_effectInstance);
+                    _socketEffect = null;
+                }
+                else if (letEffectFinish)
                 {
                     TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
                     if (placement != null)
                     {
                         placement.enabled = false;
                     }
-                    _effectTails.RemoveAll(tail => tail == null);
-                    _effectTails.Add(_effectInstance);
-                    Object.Destroy(_effectInstance, _effectTailSeconds);
+                    QueueTail(_effectInstance);
                 }
                 else
                 {
@@ -295,7 +346,45 @@ namespace CK.SemesterProject.Tutorial
             _animation = null;
             _effectPrefab = null;
             _hasSpawnedEffect = false;
+            _isSocketSlash = false;
+            _hasTriggeredSocketImpact = false;
+            _hasFinishedSocketSwing = false;
             _chargeFraction = 0f;
+        }
+
+        private void SpawnSocketSlash(SkillVfxPlacement settings)
+        {
+            Transform socket = WeaponEffectSocket.Find(_actor);
+            if (socket == null)
+            {
+                Debug.LogError("칼날 소켓(BladeSocket)을 찾지 못해 슬래시를 생성하지 않았습니다: " + _actor.name, _actor);
+                return;
+            }
+            _effectInstance = Object.Instantiate(_effectPrefab, socket, false);
+            _socketEffect = _effectInstance.GetComponent<SocketSlashEffect>();
+            if (_socketEffect == null)
+            {
+                _socketEffect = _effectInstance.AddComponent<SocketSlashEffect>();
+            }
+            _socketEffect.Attach(socket);
+            if (settings.Enabled)
+            {
+                // A slash's authored offsets are socket-local even for older Actor/Target placement records.
+                settings.Anchor = SkillVfxAnchor.BladeSocket;
+                settings.Follow = true;
+                settings.Apply(_effectInstance, _actor, _target);
+            }
+        }
+
+        private void QueueTail(GameObject tail)
+        {
+            if (tail == null)
+            {
+                return;
+            }
+            _effectTails.RemoveAll(item => item == null);
+            _effectTails.Add(tail);
+            Object.Destroy(tail, _effectTailSeconds);
         }
 
         private void BeginAnimation()

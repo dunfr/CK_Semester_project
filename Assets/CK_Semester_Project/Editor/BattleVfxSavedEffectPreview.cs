@@ -25,6 +25,8 @@ namespace CK.SemesterProject.EditorTools
         private Renderer[] _renderers;
         private bool[] _rendererEnabled;
         private Transform _dummy;
+        private Transform _anchor;
+        private SocketSlashEffect _socketSlash;
         private Scene _scene;
         private double _lastTime;
         private float _effectSpeed;
@@ -64,6 +66,7 @@ namespace CK.SemesterProject.EditorTools
             {
                 throw new InvalidOperationException("현재 씬에 기본 테스트 더미가 없습니다. BattleVfxTest 씬을 여세요.");
             }
+            Transform anchor = entry.Placement.GetAnchor(dummy);
             _active?.Stop();
             Stop();
             _active = this;
@@ -71,6 +74,7 @@ namespace CK.SemesterProject.EditorTools
             _dummy = dummy;
             _prefab = entry.Prefab;
             _placement = entry.Placement;
+            _anchor = anchor;
             _effectSpeed = _placement.EffectivePlaybackSpeed * Mathf.Max(.01f, entry.BasePlaybackSpeed);
             try
             {
@@ -87,27 +91,40 @@ namespace CK.SemesterProject.EditorTools
                 }
                 _instance.SetActive(true);
                 _placement.Apply(_instance, dummy);
-                _lightPulses = _instance.GetComponentsInChildren<EffectLightPulse>(true)
+                EffectLightPulse[] bladePulses = _instance.GetComponentsInChildren<EffectLightPulse>(true)
                     .Where(item => item.enabled).ToArray();
-                foreach (MonoBehaviour behaviour in _instance.GetComponentsInChildren<MonoBehaviour>(true))
+                DisablePreviewBehaviours(_instance, false);
+                if (_placement.AttachmentAnchor == BattleVfxEffectAnchor.BladeSocket)
                 {
-                    behaviour.enabled = false;
+                    _socketSlash = _instance.GetComponent<SocketSlashEffect>();
+                    if (_socketSlash != null)
+                    {
+                        _socketSlash.Attach(_anchor);
+                        GameObject impact = _socketSlash.ReleaseImpact(dummy, Camera.main);
+                        if (impact != null)
+                        {
+                            foreach (Transform child in impact.GetComponentsInChildren<Transform>(true))
+                            {
+                                child.gameObject.hideFlags = HideFlags.HideInHierarchy | HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
+                            }
+                            _lightPulses = bladePulses.Concat(impact.GetComponentsInChildren<EffectLightPulse>(true)
+                                .Where(item => item.enabled)).ToArray();
+                            DisablePreviewBehaviours(impact);
+                        }
+                    }
                 }
-                foreach (Collider collider in _instance.GetComponentsInChildren<Collider>(true))
+                if (_lightPulses == null)
                 {
-                    collider.enabled = false;
+                    _lightPulses = bladePulses;
                 }
-                foreach (AudioSource audio in _instance.GetComponentsInChildren<AudioSource>(true))
-                {
-                    audio.enabled = false;
-                }
-                _fades = _instance.GetComponentsInChildren<SakuraSlashFade>(true);
-                _streaks = _instance.GetComponentsInChildren<SakuraImpactStreakPlayer>(true);
-                _lights = _instance.GetComponentsInChildren<Light>(true);
+                DisablePreviewBehaviours(_instance);
+                _fades = GetPreviewComponents<SakuraSlashFade>();
+                _streaks = GetPreviewComponents<SakuraImpactStreakPlayer>();
+                _lights = GetPreviewComponents<Light>();
                 _lightEnabled = _lights.Select(item => item.enabled).ToArray();
-                _renderers = _instance.GetComponentsInChildren<Renderer>(true);
+                _renderers = GetPreviewComponents<Renderer>();
                 _rendererEnabled = _renderers.Select(item => item.enabled).ToArray();
-                _particles = _instance.GetComponentsInChildren<ParticleSystem>(true);
+                _particles = GetPreviewComponents<ParticleSystem>();
                 _particleTimes = Enumerable.Repeat(-1f, _particles.Length).ToArray();
                 foreach (ParticleSystem particle in _particles)
                 {
@@ -120,6 +137,11 @@ namespace CK.SemesterProject.EditorTools
                     particle.randomSeed = 12345u;
                 }
                 _effectDuration = SkillVfxPlayback.EstimateDuration(_instance);
+                if (_socketSlash != null && _socketSlash.ImpactInstance != null)
+                {
+                    _effectDuration = Mathf.Max(_effectDuration,
+                        SkillVfxPlayback.EstimateDuration(_socketSlash.ImpactInstance));
+                }
                 foreach (SakuraSlashFade fade in _fades)
                 {
                     _effectDuration = Mathf.Max(_effectDuration, fade.Duration / _effectSpeed);
@@ -151,13 +173,12 @@ namespace CK.SemesterProject.EditorTools
 
         public void Sample(float time)
         {
-            if (_instance == null || _dummy == null)
+            if (_instance == null || _dummy == null || _anchor == null)
             {
                 return;
             }
             Time = Mathf.Clamp(time, 0f, Duration);
-            _instance.transform.SetPositionAndRotation(_dummy.position + _dummy.rotation * _placement.Position,
-                _dummy.rotation * Quaternion.Euler(_placement.Rotation));
+            _placement.SamplePose(_instance.transform, _anchor);
             float elapsed = Time - Mathf.Max(0f, _placement.StartDelay);
             bool hidden = elapsed < 0f || elapsed >= _effectDuration;
             for (int i = 0; i < _renderers.Length; i++)
@@ -248,6 +269,10 @@ namespace CK.SemesterProject.EditorTools
         public void Stop()
         {
             IsPlaying = false;
+            if (_socketSlash != null)
+            {
+                _socketSlash.ClearImpact();
+            }
             if (_instance != null)
             {
                 Object.DestroyImmediate(_instance);
@@ -255,6 +280,8 @@ namespace CK.SemesterProject.EditorTools
             _instance = null;
             _prefab = null;
             _dummy = null;
+            _anchor = null;
+            _socketSlash = null;
             _particles = null;
             _particleTimes = null;
             _fades = null;
@@ -287,7 +314,7 @@ namespace CK.SemesterProject.EditorTools
             double now = EditorApplication.timeSinceStartup;
             float delta = (float)(now - _lastTime);
             _lastTime = now;
-            if (_prefab == null || _dummy == null || !_scene.IsValid() || !_scene.isLoaded)
+            if (_prefab == null || _dummy == null || _anchor == null || !_scene.IsValid() || !_scene.isLoaded)
             {
                 if (_instance != null)
                 {
@@ -296,6 +323,35 @@ namespace CK.SemesterProject.EditorTools
                 return;
             }
             Advance(Mathf.Min(delta, .1f));
+        }
+
+        private T[] GetPreviewComponents<T>() where T : Component
+        {
+            T[] components = _instance.GetComponentsInChildren<T>(true);
+            return _socketSlash != null && _socketSlash.ImpactInstance != null
+                ? components.Concat(_socketSlash.ImpactInstance.GetComponentsInChildren<T>(true)).ToArray()
+                : components;
+        }
+
+        private static void DisablePreviewBehaviours(GameObject root, bool includeLightPulses = true)
+        {
+            foreach (MonoBehaviour behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                // Keep the authored enabled state until detached hit lights have been copied.
+                if (!includeLightPulses && behaviour is EffectLightPulse)
+                {
+                    continue;
+                }
+                behaviour.enabled = false;
+            }
+            foreach (Collider collider in root.GetComponentsInChildren<Collider>(true))
+            {
+                collider.enabled = false;
+            }
+            foreach (AudioSource audio in root.GetComponentsInChildren<AudioSource>(true))
+            {
+                audio.enabled = false;
+            }
         }
 
         private void PlayModeChanged(PlayModeStateChange state)
