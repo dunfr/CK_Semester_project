@@ -24,28 +24,10 @@ public class SakuraImpactStreakPlayer : MonoBehaviour
     private float elapsed;
     private bool playing;
 
-    public float Duration => Mathf.Max(0.01f, duration);
-    public Vector3 AuthoredLocalScale
-    {
-        get
-        {
-            Initialize();
-            return baseScale;
-        }
-    }
-
     private void Awake()
     {
-        Initialize();
-    }
-
-    private void Initialize()
-    {
-        if (propertyBlock == null)
-        {
-            baseScale = transform.localScale;
-            propertyBlock = new MaterialPropertyBlock();
-        }
+        baseScale = transform.localScale;
+        propertyBlock = new MaterialPropertyBlock();
 
         if (targetRenderer == null)
             targetRenderer = GetComponent<Renderer>();
@@ -58,24 +40,10 @@ public class SakuraImpactStreakPlayer : MonoBehaviour
 
     public void Play()
     {
-        Initialize();
         InitializeEmptyCurves();
         elapsed = 0f;
         playing = true;
         ApplyEffect(0f);
-    }
-
-    public void Preview(float normalizedTime)
-    {
-        Initialize();
-        InitializeEmptyCurves();
-        ApplyEffect(Mathf.Clamp01(normalizedTime));
-    }
-
-    public void ResetToAuthoredScale()
-    {
-        Initialize();
-        transform.localScale = baseScale;
     }
 
     private void Update()
