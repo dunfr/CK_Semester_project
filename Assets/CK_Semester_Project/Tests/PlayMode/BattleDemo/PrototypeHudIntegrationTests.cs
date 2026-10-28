@@ -18,12 +18,13 @@ namespace CK.SemesterProject.Battle.Tests
         private Component _battle;
         private Component _hud;
         private PlayerRuntimeState _playerState;
+        private TutorialBattleTestArena _arena;
 
         // Tutorial 코드는 기존 Assembly-CSharp에 있어 asmdef 테스트에서는 런타임 타입으로 접근한다.
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            SceneManager.LoadScene("Assets/CK_Semester_Project/Prototype/Scenes/TutorialGrayboxingDemo.unity");
+            SceneManager.LoadScene("Assets/CK_Semester_Project/Prototype/Scenes/TutorialDummyModelingDemo.unity");
             yield return null;
             _battle = GameObject.Find("Tutorial Battle").GetComponent("TutorialBattleController");
             _hud = _battle.GetComponent("PrototypeHudPresenter");
@@ -31,30 +32,31 @@ namespace CK.SemesterProject.Battle.Tests
             _playerState = (PlayerRuntimeState)Type.GetType("CK.SemesterProject.Tutorial.PlayerSessionState, Assembly-CSharp")
                 .GetProperty("Current").GetValue(null);
             _playerState.RestoreFull();
-            // 콘텐츠 시작 연출이 이동을 해제한 뒤 기존 HUD 연결을 검증한다.
-            Component flow = GameObject.Find("Tutorial Level Content").GetComponent("TutorialLevelFlow");
-            foreach (string name in new[] { "_awakeningSeconds", "_guardWalkSeconds", "_guardGestureSeconds", "_pressStopHoldSeconds" })
-            {
-                flow.GetType().GetField(name, PrivateInstance).SetValue(flow, .02f);
-            }
-            yield return new WaitForSeconds(.25f);
+            _arena = new TutorialBattleTestArena(_battle);
+            yield return null;
+            yield return null;
             _hud.GetType().GetField("_bannerStartedAt", PrivateInstance).SetValue(_hud, Time.unscaledTime);
         }
 
         [UnityTearDown]
         public IEnumerator RestoreScene()
         {
-            _battle.GetType().GetMethod("CancelBattle").Invoke(_battle, null);
+            if (_battle != null)
+            {
+                _battle.GetType().GetMethod("CancelBattle").Invoke(_battle, null);
+            }
+            _arena?.Dispose();
+            _arena = null;
             yield return null;
         }
 
         [UnityTest]
-        public IEnumerator FieldVitalsAndFloorStateRemainWithoutUnavailableControls()
+        public IEnumerator FieldVitalsAndMovementRemainWithoutUnavailableControls()
         {
             _playerState.SetVitals(731, 143);
             yield return null;
             Assert.That(Text("Runtime Field Vitals"), Does.Contain("731/1000").And.Contain("143/200"));
-            Component floor = GameObject.Find("Fuchsia Player").GetComponent("FloorTravelButtons");
+            Assert.That(GameObject.Find("Fuchsia Player").GetComponent("FloorTravelButtons"), Is.Null);
             string[] unavailable = { "Travel First Floor", "Travel Second Floor", "03_Menu_C", "04_Menu_J",
                 "05_Menu_ESC", "07_Tab_Button", "08_R_Button", "11_Interact_E",
                 "SkillButton_LockedBoundary", "SkillDetailsPrompt" };
@@ -63,13 +65,14 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(ui, Is.Not.Null);
             Assert.That(ui.Any(item => unavailable.Contains(item.name)), Is.False);
             Component movement = GameObject.Find("Fuchsia Player").GetComponent("PlayerMovement");
-            movement.GetType().GetMethod("Teleport").Invoke(movement, new object[] { new Vector3(-32.5f, 8.7f, -.08f) });
+            Assert.That(((Behaviour)movement).enabled, Is.True);
+            Vector3 destination = movement.transform.position + Vector3.right * 3f;
+            movement.GetType().GetMethod("Teleport").Invoke(movement, new object[] { destination });
             yield return null;
-            Assert.That(floor.GetType().GetProperty("CurrentFloor").GetValue(floor), Is.EqualTo(2));
-            Assert.That(Text("Runtime Location"), Does.StartWith("2층"));
-            movement.GetType().GetMethod("Teleport").Invoke(movement, new object[] { new Vector3(-57.2f, 47.02f, 4.4f) });
-            yield return null;
-            Assert.That(floor.GetType().GetProperty("CurrentFloor").GetValue(floor), Is.EqualTo(1));
+            Assert.That(Vector3.ProjectOnPlane(movement.transform.position - destination, Vector3.up).magnitude,
+                Is.LessThan(.01f));
+            Assert.That(Text("Runtime Location"), Does.Contain("더미 맵"));
+            Assert.That(GameObject.Find("Tutorial Level Content"), Is.Null);
         }
 
         [UnityTest]
@@ -166,7 +169,7 @@ namespace CK.SemesterProject.Battle.Tests
         [UnityTest, Category("BattleSkillMenu")]
         public IEnumerator SelectingSkillThenExecutingUsesCoreCostsAndRestoresField()
         {
-            Assert.That(BeginBattle(), Is.True, "실제 맵에서 단독 전투 배치를 확보해야 합니다.");
+            Assert.That(BeginBattle(), Is.True, "테스트 전투 공간에서 단독 전투 배치를 확보해야 합니다.");
             yield return new WaitForSeconds(1.1f);
             _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
             yield return null;

@@ -60,7 +60,7 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("필드 카메라 제어기")]
         private CinemachineBrain _brain;
         [SerializeField, Tooltip("탐색 중 동작할 박스 몬스터")]
-        private EnemyStateMachine[] _enemies;
+        private EnemyStateMachine[] _enemies = Array.Empty<EnemyStateMachine>();
         [SerializeField, Tooltip("가져온 캐릭터 DT")]
         private CharacterDatabase _characters;
         [SerializeField, Tooltip("사용할 캐릭터 ID")]
@@ -101,7 +101,6 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Min(0.01f), Tooltip("전투 중 우클릭 드래그 회전 감도(도/픽셀)")]
         private float _battleMouseSensitivity = 0.15f;
 
-        [SerializeField] private TutorialFieldInteraction _fieldInteraction;
         [SerializeField, Min(0f), Tooltip("걷기 발소리 반경(m)")]
         private float _walkNoiseRadius = 3f;
         [SerializeField, Min(0f), Tooltip("달리기 발소리 반경(m)")]
@@ -221,9 +220,10 @@ namespace CK.SemesterProject.Tutorial
         private void Awake()
         {
             MigrateCameraSettings();
+            _enemies ??= Array.Empty<EnemyStateMachine>();
             if (_movement == null || _orbit == null || _camera == null || _brain == null || _characters == null
                 || _fieldUI == null || _skillTable == null || _basicSkillEnhancement == null
-                || _enemies == null || _enemies.Length == 0 || _battleUI == null
+                || _battleUI == null
                 || _hpBar == null || _skillButtons == null || _skillButtons.Length != 3
                 || _investmentButton == null || _defendButton == null || _continueButton == null
                 || _status == null || _enemyStatus == null || _notice == null || _investmentLabel == null)
@@ -280,7 +280,9 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             _battleUI.SetActive(false);
-            _notice.text = "WASD 이동 · 가까운 몬스터에 좌클릭 선제 진입 · Space 소리";
+            _notice.text = _enemies.Any(enemy => enemy != null)
+                ? "WASD 이동 · 가까운 몬스터에 좌클릭 선제 진입 · Space 소리"
+                : "WASD 이동 · SHIFT 달리기";
         }
 
         private void Update()
@@ -531,10 +533,6 @@ namespace CK.SemesterProject.Tutorial
 
         private void UpdateExploration()
         {
-            if (_fieldInteraction != null && _fieldInteraction.IsSequenceLocked)
-            {
-                return;
-            }
             Vector3 position = _movement.transform.position;
             if (Time.time >= _nextFootstep && Vector3.Distance(position, _lastPlayerPosition) >= 0.7f)
             {
@@ -558,8 +556,6 @@ namespace CK.SemesterProject.Tutorial
             }
             Mouse mouse = Mouse.current;
             if (mouse != null && mouse.leftButton.wasPressedThisFrame
-                && (_fieldInteraction == null || _fieldInteraction.Current == null)
-                && (_fieldInteraction == null || _fieldInteraction.ConsumedInputFrame != Time.frameCount)
                 && (UnityEngine.EventSystems.EventSystem.current == null
                     || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
             {
@@ -581,8 +577,7 @@ namespace CK.SemesterProject.Tutorial
 
         private EnemyStateMachine FindNearbyFieldEnemy(float range)
         {
-            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown
-                || (_fieldInteraction != null && _fieldInteraction.IsSequenceLocked))
+            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown)
             {
                 return null;
             }

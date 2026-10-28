@@ -20,21 +20,16 @@ namespace CK.SemesterProject.Battle.Tests
         private Behaviour _brain;
         private Camera _camera;
         private GameObject _target;
+        private TutorialBattleTestArena _arena;
 
         // Tutorial 컴포넌트는 Assembly-CSharp에 있어 기존 통합 테스트와 같은 reflection 경로를 쓴다.
         [UnitySetUp]
         public IEnumerator LoadScene()
         {
-            SceneManager.LoadScene("Assets/CK_Semester_Project/Prototype/Scenes/TutorialGrayboxingDemo.unity");
+            SceneManager.LoadScene("Assets/CK_Semester_Project/Prototype/Scenes/TutorialDummyModelingDemo.unity");
             yield return null;
             _battle = GameObject.Find("Tutorial Battle").GetComponent("TutorialBattleController");
             Set("_automaticEncounters", false);
-            Component flow = GameObject.Find("Tutorial Level Content").GetComponent("TutorialLevelFlow");
-            flow.GetType().GetField("_awakeningSeconds", PrivateInstance).SetValue(flow, .02f);
-            flow.GetType().GetField("_pressStopHoldSeconds", PrivateInstance).SetValue(flow, .02f);
-            flow.GetType().GetField("_guardWalkSeconds", PrivateInstance).SetValue(flow, .02f);
-            flow.GetType().GetField("_guardGestureSeconds", PrivateInstance).SetValue(flow, .02f);
-            yield return new WaitForSeconds(.15f);
             _movement = Field<Behaviour>("_movement");
             _orbit = Field<Behaviour>("_orbit");
             _brain = Field<Behaviour>("_brain");
@@ -43,6 +38,9 @@ namespace CK.SemesterProject.Battle.Tests
             var playerState = (PlayerRuntimeState)Type.GetType("CK.SemesterProject.Tutorial.PlayerSessionState, Assembly-CSharp")
                 .GetProperty("Current").GetValue(null);
             playerState.RestoreFull();
+            _arena = new TutorialBattleTestArena(_battle);
+            yield return null;
+            yield return null;
         }
 
         [UnityTearDown]
@@ -56,6 +54,8 @@ namespace CK.SemesterProject.Battle.Tests
             {
                 UnityEngine.Object.Destroy(_target);
             }
+            _arena?.Dispose();
+            _arena = null;
             yield return null;
         }
 
@@ -157,7 +157,7 @@ namespace CK.SemesterProject.Battle.Tests
             CameraState fieldState;
             Vector3 playerHome;
             Assert.That(BeginBattleFromPreview(out fieldState, out playerHome), Is.True,
-                "기존 튜토리얼 맵에서 실제 전투 배치를 확보해야 합니다.");
+                "테스트 전투 공간에서 실제 전투 배치를 확보해야 합니다.");
             object session = Field<object>("_session");
             Assert.That(IsInBattle, Is.True);
             Assert.That(Field<bool>("_debugBattleCamera"), Is.True);
