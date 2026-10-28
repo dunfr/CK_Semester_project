@@ -41,7 +41,68 @@ CBUFFER_START(UnityPerMaterial)
     half4 _CharacterBrightness;
     // 구역/보스 연출용 림 색조. rgb 색, a 세기 배율.
     half4 _CharacterRimTint;
+    // 캐릭터 자기 그림자: CharacterLighting이 칸 번호를 넣는다(-1이면 없음).
+    half _CharacterShadowSlot, _SelfShadowStrength, _SelfShadowBias, _SelfShadowSoftness;
+    // StarRail 림 그림자: 실루엣 가장자리를 살짝 어둡게 해 팔다리 같은 원통이 평평해 보이지 않게 한다.
+    half4 _RimShadowColor;
+    half _RimShadowStrength, _RimShadowWidth, _RimShadowPower, _RimShadowFeather;
 CBUFFER_END
+
+// CharacterSelfShadowFeature가 채우는 캐릭터 자기 그림자 맵(칸 4개 가로 배치, 광원 쪽에서 잰 0~1 깊이).
+TEXTURE2D_FLOAT(_FuchsiaCharShadowMap);
+float4x4 _FuchsiaCharShadowMatrices[4];
+float4 _FuchsiaCharShadowDepthScale[4];
+float4 _FuchsiaCharShadowParams;
+float4x4 _FuchsiaCharShadowRender;
+
+// 캐릭터 자신(치마·재킷·팔 등)에 가려진 정도를 0(가려짐)~1(빛 받음)의 연속값으로 돌려준다.
+// 텍셀마다 가림 여부를 비교한 뒤 반경 2텍셀 텐트 필터로 섞는다. 가중치가 위치에 따라 연속으로 변하므로
+// 결과도 연속이 되어, 뒤의 툰 계단(0.5 경계)이 텍셀 계단 대신 매끈한 곡선을 따라 잘린다.
+half FuchsiaSelfShadow(float3 positionWS, half3 normalWS, half3 lightDirection)
+{
+    int slot = (int)round(_CharacterShadowSlot);
+    if (_FuchsiaCharShadowParams.x < .5 || slot < 0 || slot > 3 || _SelfShadowStrength <= .001h)
+    {
+        return 1;
+    }
+    float4 scale = _FuchsiaCharShadowDepthScale[slot];   // x: 1/깊이 범위, y: 깊이 범위(m), z: 텍셀 크기(m)
+    half ndotl = saturate(dot(normalWS, lightDirection));
+    // 노멀 방향 밀기는 텍셀 크기에 맞춘다. 빛을 비스듬히 받는 면일수록 더 민다.
+    float3 p = positionWS + normalWS * (scale.z * (1.0 + 2.0 * (1.0 - ndotl)));
+    float3 clip = mul(_FuchsiaCharShadowMatrices[slot], float4(p, 1)).xyz;
+    if (any(abs(clip.xy) > 1) || clip.z <= 0 || clip.z >= 1)
+    {
+        return 1;
+    }
+    // 기울기 비례 깊이 바이어스: 필터 폭(약 2텍셀) 안에서 비스듬한 면의 깊이가 변하는 만큼 더해 줄무늬 여드름을 막는다.
+    float tanTheta = min(sqrt(saturate(1.0 - ndotl * ndotl)) / max(ndotl, .05), 8.0);
+    float bias = (_SelfShadowBias + scale.z * 2.0 * tanTheta) * scale.x;
+    float depth = clip.z - bias;
+
+    float resolution = _FuchsiaCharShadowParams.z;
+    float2 texelPosition = (clip.xy * .5 + .5) * resolution - .5;
+    float2 base = floor(texelPosition);
+    float2 f = texelPosition - base;
+    // 1차원 텐트 가중치(반경 2): 오프셋 -1, 0, 1, 2 텍셀까지의 거리 d에 대해 max(0, 2 - |d|).
+    float4 wx = max(0, 2.0 - abs(float4(-1, 0, 1, 2) - f.x));
+    float4 wy = max(0, 2.0 - abs(float4(-1, 0, 1, 2) - f.y));
+    int2 origin = int2(base) + int2(-1, -1);
+    int slotX = slot * (int)resolution;
+    int maxCoord = (int)resolution - 1;
+    float lit = 0;
+    UNITY_UNROLL for (int y = 0; y < 4; y++)
+    {
+        float row = 0;
+        UNITY_UNROLL for (int x = 0; x < 4; x++)
+        {
+            int2 coord = clamp(origin + int2(x, y), 0, maxCoord) + int2(slotX, 0);
+            float stored = LOAD_TEXTURE2D(_FuchsiaCharShadowMap, coord).r;
+            row += wx[x] * (depth <= stored ? 1.0 : 0.0);
+        }
+        lit += wy[y] * row;
+    }
+    return lit / (dot(wx, 1) * dot(wy, 1));
+}
 
 // 휘도를 유지한 채 채도만 조절한다.
 half3 FuchsiaSaturation(half3 color, half amount)
@@ -143,6 +204,17 @@ half4 FuchsiaFrag(Varyings i)
     half lit = smoothstep(_ShadeStep - feather, _ShadeStep + feather, illumination);
     // 그늘 쪽으로 넓게 퍼지는 보조 계단. 램프 텍스처의 경계 색 띠를 대신한다.
     half litSoft = smoothstep(_ShadeStep - feather - _ShadeEdgeWidth, _ShadeStep + feather, illumination);
+    // 캐릭터 자기 그림자(HoyoToon/StarRail처럼 명암 계단에 넣는 가림). N·L과 곱하지 않고 실제 가림 경계(필터 값 0.5)에서
+    // 따로 잘라 min으로 합친다. 곱하면 N·L에 따라 경계가 늘었다 줄었다 하고, 필터 값의 계단이 그대로 드러난다.
+    // 화면 미분(fwidth)으로 경계 폭을 픽셀 하나 이상으로 유지해 확대해도 계단 없이 매끈하게 자른다.
+    half selfShadow = FuchsiaSelfShadow(i.positionWS, normalize(i.normalWS), light.direction);
+    half castWidth = max(_SelfShadowSoftness * .5h, fwidth(selfShadow) * .75h);
+    half castLit = lerp(1.0h, smoothstep(.5h - castWidth, .5h + castWidth, selfShadow), _SelfShadowStrength);
+    half castLitSoft = lerp(1.0h, smoothstep(.2h - castWidth, .5h + castWidth, selfShadow), _SelfShadowStrength);
+    lit = min(lit, castLit);
+    litSoft = min(litSoft, castLitSoft);
+    // 광택·림도 가려진 곳에서는 꺼지도록 그림자 값에 합친다.
+    shadow *= castLit;
     half3 styleUp = half3(0, 1, 0);
     #if defined(FUCHSIA_FACE) || defined(FUCHSIA_HAIR)
         if (faceStyleStrength + hairStyleStrength > .001h)
@@ -231,6 +303,11 @@ half4 FuchsiaFrag(Varyings i)
     half3 color = lerp(shadeAlbedo * ambientLevel, baseColor, lit) * directResponse;
     // 보조광은 색 보충만 한다. 그늘에서는 _AdditionalShadowFill 만큼만 들어온다.
     color += baseColor * fill * lerp(_AdditionalShadowFill, 1.0h, lit);
+    // StarRailNPR GetRimShadow와 같은 방식: 시선과 법선이 비껴갈수록(실루엣 쪽) 색을 곱해 부피감을 준다.
+    // 빛 방향과 무관해서, 정면광·역광에서도 다리·팔이 원통으로 읽힌다.
+    half rimShadowMask = saturate(pow(max(1.0h - saturate(dot(n, view)), .001h), _RimShadowPower) * _RimShadowWidth);
+    rimShadowMask = smoothstep(_RimShadowFeather, 1.0h, rimShadowMask) * _RimShadowStrength;
+    color *= lerp(half3(1, 1, 1), _RimShadowColor.rgb, rimShadowMask);
 
     #if defined(FUCHSIA_HAIR) || defined(FUCHSIA_ACCESSORY)
         half3 halfDirection = SafeNormalize(light.direction + view);
@@ -342,6 +419,28 @@ OutlineVaryings OutlineVert(OutlineAttributes v)
     o.uv = uv;
     return o;
 }
+// 캐릭터 자기 그림자 맵 렌더링(CharacterSelfShadowFeature가 DrawRenderer로 호출).
+struct CharShadowVaryings
+{
+    float4 positionCS : SV_POSITION;
+    float depth : TEXCOORD0;
+};
+CharShadowVaryings CharShadowVert(Attributes v)
+{
+    CharShadowVaryings o;
+    float3 clip = mul(_FuchsiaCharShadowRender, float4(TransformObjectToWorld(v.positionOS.xyz), 1)).xyz;
+    o.depth = clip.z;
+    #if UNITY_UV_STARTS_AT_TOP
+        clip.y = -clip.y;
+    #endif
+    o.positionCS = float4(clip.xy, lerp(UNITY_NEAR_CLIP_VALUE, UNITY_RAW_FAR_CLIP_VALUE, saturate(clip.z)), 1);
+    return o;
+}
+float CharShadowFrag(CharShadowVaryings i) : SV_Target
+{
+    return i.depth;
+}
+
 half4 OutlineFrag(OutlineVaryings i) : SV_Target
 {
     half3 baseColor = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).rgb * _BaseColor.rgb;

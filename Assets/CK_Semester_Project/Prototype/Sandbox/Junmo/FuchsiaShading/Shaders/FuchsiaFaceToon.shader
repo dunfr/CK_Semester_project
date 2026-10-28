@@ -4,6 +4,17 @@ Shader "Semester/Fuchsia/Face Toon"
     {
         [HideInInspector] _CharacterKeyDirection("Character key direction and blend", Vector) = (0,1,0,0)
         [HideInInspector] _CharacterKeyColor("Character key linear color", Vector) = (1,1,1,0)
+        [HideInInspector] _CharacterShadowSlot("Character self shadow slot", Float) = -1
+        [Header(Self Shadow)]
+        _SelfShadowStrength("Self shadow (cloth over legs etc.)", Range(0,1)) = 0
+        _SelfShadowBias("Self shadow bias (m)", Range(0,.1)) = .01
+        _SelfShadowSoftness("Self shadow edge softness", Range(0,1)) = .2
+        [Header(Rim Shadow)]
+        _RimShadowStrength("Rim shadow (silhouette darkening)", Range(0,1)) = 0
+        _RimShadowColor("Rim shadow color", Color) = (.78,.77,.92,1)
+        _RimShadowWidth("Rim shadow width", Range(0,4)) = 1.3
+        _RimShadowPower("Rim shadow falloff", Range(.5,8)) = 3
+        _RimShadowFeather("Rim shadow softness", Range(0,1)) = .25
         [HideInInspector] _CharacterBrightness("Character brightness (reference, min, max, response)", Vector) = (1,.35,1.15,0)
         [HideInInspector] _CharacterRimTint("Character rim tint (A = strength)", Vector) = (1,1,1,1)
         _EnvironmentShadowStrength("Environment shadow dimming", Range(0,1)) = 1
@@ -115,6 +126,17 @@ Shader "Semester/Fuchsia/Face Toon"
             #pragma target 3.5
             #pragma vertex OutlineVert
             #pragma fragment OutlineFrag
+            ENDHLSL
+        }
+        Pass
+        {
+            Name "FuchsiaCharacterShadow"
+            Tags { "LightMode"="FuchsiaCharacterShadow" }
+            ZWrite On ZTest LEqual Cull Off ColorMask R
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex CharShadowVert
+            #pragma fragment CharShadowFrag
             ENDHLSL
         }
         Pass

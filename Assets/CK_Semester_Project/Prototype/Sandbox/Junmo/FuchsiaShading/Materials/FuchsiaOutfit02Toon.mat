@@ -38,6 +38,9 @@ Material:
     - _AdditionalLightStrength: 0.65
     - _AdditionalShadowFill: 0.8
     - _AmbientStrength: 0.8
+    - _BacklightHighlightFade: 0.85
+    - _BacklightShadeDim: 0.25
+    - _CharacterShadowSlot: -1
     - _Cull: 0
     - _DeepShadeStep: 0.24
     - _DepthRimShadowFade: 0.35
@@ -52,14 +55,29 @@ Material:
     - _HighlightStrength: 0
     - _LightNormalize: 1
     - _LitBrightness: 1
+    - _OutlineDarkWiden: 0
     - _OutlineLightTint: 0.3
+    - _OutlineMaxScale: 3
+    - _OutlineMinScale: 0.2
     - _OutlineSaturation: 1.5
-    - _OutlineWidth: 2
+    - _OutlineShadeWiden: 0
+    - _OutlineThinScale: 0.25
+    - _OutlineUseThickness: 0
+    - _OutlineWidth: 1.25
     - _OutlineZOffset: 0.2
     - _ReceiveShadowStrength: 1
     - _RimPower: 5
+    - _RimShadowFeather: 0.25
+    - _RimShadowPower: 3
+    - _RimShadowStrength: 0.35
+    - _RimShadowWidth: 1.3
     - _RimStrength: 0
+    - _SelfShadowBias: 0.02
+    - _SelfShadowSoftness: 0.2
+    - _SelfShadowStrength: 1
     - _ShadeAmbientTint: 0.3
+    - _ShadeEdgeHardness: 0
+    - _ShadeEdgeSaturation: 1.6
     - _ShadeEdgeWidth: 0.12
     - _ShadeFeather: 0.025
     - _ShadeSaturation: 1.3
@@ -69,14 +87,17 @@ Material:
     - _UseEmission: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _CharacterBrightness: {r: 1, g: 0.35, b: 1.15, a: 0}
     - _CharacterKeyColor: {r: 1, g: 1, b: 1, a: 0}
     - _CharacterKeyDirection: {r: 0, g: 1, b: 0, a: 0}
+    - _CharacterRimTint: {r: 1, g: 1, b: 1, a: 1}
     - _DeepShadeColor: {r: 0.52, g: 0.54, b: 0.63, a: 1}
     - _DepthRimColor: {r: 1, g: 0.96, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _HighlightColor: {r: 0.85, g: 0.86, b: 0.96, a: 1}
     - _OutlineColor: {r: 0.41999996, g: 0.29999998, b: 0.39999998, a: 1}
     - _RimColor: {r: 0.75, g: 0.85, b: 1, a: 1}
+    - _RimShadowColor: {r: 0.78, g: 0.77, b: 0.92, a: 1}
     - _ShadeColor: {r: 0.8, g: 0.78, b: 0.92, a: 1}
     - _ShadeEdgeColor: {r: 1, g: 0.96, b: 0.97999996, a: 1}
   m_BuildTextureStacks: []
