@@ -16,6 +16,7 @@ namespace CK.SemesterProject.Rendering
         private static readonly int BrightnessId = Shader.PropertyToID("_CharacterBrightness");
         private static readonly int RimTintId = Shader.PropertyToID("_CharacterRimTint");
         private static readonly int ShadowSlotId = Shader.PropertyToID("_CharacterShadowSlot");
+        private static readonly int StyleNormalStrengthId = Shader.PropertyToID("_StyleNormalStrength");
 
         // 캐릭터 자기 그림자 맵(CharacterSelfShadowFeature)의 칸 수. 칸이 없는 캐릭터는 자기 그림자 없이 그린다.
         public const int MaxShadowSlots = 4;
@@ -47,6 +48,8 @@ namespace CK.SemesterProject.Rendering
         private float _overrideWeight;
 
         private readonly List<Renderer> _renderers = new List<Renderer>();
+        // UV1(직접 만든 명암 법선)이 없는 메시. 재질이 그 법선을 켜 둬도 이 렌더러에서는 끈다.
+        private readonly HashSet<Renderer> _withoutStyleNormals = new HashSet<Renderer>();
         private MaterialPropertyBlock _block;
         private CharacterLightState _current;
         private CharacterLightState _applied;
@@ -157,6 +160,7 @@ namespace CK.SemesterProject.Rendering
         {
             ResetRenderers();
             _renderers.Clear();
+            _withoutStyleNormals.Clear();
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
             {
                 foreach (Material material in renderer.sharedMaterials)
@@ -164,6 +168,10 @@ namespace CK.SemesterProject.Rendering
                     if (material != null && material.HasProperty(KeyDirectionId))
                     {
                         _renderers.Add(renderer);
+                        if (!HasStyleNormals(renderer))
+                        {
+                            _withoutStyleNormals.Add(renderer);
+                        }
                         break;
                     }
                 }
@@ -287,6 +295,10 @@ namespace CK.SemesterProject.Rendering
                 _block.SetVector(BrightnessId, state.Brightness);
                 _block.SetVector(RimTintId, state.RimTint);
                 _block.SetFloat(ShadowSlotId, ShadowSlot);
+                if (_withoutStyleNormals.Contains(renderer))
+                {
+                    _block.SetFloat(StyleNormalStrengthId, 0f);
+                }
                 renderer.SetPropertyBlock(_block);
             }
             _applied = state;
@@ -315,9 +327,22 @@ namespace CK.SemesterProject.Rendering
                 _block.SetVector(BrightnessId, neutral.Brightness);
                 _block.SetVector(RimTintId, neutral.RimTint);
                 _block.SetFloat(ShadowSlotId, -1f);
+                if (_withoutStyleNormals.Contains(renderer))
+                {
+                    _block.SetFloat(StyleNormalStrengthId, 0f);
+                }
                 renderer.SetPropertyBlock(_block);
             }
             _hasApplied = false;
+        }
+
+        // 재질이 UV1 명암 법선을 켰는데 메시에 UV1이 없으면 GPU가 정해지지 않은 값을 읽는다.
+        // 그러면 면 전체가 한 방향 법선이 되어(몸 메시의 다리·신발) 빛 방향과 상관없이 늘 그늘이 된다.
+        private static bool HasStyleNormals(Renderer renderer)
+        {
+            Mesh mesh = renderer is SkinnedMeshRenderer skinned ? skinned.sharedMesh
+                : renderer.TryGetComponent(out MeshFilter filter) ? filter.sharedMesh : null;
+            return mesh != null && mesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.TexCoord1);
         }
     }
 }
