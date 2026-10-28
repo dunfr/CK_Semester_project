@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using UnityEngine;
@@ -8,6 +8,24 @@ namespace CK.SemesterProject.Tutorial
     [CreateAssetMenu(menuName = "Battle/Monster Definition")]
     public sealed class MonsterBattleDefinition : ScriptableObject
     {
+        [Serializable]
+        private sealed class BossSkillRule
+        {
+            [SerializeField, Range(0, 3), Tooltip("메모리 구간. 0=75% 이상, 1=50% 이상, 2=25% 이상, 3=25% 미만")]
+            private int _memoryBand;
+            [SerializeField, Range(0, 3), Tooltip("보스 HP 구간. 0=75% 이상부터 3=25% 미만")]
+            private int _bossHpBand;
+            [SerializeField, Range(0, 3), Tooltip("플레이어 HP 구간. 0=75% 이상부터 3=25% 미만")]
+            private int _playerHpBand;
+            [SerializeField, Range(1, 2), Tooltip("선택할 스킬 번호")]
+            private int _skillNumber;
+
+            public BossBehaviorProfile.SkillRule Create()
+            {
+                return new BossBehaviorProfile.SkillRule(_memoryBand, _bossHpBand, _playerHpBand, _skillNumber);
+            }
+        }
+
         [Serializable]
         private sealed class InvestmentRange
         {
@@ -75,6 +93,18 @@ namespace CK.SemesterProject.Tutorial
         private float _accuracy = 1;
         [SerializeField, Range(0f, 1f), Tooltip("Monster_DT의 회피율. 0.1이면 10%")]
         private float _evasion;
+        [SerializeField, Tooltip("망각 기본 AI에 보스 전용 스킬 선택표를 적용합니다")]
+        private bool _isBoss;
+        [SerializeField, Min(0), Tooltip("보스 스킬_1의 기본 공격력 추가 피해")]
+        private int _bossSkillOneBonus = 20;
+        [SerializeField, Min(0), Tooltip("보스 스킬_2의 기본 공격력 추가 피해")]
+        private int _bossSkillTwoBonus = 40;
+        [SerializeField, Min(0), Tooltip("보스 스킬_1 기본 메모리 비용")]
+        private int _bossSkillOneCost = 10;
+        [SerializeField, Min(0), Tooltip("보스 스킬_2 기본 메모리 비용")]
+        private int _bossSkillTwoCost = 20;
+        [SerializeField, Tooltip("문서의 보스 스킬 선택표. 빈 배열이면 기본 28행. 미기재 조합은 가장 가까운 행, 동률은 앞 행")]
+        private BossSkillRule[] _bossSkillRules;
         [SerializeField, Tooltip("4개 원소로 구성한 약점 연쇄")]
         private BattleElement[] _weaknessChain;
         [SerializeField, Tooltip("0단계부터 기본 메모리 대비 비용 백분율")]
@@ -112,6 +142,7 @@ namespace CK.SemesterProject.Tutorial
         private InvestmentRange[] _trioSurvivorDefense = new MonsterTrioRules().SurvivorDefense.Select(row => new InvestmentRange(row)).ToArray();
 
         public BattleElement Element => _element;
+        public bool IsBoss => _isBoss;
 
         public void InitializeDefaults(BattleElement element)
         {
@@ -143,6 +174,18 @@ namespace CK.SemesterProject.Tutorial
                     _trioDefenseForward.Select(row => row.Create()).ToArray(), _trioDefenseReverse.Select(row => row.Create()).ToArray(),
                     _trioSurvivorDefense.Select(row => row.Create()).ToArray()));
             var attack = new SkillData(_id + "_attack", "공격", _power, _element, accuracy: _accuracy);
+            if (_isBoss)
+            {
+                var first = new SkillData(_id + "_skill_1", "스킬_1", checked(_power + _bossSkillOneBonus),
+                    BattleElement.Oblivion, memoryCost: _bossSkillOneCost, accuracy: _accuracy, englishName: "skill_1");
+                var second = new SkillData(_id + "_skill_2", "스킬_2", checked(_power + _bossSkillTwoBonus),
+                    BattleElement.Oblivion, memoryCost: _bossSkillTwoCost, accuracy: _accuracy, englishName: "skill_2");
+                var boss = new BossBehaviorProfile(first.Id, second.Id,
+                    _bossSkillRules != null && _bossSkillRules.Length > 0 ? _bossSkillRules.Select(rule => rule.Create()) : null);
+                return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
+                    new[] { first, second }, _element, evasion: _evasion, weaknessChain: _weaknessChain,
+                    monsterProfile: profile, bossProfile: boss);
+            }
             return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
                 new[] { attack }, _element, evasion: _evasion, weaknessChain: _weaknessChain, monsterProfile: profile);
         }

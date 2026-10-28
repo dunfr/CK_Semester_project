@@ -35,7 +35,25 @@ namespace CK.SemesterProject.Battle
 
             if (actor.Data.MonsterProfile != null && session.Rules.UsesInvestmentStages)
             {
-                return MonsterProfileAi.TryChooseAction(session, snapshot, actor, _randomSeed, out request);
+                if (!MonsterProfileAi.TryChooseAction(session, snapshot, actor, _randomSeed, out request))
+                {
+                    return false;
+                }
+                if (request.Kind == BattleActionKind.Defend)
+                {
+                    BattleSession preview = session.PreviewAction(request);
+                    BattleSnapshot next = preview?.GetSnapshot();
+                    if (next != null && next.Phase == BattlePhase.AwaitingAction && next.CurrentActorId == actor.InstanceId)
+                    {
+                        CombatantState nextActor = next.Combatants.First(unit => unit.InstanceId == actor.InstanceId);
+                        if (MonsterProfileAi.TryChooseAction(preview, next, nextActor, _randomSeed, out BattleActionRequest following)
+                            && following.Kind == BattleActionKind.Defend)
+                        {
+                            return MonsterProfileAi.TryChooseAction(session, snapshot, actor, _randomSeed, out request, allowDefense: false);
+                        }
+                    }
+                }
+                return true;
             }
 
             // 실행기를 호출하지 않고 현재 공통 계산식으로만 예측한다. 난수·상태를 소비하지 않는다.

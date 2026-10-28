@@ -84,13 +84,16 @@ namespace CK.SemesterProject.Tutorial
         public SkillData[] CreateSkillsForStage(IReadOnlyList<SkillData> source, int stage)
         {
             ValidateStage(stage);
-            if (_skills != null && source != null && source.Count == 9)
+            if (_skills != null && source != null && source.Count >= 9)
             {
                 if (_skills.Any(skill => skill == null))
                 {
                     throw new ArgumentException("기본 스킬 강화 데이터: 단계 설정이 비어 있습니다.");
                 }
-                return SkillTable.SelectStage(source, _skills.Select(skill => skill.StageSkillIds), stage);
+                string[] basicIds = _skills.SelectMany(skill => skill.StageSkillIds ?? Array.Empty<string>()).ToArray();
+                SkillData[] basic = source.Where(skill => basicIds.Contains(skill.Id)).ToArray();
+                return SkillTable.SelectStage(basic, _skills.Select(skill => skill.StageSkillIds), stage)
+                    .Concat(source.Where(skill => !basicIds.Contains(skill.Id))).ToArray();
             }
             if (_skills == null || source == null || _skills.Length != source.Count
                 || _skills.Any(skill => skill == null || string.IsNullOrWhiteSpace(skill.SkillId))

@@ -7,6 +7,101 @@ namespace CK.SemesterProject.Battle.Tests
 {
     public sealed class SkillEnhancementTests
     {
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        public void AreaSkillPaysOnceAndHitsEachLivingEnemy(int count)
+        {
+            var skill = new SkillData("area", "광역", 50, memoryCost: 30, rageCost: 50,
+                isAreaOfEffect: true, criticalChance: 0);
+            var player = new CombatantData("player", "플레이어", BattleTeam.Player, 1000, 200, 200, new[] { skill });
+            var monster = new CombatantData("monster", "몬스터", BattleTeam.Monster, 1000, 20, 20, Array.Empty<SkillData>());
+            var members = new[] { new BattleParticipant("p", player, initialRageEnergy: 80) }
+                .Concat(Enumerable.Range(0, count).Select(i => new BattleParticipant("m" + i, monster)))
+                .Concat(new[] { new BattleParticipant("dead", monster, initialHp: 0) }).ToArray();
+            var session = new BattleSession();
+            BattleSnapshot before = session.Start(members);
+            Assert.That(session.TrySubmit(new BattleActionRequest(before.TurnId, "p", BattleActionKind.Skill,
+                "area", "m0", investmentStage: 1), out BattleActionResult result, out _), Is.True);
+            Assert.That(result.Changes.Single(change => change.After.InstanceId == "p").MemoryDelta, Is.EqualTo(-50));
+            Assert.That(result.Changes.Single(change => change.After.InstanceId == "p").After.RageEnergy, Is.EqualTo(30));
+            Assert.That(result.TargetHits.Count, Is.EqualTo(count));
+            Assert.That(result.Changes.Count(change => change.HpDelta < 0), Is.EqualTo(count));
+            Assert.That(result.Changes.Any(change => change.After.InstanceId == "dead"), Is.False);
+        }
+
+        [TestCase(0, 50, false)]
+        [TestCase(49, 50, false)]
+        [TestCase(50, 50, true)]
+        [TestCase(79, 80, false)]
+        [TestCase(80, 80, true)]
+        public void RageCostBoundaryIsValidatedBeforeStateChanges(int energy, int cost, bool valid)
+        {
+            var skill = new SkillData("special", "특수", 50, memoryCost: 30, rageCost: cost, criticalChance: 0);
+            var player = new CombatantData("player", "플레이어", BattleTeam.Player, 1000, 200, 200, new[] { skill });
+            var monster = new CombatantData("monster", "몬스터", BattleTeam.Monster, 1000, 20, 20, Array.Empty<SkillData>());
+            var session = new BattleSession();
+            BattleSnapshot before = session.Start(new[]
+            {
+                new BattleParticipant("p", player, initialRageEnergy: energy), new BattleParticipant("m", monster)
+            });
+            Assert.That(session.TrySubmit(new BattleActionRequest(before.TurnId, "p", BattleActionKind.Skill,
+                "special", "m"), out BattleActionResult result, out BattleActionError error), Is.EqualTo(valid));
+            if (!valid)
+            {
+                Assert.That(error, Is.EqualTo(BattleActionError.InsufficientRage));
+                Assert.That(session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "p").Memory, Is.EqualTo(200));
+                Assert.That(session.GetSnapshot().TurnId, Is.EqualTo(before.TurnId));
+            }
+            else
+            {
+                Assert.That(result.Changes.Single(change => change.After.InstanceId == "p").After.RageEnergy, Is.EqualTo(energy - cost));
+            }
+        }
+
+        [Test]
+        public void AreaOblivionConservesMemoryAndHasIndependentMisses()
+        {
+            var skill = new SkillData("area", "광역 망각", 50, BattleElement.Oblivion,
+                memoryCost: 15, rageCost: 50, isAreaOfEffect: true, criticalChance: 0);
+            var player = new CombatantData("player", "플레이어", BattleTeam.Player, 1000, 200, 200, new[] { skill });
+            var monster = new CombatantData("monster", "몬스터", BattleTeam.Monster, 1000, 20, 20, Array.Empty<SkillData>());
+            var dodger = new CombatantData("dodge", "회피", BattleTeam.Monster, 1000, 20, 20,
+                Array.Empty<SkillData>(), evasion: 1);
+            var session = new BattleSession();
+            BattleSnapshot before = session.Start(new[]
+            {
+                new BattleParticipant("p", player, initialRageEnergy: 80),
+                new BattleParticipant("m0", monster), new BattleParticipant("m1", monster), new BattleParticipant("m2", dodger)
+            });
+            Assert.That(session.TrySubmit(new BattleActionRequest(before.TurnId, "p", BattleActionKind.Skill,
+                "area", "m0"), out BattleActionResult result, out _), Is.True);
+            Assert.That(result.Changes.Sum(change => change.MemoryDelta), Is.EqualTo(-15));
+            Assert.That(result.Changes.Single(change => change.After.InstanceId == "p").After.Memory, Is.EqualTo(200));
+            Assert.That(result.TargetHits["m0"].IsHit, Is.True);
+            Assert.That(result.TargetHits["m1"].IsHit, Is.True);
+            Assert.That(result.TargetHits["m2"].IsHit, Is.False);
+            Assert.That(result.Changes.Single(change => change.After.InstanceId == "m2").HpDelta, Is.Zero);
+        }
+
+        [Test]
+        public void LatestTableIncludesSpecialUltimateAndPreservesMetadataWhenCloning()
+        {
+            var skills = SkillTable.LoadCsv(File.ReadAllText("Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv"));
+            Assert.That(skills.Count, Is.EqualTo(11));
+            SkillData special = skills.Single(skill => skill.Id == "SK09");
+            Assert.That(special.IsAreaOfEffect, Is.True);
+            Assert.That(special.RageCost, Is.EqualTo(50));
+            Assert.That(special.MemoryCost, Is.EqualTo(30));
+            Assert.That(special.WithPower(180).IsAreaOfEffect, Is.True);
+            Assert.That(special.WithPower(180).RageCost, Is.EqualTo(50));
+            SkillData ultimate = skills.Single(skill => skill.Id == "SK10");
+            Assert.That(ultimate.IsAreaOfEffect, Is.False);
+            Assert.That(ultimate.RageCost, Is.EqualTo(80));
+            Assert.That(ultimate.MemoryCost, Is.EqualTo(40));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new SkillData("bad", "잘못된 값", 1, rageCost: 101));
+        }
+
         private static string[][] StageIds()
         {
             return new[]
@@ -17,6 +112,31 @@ namespace CK.SemesterProject.Battle.Tests
             };
         }
 
+        [TestCase(true)]
+        [TestCase(false)]
+        public void AreaPredictionChargesOnceEvenWhenEveryTargetMisses(bool isHit)
+        {
+            var skill = new SkillData("area", "광역", 50, BattleElement.Oblivion,
+                memoryCost: 30, rageCost: 50, isAreaOfEffect: true);
+            var player = new CombatantData("player", "플레이어", BattleTeam.Player, 1000, 200, 200, new[] { skill });
+            var monster = new CombatantData("monster", "몬스터", BattleTeam.Monster, 1000, 20, 20, Array.Empty<SkillData>());
+            var session = new BattleSession();
+            BattleSnapshot before = session.Start(new[]
+            {
+                new BattleParticipant("p", player, initialRageEnergy: 80),
+                new BattleParticipant("m0", monster), new BattleParticipant("m1", monster), new BattleParticipant("m2", monster)
+            });
+            var resolver = new BattleActionResolver();
+            Assert.That(resolver.ResolveOutcome(before, new BattleActionRequest(before.TurnId, "p", BattleActionKind.Skill,
+                "area", "m0"), isHit, false, out var effects, out _), Is.EqualTo(BattleActionError.None));
+            Assert.That(effects.Single(effect => effect.TargetId == "p").RageDelta, Is.EqualTo(-50));
+            Assert.That(effects.Single(effect => effect.TargetId == "p").MemoryDelta, Is.EqualTo(isHit ? 0 : -30));
+            Assert.That(effects.Sum(effect => effect.MemoryDelta), Is.EqualTo(-30));
+            Assert.That(resolver.TargetHits.Count, Is.EqualTo(3));
+            Assert.That(resolver.TargetHits.Values.All(hit => hit.IsHit == isHit), Is.True);
+            Assert.That(before.Combatants.Single(unit => unit.InstanceId == "p").RageEnergy, Is.EqualTo(80));
+        }
+
         [TestCase(0, 100, "SK00")]
         [TestCase(4, 100, "SK00")]
         [TestCase(5, 120, "SK03")]
@@ -25,14 +145,14 @@ namespace CK.SemesterProject.Battle.Tests
         public void TableStagesSelectThreeCommandsByIdAfterVictoryBoundaries(int victories, int power, string firstId)
         {
             SkillData[] source = SkillTable.LoadCsv(File.ReadAllText(
-                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).Reverse().ToArray();
+                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).Take(9).Reverse().ToArray();
             SkillData[] selected = SkillTable.SelectStage(source, StageIds(), new SkillEnhancementRules().GetStage(victories));
             Assert.That(selected.Length, Is.EqualTo(3));
             Assert.That(selected[0].Id, Is.EqualTo(firstId));
             Assert.That(selected.All(skill => skill.Power == power), Is.True);
             CollectionAssert.AreEqual(new[] { BattleElement.Afterimage, BattleElement.Imprint, BattleElement.Oblivion },
                 selected.Select(skill => skill.Element));
-            CollectionAssert.AreEqual(new[] { 10, 15, 20 }, selected.Select(skill => skill.MemoryCost));
+            CollectionAssert.AreEqual(new[] { 10, 10, 20 }, selected.Select(skill => skill.MemoryCost));
             CollectionAssert.AreEqual(new[] { 20, 25, 15 }, selected.Select(skill => skill.RageGain));
             Assert.That(selected.All(skill => source.Contains(skill)), Is.True);
         }
@@ -41,7 +161,7 @@ namespace CK.SemesterProject.Battle.Tests
         public void StageTableRejectsMissingDuplicateUnmappedAndMixedElementRows()
         {
             SkillData[] source = SkillTable.LoadCsv(File.ReadAllText(
-                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).ToArray();
+                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).Take(9).ToArray();
             Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source.Take(8).ToArray(), StageIds(), 1));
             string[][] duplicate = StageIds();
             duplicate[2][2] = "SK00";

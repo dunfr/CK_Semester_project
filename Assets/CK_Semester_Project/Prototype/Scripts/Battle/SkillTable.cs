@@ -57,7 +57,9 @@ namespace CK.SemesterProject.Battle
             var ids = new HashSet<string>(StringComparer.Ordinal);
             using (var reader = new StringReader(csv.TrimStart('\uFEFF')))
             {
-                if (reader.ReadLine() != Header)
+                string header = reader.ReadLine();
+                bool extended = header == Header + ",skill_overheat_cost,aoe_skill";
+                if (header != Header && !extended)
                 {
                     throw new FormatException("Skill_DT.csv: 헤더가 스키마와 다릅니다.");
                 }
@@ -71,7 +73,7 @@ namespace CK.SemesterProject.Battle
                         continue;
                     }
                     string[] fields = line.Split(',');
-                    if (fields.Length != 8 || line.Contains("\"") || !ids.Add(fields[0]))
+                    if (fields.Length != (extended ? 10 : 8) || line.Contains("\"") || !ids.Add(fields[0]))
                     {
                         throw new FormatException("Skill_DT.csv: 행 " + row + " 열 개수·따옴표·중복 ID 오류");
                     }
@@ -82,11 +84,17 @@ namespace CK.SemesterProject.Battle
                         {
                             throw new FormatException("알 수 없는 속성");
                         }
+                        if (extended && fields[9] != "0" && fields[9] != "1")
+                        {
+                            throw new FormatException("광역 여부는 0 또는 1이어야 합니다.");
+                        }
                         skills.Add(new SkillData(fields[0], fields[1], int.Parse(fields[3], CultureInfo.InvariantCulture),
                             element, memoryCost: int.Parse(fields[7], CultureInfo.InvariantCulture),
                             rageGain: int.Parse(fields[6], CultureInfo.InvariantCulture),
                             bonusCriticalChance: double.Parse(fields[5], CultureInfo.InvariantCulture) / 100,
-                            englishName: fields[2]));
+                            englishName: fields[2],
+                            rageCost: extended ? int.Parse(fields[8], CultureInfo.InvariantCulture) : 0,
+                            isAreaOfEffect: extended && fields[9] == "1"));
                     }
                     catch (Exception error) when (error is ArgumentException || error is FormatException || error is OverflowException)
                     {

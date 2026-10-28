@@ -260,7 +260,7 @@ namespace CK.SemesterProject.Battle.Tests
             // 방어 투자 후 메모리가 줄어 새 라운드에서도 플레이어가 먼저 행동한다.
             next = session.GetSnapshot();
             Assert.That(next.CurrentActorId, Is.EqualTo("player"));
-            Assert.That(next.Combatants.First(unit => unit.InstanceId == "monster").IsDefending, Is.True);
+            Assert.That(next.Combatants.First(unit => unit.InstanceId == "monster").IsDefending, Is.False);
             Assert.That(session.TrySubmit(new BattleActionRequest(next.TurnId, "player", BattleActionKind.Wait),
                 out result, out _), Is.True);
             session.CompletePresentation(result.ActionId);

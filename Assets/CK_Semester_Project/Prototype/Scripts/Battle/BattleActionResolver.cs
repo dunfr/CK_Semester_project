@@ -10,6 +10,8 @@ namespace CK.SemesterProject.Battle
         private readonly BattleRules _rules;
         private readonly Random _random;
         public BattleRules Rules => _rules;
+        public IReadOnlyDictionary<string, BattleHitResult> TargetHits { get; private set; }
+            = new Dictionary<string, BattleHitResult>();
 
         public BattleActionResolver(BattleRules rules = null, int? randomSeed = null)
         {
@@ -31,6 +33,12 @@ namespace CK.SemesterProject.Battle
         public BattleActionError ResolveDetailed(BattleSnapshot snapshot, BattleActionRequest request,
             out IReadOnlyList<BattleEffect> effects, out BattleHitResult hit)
         {
+            if (request.Kind == BattleActionKind.Skill && snapshot.Combatants
+                .First(state => state.InstanceId == request.ActorId).Data.Skills
+                .First(skill => skill.Id == request.SkillId).IsAreaOfEffect)
+            {
+                return ResolveArea(snapshot, request, null, false, out effects, out hit);
+            }
             bool isHit = true;
             bool isCritical = false;
             if (request.Kind == BattleActionKind.Skill)
@@ -58,6 +66,81 @@ namespace CK.SemesterProject.Battle
 
         // AI는 빗나감·일반 명중·치명타의 결과를 확률 가중해 평가한다.
         public BattleActionError ResolveOutcome(BattleSnapshot snapshot, BattleActionRequest request,
+            bool isHit, bool isCritical, out IReadOnlyList<BattleEffect> effects, out BattleHitResult hit)
+        {
+            TargetHits = new Dictionary<string, BattleHitResult>();
+            if (request.Kind == BattleActionKind.Skill && snapshot.Combatants
+                .First(state => state.InstanceId == request.ActorId).Data.Skills
+                .First(skill => skill.Id == request.SkillId).IsAreaOfEffect)
+            {
+                return ResolveArea(snapshot, request, isHit, isCritical, out effects, out hit);
+            }
+            BattleActionError error = ResolveSingle(snapshot, request, isHit, isCritical, out effects, out hit);
+            if (hit != null)
+            {
+                TargetHits = new Dictionary<string, BattleHitResult> { [request.TargetId] = hit };
+            }
+            return error;
+        }
+
+        private BattleActionError ResolveArea(BattleSnapshot snapshot, BattleActionRequest request,
+            bool? fixedHit, bool fixedCritical, out IReadOnlyList<BattleEffect> effects, out BattleHitResult hit)
+        {
+            effects = Array.Empty<BattleEffect>();
+            hit = null;
+            var hits = new Dictionary<string, BattleHitResult>();
+            TargetHits = hits;
+            CombatantState actor = snapshot.Combatants.First(unit => unit.InstanceId == request.ActorId);
+            SkillData skill = actor.Data.Skills.First(data => data.Id == request.SkillId);
+            var changes = new List<BattleEffect>();
+            int memoryDelta = 0;
+            int rageDelta = 0;
+            bool afterimage = false;
+            bool first = true;
+            foreach (CombatantState target in snapshot.Combatants.Where(unit => !unit.IsDead && unit.Data.Team != actor.Data.Team))
+            {
+                bool isHit = fixedHit ?? Roll(GetHitChance(target, skill));
+                bool critical = isHit && (fixedHit.HasValue ? fixedCritical : skill.Power > 0 && Roll(GetCriticalChance(actor, skill)));
+                var single = new BattleActionRequest(request.TurnId, request.ActorId, request.Kind, request.SkillId,
+                    target.InstanceId, request.MemoryInvestment, request.InvestmentStage);
+                BattleActionError error = ResolveSingle(snapshot, single, isHit, critical, out IReadOnlyList<BattleEffect> part,
+                    out BattleHitResult targetHit);
+                if (error != BattleActionError.None)
+                {
+                    return error;
+                }
+                hits.Add(target.InstanceId, targetHit);
+                if (hit == null || targetHit.GrantsExtraAction || (!hit.IsHit && targetHit.IsHit))
+                {
+                    hit = targetHit;
+                }
+                BattleEffect actorEffect = part.FirstOrDefault(effect => effect.TargetId == actor.InstanceId);
+                BattleEffect targetEffect = part.First(effect => effect.TargetId == target.InstanceId);
+                _rules.TryGetInvestment(actor.Data, request, out int investmentCost, out _, out _, snapshot);
+                int paid = skill.MemoryCost + investmentCost;
+                int gain = (actorEffect?.MemoryDelta ?? 0) + paid;
+                int capacity = Math.Max(0, actor.Data.MaxMemory - (actor.Memory + memoryDelta - (first ? paid : 0)));
+                int recovered = Math.Min(gain + targetEffect.MemoryDelta, capacity);
+                // 회복 상한은 공유한다. 플레이어 망각의 최소 회복분은 대상 소모와 분리해 합산한다.
+                int stolen = Math.Min(-targetEffect.MemoryDelta, capacity - recovered);
+                changes.Add(new BattleEffect(target.InstanceId, targetEffect.HpDelta, -stolen,
+                    targetEffect.SkippedTurns, isDefending: targetEffect.IsDefending,
+                    chainStep: targetEffect.ChainStep, imprintDamage: targetEffect.ImprintDamage));
+                memoryDelta += recovered + stolen - (first ? paid : 0);
+                if (first)
+                {
+                    rageDelta = actorEffect?.RageDelta ?? 0;
+                }
+                afterimage |= actorEffect?.HasAfterimageRecovery == true;
+                first = false;
+            }
+            changes.Insert(0, new BattleEffect(actor.InstanceId, memoryDelta: memoryDelta, rageDelta: rageDelta,
+                hasAfterimageRecovery: afterimage));
+            effects = changes.AsReadOnly();
+            return BattleActionError.None;
+        }
+
+        private BattleActionError ResolveSingle(BattleSnapshot snapshot, BattleActionRequest request,
             bool isHit, bool isCritical, out IReadOnlyList<BattleEffect> effects, out BattleHitResult hit)
         {
             effects = Array.Empty<BattleEffect>();
@@ -93,6 +176,10 @@ namespace CK.SemesterProject.Battle
                 return BattleActionError.None;
             }
             SkillData skill = actor.Data.Skills.First(data => data.Id == request.SkillId);
+            if (skill.RageCost > actor.RageEnergy || (skill.RageCost > 0 && !_rules.Mechanics.EnableRage))
+            {
+                return BattleActionError.InsufficientRage;
+            }
             long cost = (long)skill.MemoryCost + investmentCost;
             if (cost > actor.Memory)
             {
@@ -135,8 +222,16 @@ namespace CK.SemesterProject.Battle
             }
             int stolen = actor.InstanceId == target.InstanceId ? 0
                 : (int)Math.Min(steal, Math.Min(target.Memory, Math.Max(0, actor.Data.MaxMemory - remaining)));
-            int actorDelta = -(int)cost + recovered + stolen;
-            int rageGain = mechanics.EnableRage && actor.Data.Team == BattleTeam.Player ? skill.RageGain : 0;
+            int received = stolen;
+            if (elementEffects && skill.Element == BattleElement.Oblivion
+                && actor.Data.Team == BattleTeam.Player && target.Data.Team == BattleTeam.Monster)
+            {
+                // 10-23 확정: 적 메모리가 0~9여도 명중 시 최소 10 회복. 최대 메모리는 넘지 않는다.
+                received = Math.Max(stolen, Math.Min(mechanics.OblivionSteal,
+                    Math.Max(0, actor.Data.MaxMemory - remaining)));
+            }
+            int actorDelta = -(int)cost + recovered + received;
+            int rageGain = mechanics.EnableRage && actor.Data.Team == BattleTeam.Player ? skill.RageGain - skill.RageCost : 0;
             int? imprint = elementEffects && skill.Element == BattleElement.Imprint
                 ? BattleMath.RoundDamage(roundedDamage * mechanics.ImprintRatio) : (int?)null;
             int? skipped = isHit && skill.InflictedSkippedTurns > 0
@@ -157,7 +252,7 @@ namespace CK.SemesterProject.Battle
                         hasAfterimageRecovery: afterimage));
                 }
                 changes.Add(new BattleEffect(target.InstanceId, -roundedDamage, -stolen,
-                    skipped, chainStep: nextChain, imprintDamage: imprint));
+                    skipped, isDefending: hostile ? false : (bool?)null, chainStep: nextChain, imprintDamage: imprint));
                 effects = changes.AsReadOnly();
             }
             return BattleActionError.None;

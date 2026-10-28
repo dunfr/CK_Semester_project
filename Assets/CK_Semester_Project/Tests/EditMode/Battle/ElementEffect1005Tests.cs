@@ -6,6 +6,67 @@ namespace CK.SemesterProject.Battle.Tests
 {
     public sealed class ElementEffect1005Tests
     {
+        [TestCase(0, 0)]
+        [TestCase(1, 0)]
+        [TestCase(8, 0)]
+        [TestCase(9, 0)]
+        [TestCase(10, 0)]
+        [TestCase(11, 1)]
+        public void PlayerOblivionRecoversTenFromLowOrEmptyMonsterMemoryAfterPayingCost(int targetMemory, int remaining)
+        {
+            var skill = new SkillData("steal", "망각", 0, BattleElement.Oblivion, memoryCost: 20);
+            BattleSession session = CreateTransferScenario(BattleTeam.Player, 100, targetMemory, skill);
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId,
+                "actor", BattleActionKind.Skill, "steal", "target"), out BattleActionResult result, out _), Is.True);
+            Assert.That(session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "actor").Memory, Is.EqualTo(90));
+            Assert.That(session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "target").Memory, Is.EqualTo(remaining));
+            Assert.That(result.Changes.Single(change => change.After.InstanceId == "actor").MemoryDelta, Is.EqualTo(-10));
+        }
+
+        [TestCase(0, true)]
+        [TestCase(0, false)]
+        [TestCase(8, true)]
+        [TestCase(8, false)]
+        public void LowMemoryMinimumRecoveryDoesNotApplyOnMissOrWhenEffectsDisabled(int targetMemory, bool enableEffects)
+        {
+            var skill = new SkillData("steal", "망각", 0, BattleElement.Oblivion, memoryCost: 20,
+                accuracy: enableEffects ? 0 : 1);
+            BattleSession session = CreateTransferScenario(BattleTeam.Player, 100, targetMemory, skill, enableEffects);
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId,
+                "actor", BattleActionKind.Skill, "steal", "target"), out _, out _), Is.True);
+            Assert.That(session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "actor").Memory, Is.EqualTo(80));
+            Assert.That(session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "target").Memory, Is.EqualTo(targetMemory));
+        }
+
+        [TestCase(false, 200, 0)]
+        [TestCase(true, 190, 1)]
+        public void AreaOblivionAppliesMinimumToEachHitAndPaysCostsOnce(bool dodgeSecond, int memory, int secondMemory)
+        {
+            var skill = new SkillData("area", "광역 망각", 0, BattleElement.Oblivion, memoryCost: 30,
+                rageCost: 50, isAreaOfEffect: true, criticalChance: 0);
+            var player = new CombatantData("p", "플레이어", BattleTeam.Player, 1000, 200, 200, new[] { skill });
+            var monster = new CombatantData("m", "몬스터", BattleTeam.Monster, 1000, 100, 100, Array.Empty<SkillData>());
+            var second = new CombatantData("second", "두번째", BattleTeam.Monster, 1000, 100, 100,
+                Array.Empty<SkillData>(), evasion: dodgeSecond ? 1 : 0);
+            var session = new BattleSession(rules: new BattleRules(enableMemoryLoss: false));
+            session.Start(new[]
+            {
+                new BattleParticipant("p", player, initialRageEnergy: 80),
+                new BattleParticipant("a", monster, initialMemory: 8),
+                new BattleParticipant("b", second, initialMemory: 1),
+                new BattleParticipant("c", monster, initialMemory: 0)
+            });
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId,
+                "p", BattleActionKind.Skill, "area", "a"), out BattleActionResult result, out _), Is.True);
+            var snapshot = session.GetSnapshot();
+            Assert.That(snapshot.Combatants.Single(unit => unit.InstanceId == "p").Memory, Is.EqualTo(memory));
+            Assert.That(snapshot.Combatants.Single(unit => unit.InstanceId == "p").RageEnergy, Is.EqualTo(30));
+            Assert.That(snapshot.Combatants.Single(unit => unit.InstanceId == "a").Memory, Is.Zero);
+            Assert.That(snapshot.Combatants.Single(unit => unit.InstanceId == "b").Memory, Is.EqualTo(secondMemory));
+            Assert.That(snapshot.Combatants.Single(unit => unit.InstanceId == "c").Memory, Is.Zero);
+            Assert.That(result.TargetHits["b"].IsHit, Is.EqualTo(!dodgeSecond));
+        }
+
         private static BattleSession CreateTransferScenario(BattleTeam actorTeam, int actorMemory,
             int targetMemory, SkillData skill, bool enableEffects = true)
         {
@@ -21,22 +82,22 @@ namespace CK.SemesterProject.Battle.Tests
             return session;
         }
 
-        [TestCase(BattleTeam.Player, 50, 20, 0, 10)]
-        [TestCase(BattleTeam.Monster, 50, 20, 0, 10)]
-        [TestCase(BattleTeam.Player, 50, 7, 0, 7)]
-        [TestCase(BattleTeam.Monster, 50, 7, 0, 7)]
-        [TestCase(BattleTeam.Player, 99, 20, 0, 1)]
-        [TestCase(BattleTeam.Monster, 99, 20, 0, 1)]
-        [TestCase(BattleTeam.Player, 100, 20, 0, 0)]
-        [TestCase(BattleTeam.Monster, 100, 20, 0, 0)]
-        [TestCase(BattleTeam.Player, 50, 0, 0, 0)]
-        [TestCase(BattleTeam.Monster, 50, 0, 0, 0)]
-        [TestCase(BattleTeam.Player, 100, 20, 5, 5)]
-        [TestCase(BattleTeam.Monster, 100, 20, 5, 5)]
-        [TestCase(BattleTeam.Player, 100, 20, 10, 10)]
-        [TestCase(BattleTeam.Monster, 100, 20, 10, 10)]
-        public void OblivionTransfersTenWithinTargetMemoryAndSpaceAfterCost(BattleTeam actorTeam,
-            int actorMemory, int targetMemory, int cost, int stolen)
+        [TestCase(BattleTeam.Player, 50, 20, 0, 10, 10)]
+        [TestCase(BattleTeam.Monster, 50, 20, 0, 10, 10)]
+        [TestCase(BattleTeam.Player, 50, 7, 0, 7, 10)]
+        [TestCase(BattleTeam.Monster, 50, 7, 0, 7, 7)]
+        [TestCase(BattleTeam.Player, 99, 20, 0, 1, 1)]
+        [TestCase(BattleTeam.Monster, 99, 20, 0, 1, 1)]
+        [TestCase(BattleTeam.Player, 100, 20, 0, 0, 0)]
+        [TestCase(BattleTeam.Monster, 100, 20, 0, 0, 0)]
+        [TestCase(BattleTeam.Player, 50, 0, 0, 0, 10)]
+        [TestCase(BattleTeam.Monster, 50, 0, 0, 0, 0)]
+        [TestCase(BattleTeam.Player, 100, 20, 5, 5, 5)]
+        [TestCase(BattleTeam.Monster, 100, 20, 5, 5, 5)]
+        [TestCase(BattleTeam.Player, 100, 20, 10, 10, 10)]
+        [TestCase(BattleTeam.Monster, 100, 20, 10, 10, 10)]
+        public void OblivionUsesPlayerMinimumRecoveryAndPreservesMonsterTransferRules(BattleTeam actorTeam,
+            int actorMemory, int targetMemory, int cost, int stolen, int received)
         {
             var skill = new SkillData("steal", "망각", 0, BattleElement.Oblivion, memoryCost: cost);
             BattleSession session = CreateTransferScenario(actorTeam, actorMemory, targetMemory, skill);
@@ -45,9 +106,9 @@ namespace CK.SemesterProject.Battle.Tests
                 out BattleActionError error), Is.True, error.ToString());
             CombatantState actor = session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "actor");
             CombatantState target = session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == "target");
-            Assert.That(actor.Memory, Is.EqualTo(actorMemory - cost + stolen));
+            Assert.That(actor.Memory, Is.EqualTo(actorMemory - cost + received));
             Assert.That(target.Memory, Is.EqualTo(targetMemory - stolen));
-            Assert.That(actor.Memory + target.Memory, Is.EqualTo(actorMemory + targetMemory - cost));
+            Assert.That(actor.Memory + target.Memory, Is.EqualTo(actorMemory + targetMemory - cost + received - stolen));
             Assert.That(result.Changes.Single(change => change.After.InstanceId == "target").MemoryDelta,
                 Is.EqualTo(-stolen));
         }

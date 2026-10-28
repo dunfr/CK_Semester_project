@@ -45,7 +45,7 @@ namespace CK.SemesterProject.Battle
         }
 
         public static bool TryChooseAction(BattleSession session, BattleSnapshot snapshot, CombatantState actor,
-            CombatantState player, int seed, out BattleActionRequest request)
+            CombatantState player, int seed, out BattleActionRequest request, bool allowDefense = true)
         {
             request = null;
             CombatantState[] monsters = Monsters(snapshot);
@@ -55,7 +55,7 @@ namespace CK.SemesterProject.Battle
             MonsterBehaviorProfile profile = actor.Data.MonsterProfile;
             MonsterTrioRules rules = profile.Trio;
             var random = new Random(MonsterProfileAi.DecisionSeed(seed, actor.InstanceId, snapshot.TurnId));
-            bool canDefend = session.Rules.CanMonsterDefend(actor, snapshot.Combatants);
+            bool canDefend = allowDefense && session.Rules.CanMonsterDefend(actor, snapshot.Combatants);
             bool wasHit = snapshot.DamagedByPlayer.Contains(actor.InstanceId);
             bool aloneWithAfterimages = monsters.All(unit => unit.IsDead || unit.Data.Element == BattleElement.Afterimage);
 
