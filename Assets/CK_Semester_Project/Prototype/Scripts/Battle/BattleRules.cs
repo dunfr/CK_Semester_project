@@ -40,6 +40,30 @@ namespace CK.SemesterProject.Battle
             DefenseDamageMultiplier = defenseDamageMultiplier;
         }
 
+        // 방어 투자 전의 현재 메모리를 비교한다. 죽은 플레이어는 조건에서 제외한다.
+        public bool CanMonsterDefend(CombatantState actor, IEnumerable<CombatantState> combatants)
+        {
+            if (actor == null || !actor.CanAct || actor.Data.Team != BattleTeam.Monster
+                || actor.Data.MonsterProfile?.Element == BattleElement.Imprint)
+            {
+                return false;
+            }
+            bool hasPlayer = false;
+            foreach (CombatantState player in combatants)
+            {
+                if (player.IsDead || player.Data.Team != BattleTeam.Player)
+                {
+                    continue;
+                }
+                hasPlayer = true;
+                if (actor.Memory <= player.Memory || player.IsOverheated)
+                {
+                    return false;
+                }
+            }
+            return hasPlayer;
+        }
+
         public int GetStageCost(CombatantData actor, int stage)
         {
             if (actor == null || stage < 0 || stage > (actor.MonsterProfile?.MaxStage ?? 5))
@@ -51,7 +75,7 @@ namespace CK.SemesterProject.Battle
         }
 
         public bool TryGetInvestment(CombatantData actor, BattleActionRequest request,
-            out int cost, out double multiplier, out int rageReduction)
+            out int cost, out double multiplier, out int rageReduction, BattleSnapshot snapshot = null)
         {
             cost = 0;
             multiplier = 1;
@@ -60,7 +84,8 @@ namespace CK.SemesterProject.Battle
             {
                 int stage = request.InvestmentStage ?? 0;
                 if (request.MemoryInvestment != 0 || stage < 0 || stage > (actor.MonsterProfile?.MaxStage ?? 5)
-                    || (actor.MonsterProfile != null && !actor.MonsterProfile.AllowsStage(stage)))
+                    || (actor.MonsterProfile != null && !actor.MonsterProfile.AllowsStage(stage)
+                        && !(stage == 1 && snapshot != null && MonsterTrioAi.IsWaitingImprint(snapshot, request.ActorId))))
                 {
                     return false;
                 }
@@ -70,6 +95,15 @@ namespace CK.SemesterProject.Battle
                     return false;
                 }
                 multiplier = actor.MonsterProfile == null ? InvestmentMultipliers[stage] : actor.MonsterProfile.Multipliers[stage];
+                if (snapshot != null && MonsterTrioAi.UsesSurvivorDefense(snapshot, request))
+                {
+                    if (stage > 4)
+                    {
+                        return false;
+                    }
+                    cost = (int)((long)actor.InitialMemory * stage * 10 / 100);
+                    multiplier = new[] { 1.0, 1.1, 1.2, 1.35, 1.5 }[stage];
+                }
                 rageReduction = stage == 0 ? 0 : 5 * stage + 5;
                 return true;
             }

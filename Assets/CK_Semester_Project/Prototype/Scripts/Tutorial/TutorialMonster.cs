@@ -10,6 +10,17 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("몬스터 능력치·AI 행동표 에셋")]
         private MonsterBattleDefinition _definition;
         private CombatantData _data;
+        public MonsterBattleDefinition Definition => _definition;
+
+        public void SetDefinition(MonsterBattleDefinition definition)
+        {
+            if (definition == null)
+            {
+                throw new ArgumentNullException(nameof(definition));
+            }
+            _definition = definition;
+            _data = null;
+        }
 
         public static string GetElementName(BattleElement element)
         {

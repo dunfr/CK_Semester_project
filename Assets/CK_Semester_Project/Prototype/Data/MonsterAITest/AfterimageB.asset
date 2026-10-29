@@ -12,14 +12,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d2ea9e0f6c022a41b1e60e46f559e65, type: 3}
   m_Name: AfterimageB
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.MonsterBattleDefinition
-  _id: test_afterimage_1
-  _displayName: "\uC794\uC0C1 B"
+  _id: MO03
+  _displayName: "\uC794\uC0C1_\uD14C\uC2A4\uD2B8_\uBAAC\uC2A4\uD130 2"
   _element: 1
-  _maxHp: 600
+  _maxHp: 400
   _memory: 260
-  _power: 90
+  _power: 15
   _accuracy: 1
-  _weaknessChain: 03000000010000000200000003000000
+  _evasion: 0.1
+  _isBoss: 0
+  _bossSkillOneBonus: 20
+  _bossSkillTwoBonus: 40
+  _bossSkillOneCost: 10
+  _bossSkillTwoCost: 20
+  _bossSkillRules: []
+  _weaknessChain: 03000000020000000100000003000000
   _costPercent: 00000000050000000a0000000f000000140000001e000000
   _multipliers:
   - 1
@@ -126,3 +133,80 @@ MonoBehaviour:
     _rageFour: []
     _chainOne: []
     _chainTwo: []
+  _trioFinisherHpPercent: 40
+  _trioSurvivorHpPercent: 75
+  _trioSurvivorDefenseChance: 0.5
+  _trioAttackWeights: 320000001e00000014000000
+  _trioWaitingAttack:
+  - _min: 2
+    _max: 3
+    _defenseChance: 1
+  - _min: 2
+    _max: 4
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1
+  - _min: 4
+    _max: 5
+    _defenseChance: 1
+  _trioDefenseForward:
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.5
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.5
+  - _min: 1
+    _max: 1
+    _defenseChance: 0.6
+  - _min: 1
+    _max: 1
+    _defenseChance: 0.7
+  _trioDefenseReverse:
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 0
+    _max: 0
+    _defenseChance: 0
+  - _min: 1
+    _max: 1
+    _defenseChance: 0.25
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.5
+  - _min: 2
+    _max: 2
+    _defenseChance: 0.6
+  - _min: 3
+    _max: 3
+    _defenseChance: 0.7
+  _trioSurvivorDefense:
+  - _min: 1
+    _max: 2
+    _defenseChance: 1
+  - _min: 2
+    _max: 3
+    _defenseChance: 1
+  - _min: 2
+    _max: 4
+    _defenseChance: 1
+  - _min: 2
+    _max: 3
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1
+  - _min: 1
+    _max: 3
+    _defenseChance: 1

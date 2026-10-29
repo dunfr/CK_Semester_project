@@ -3945,6 +3945,7 @@ GameObject:
   - component: {fileID: 2562260652433674071}
   - component: {fileID: 3812201731063162255}
   - component: {fileID: 5783515375097272685}
+  - component: {fileID: 8434172081160296830}
   m_Layer: 0
   m_Name: FuchsiaUpdatedAnimated
   m_TagString: Untagged
@@ -4008,6 +4009,25 @@ MonoBehaviour:
   - {fileID: 5265399140599012245}
   - {fileID: 3635214485263305981}
   _bindHeadRotation: {x: -0.4858985, y: 0.46530482, z: 0.5885912, w: -0.44827992}
+--- !u!114 &8434172081160296830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8882425705783539570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4df698a54087c3e43af926ff1d271469, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: CK.Rendering.CharacterLighting::CK.SemesterProject.Rendering.CharacterLighting
+  _sampleOffset: {x: 0, y: 1, z: 0}
+  _smoothTime: 0.35
+  _baseProfile: {fileID: 11400000, guid: af0694390eed7304c854496e02283b67, type: 2}
+  _selfShadowCenter: {x: 0, y: 0.9, z: 0}
+  _selfShadowRadius: 1
+  _overrideProfile: {fileID: 0}
+  _overrideWeight: 0
 --- !u!1 &9087757266191473389
 GameObject:
   m_ObjectHideFlags: 0

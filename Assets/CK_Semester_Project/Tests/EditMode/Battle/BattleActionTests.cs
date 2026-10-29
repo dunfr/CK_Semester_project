@@ -130,8 +130,8 @@ namespace CK.SemesterProject.Battle.Tests
         [Test]
         public void MonsterUsesTheSameCostRecoveryAndDefensePath()
         {
-            BattleSession session = Start(new SkillData("hit", "Hit", 10));
-            Submit(session, Request(session, BattleActionKind.Wait));
+            BattleSession session = Start(new SkillData("hit", "Hit", 10, memoryCost: 6));
+            Submit(session, Request(session, BattleActionKind.Skill));
             Finish(session);
             Submit(session, Request(session, BattleActionKind.Defend, 2));
             Assert.That(session.GetSnapshot().Combatants[1].IsDefending, Is.True);

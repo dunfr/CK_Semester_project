@@ -1,0 +1,542 @@
+{
+  "canvas_size": [
+    1671,
+    941
+  ],
+  "coordinates": "top-left pixel coordinates from 3.png, x right, y down",
+  "items": [
+    {
+      "file": "Default_CombatHeader.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        14,
+        18,
+        399,
+        80
+      ],
+      "role": "combat heading and decorative scan line",
+      "source": "2.png transparent image edit, aligned to 3.png"
+    },
+    {
+      "file": "Default_EnemyNameBanner_Blank.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        608,
+        14,
+        460,
+        107
+      ],
+      "role": "top enemy banner; Korean name intentionally blank for TMP",
+      "text_rect_screen": [
+        773,
+        47,
+        139,
+        32
+      ]
+    },
+    {
+      "file": "Default_WaveTurnControls.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        1318,
+        15,
+        351,
+        63
+      ],
+      "role": "wave, turn, pause and ESC controls",
+      "source": "2.png transparent image edit, aligned to 3.png"
+    },
+    {
+      "file": "Source_TurnOrderSlot01_Selected.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        18,
+        105,
+        146,
+        92
+      ],
+      "role": "source-only selected turn-order portrait; superseded by separated frame, portrait, highlight and TMP index",
+      "source": "2.png original portrait with transparent extracted frame"
+    },
+    {
+      "file": "Source_TurnOrderSlot02_Default.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        20,
+        195,
+        143,
+        96
+      ],
+      "role": "source-only default turn-order portrait; superseded by separated frame, portrait and TMP index",
+      "source": "2.png original portrait with transparent extracted frame"
+    },
+    {
+      "file": "Default_EnemyStatusIcon.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        989,
+        135,
+        48,
+        41
+      ],
+      "role": "overhead enemy status icon",
+      "source": "2.png transparent image edit, aligned to 3.png"
+    },
+    {
+      "file": "Default_PlayerPortrait.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        37,
+        716,
+        212,
+        215
+      ],
+      "role": "bottom-left player portrait frame",
+      "source": "3.png original portrait interior with transparent extracted frame"
+    },
+    {
+      "file": "Default_EnemyHP_Track.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        995,
+        170,
+        199,
+        26
+      ],
+      "role": "overhead enemy HP slider track",
+      "slider": "EnemyHP",
+      "layer": "track"
+    },
+    {
+      "file": "Default_PlayerBars_Track.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        233,
+        802,
+        488,
+        82
+      ],
+      "role": "shared frame and empty HP/SP slider tracks",
+      "slider": "PlayerHP+PlayerSP",
+      "layer": "frame"
+    },
+    {
+      "file": "Default_PlayerHP_Track.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        251,
+        820,
+        435,
+        22
+      ],
+      "role": "empty player HP slider track inside shared frame",
+      "slider": "PlayerHP",
+      "layer": "track"
+    },
+    {
+      "file": "Default_PlayerSP_Track.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        252,
+        850,
+        383,
+        17
+      ],
+      "role": "empty player SP slider track inside shared frame",
+      "slider": "PlayerSP",
+      "layer": "track"
+    },
+    {
+      "file": "Default_EnemyHP_Fill_Full.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        1000,
+        175,
+        185,
+        14
+      ],
+      "role": "full-width overhead enemy HP slider fill",
+      "slider": "EnemyHP",
+      "layer": "fill"
+    },
+    {
+      "file": "Default_PlayerHP_Fill_Full.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        268,
+        822,
+        406,
+        18
+      ],
+      "role": "full-width segmented cyan player HP fill",
+      "slider": "PlayerHP",
+      "layer": "fill"
+    },
+    {
+      "file": "Default_PlayerSP_Fill_Full.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        270,
+        850,
+        340,
+        17
+      ],
+      "role": "full-width purple player SP fill",
+      "slider": "PlayerSP",
+      "layer": "fill"
+    },
+    {
+      "file": "Turn_C1Badge.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        127,
+        146,
+        30,
+        31
+      ],
+      "role": "turn-only C1 badge beside first party portrait"
+    },
+    {
+      "file": "Turn_HPLabel.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        247,
+        823,
+        24,
+        23
+      ],
+      "role": "always-visible player HP text"
+    },
+    {
+      "file": "Turn_SPLabel.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        247,
+        848,
+        23,
+        22
+      ],
+      "role": "always-visible player SP text"
+    },
+    {
+      "file": "Turn_EnemyCard_Blank.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        1225,
+        102,
+        426,
+        231
+      ],
+      "role": "enemy detail card with blank Korean name and HP opening",
+      "text_rect_screen": [
+        1273,
+        135,
+        132,
+        32
+      ]
+    },
+    {
+      "file": "Turn_EnemyCardHP_Track.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        1274,
+        232,
+        346,
+        24
+      ],
+      "role": "enemy detail card HP slider track",
+      "slider": "EnemyCardHP",
+      "layer": "track"
+    },
+    {
+      "file": "Turn_EnemyCardHP_Fill_Full.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        1277,
+        235,
+        338,
+        14
+      ],
+      "role": "full-width enemy detail card red HP slider fill",
+      "slider": "EnemyCardHP",
+      "layer": "fill"
+    },
+    {
+      "file": "Turn_SkillPanel_Shell_BlankNumber.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        39,
+        417,
+        375,
+        307
+      ],
+      "role": "skill panel shell with blank editable memory value; four row openings"
+    },
+    {
+      "file": "Turn_SkillButton_Default.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        76,
+        529,
+        326,
+        57
+      ],
+      "role": "reusable skill button default background without icon/text",
+      "skill_state": "Default"
+    },
+    {
+      "file": "Turn_SkillButton_Selected.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        76,
+        468,
+        326,
+        57
+      ],
+      "role": "reusable skill button selected background without icon/text",
+      "skill_state": "Selected"
+    },
+    {
+      "file": "Turn_SkillIcon_Attack.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        86,
+        473,
+        60,
+        49
+      ],
+      "role": "normal attack icon"
+    },
+    {
+      "file": "Turn_SkillIcon_Slash.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        86,
+        533,
+        60,
+        49
+      ],
+      "role": "quick slash icon"
+    },
+    {
+      "file": "Turn_SkillIcon_Magic.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        86,
+        593,
+        60,
+        50
+      ],
+      "role": "pink magic icon"
+    },
+    {
+      "file": "Turn_SkillIcon_Locked.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        86,
+        654,
+        60,
+        50
+      ],
+      "role": "locked skill icon"
+    },
+    {
+      "file": "Turn_MemoryThrowPanel_Unlit.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        424,
+        432,
+        207,
+        87
+      ],
+      "role": "memory investment panel with F prompt and four unlit diamond slots"
+    },
+    {
+      "file": "Turn_SkillDescriptionPanel.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        415,
+        522,
+        320,
+        250
+      ],
+      "role": "source-only original skill description panel with baked text; superseded by the blank-text sprite and editable TMP children"
+    },
+    {
+      "file": "Turn_SkillDescriptionPanel_BlankText.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        415,
+        522,
+        320,
+        250
+      ],
+      "role": "runtime skill description panel background with text supplied by 13 editable TMP children",
+      "scene_object": "SkillDescriptionPanel"
+    },
+    {
+      "file": "Default_MemoryCounter_BlankValues.png",
+      "group": "DefaultUI",
+      "source_bbox": [
+        538,
+        785,
+        165,
+        39
+      ],
+      "role": "always-visible memory diamond counter; values supplied by TMP"
+    },
+    {
+      "file": "Turn_SkillDetailsPrompt.png",
+      "group": "PlayerTurnUI",
+      "source_bbox": [
+        1414,
+        867,
+        248,
+        61
+      ],
+      "role": "bottom-right skill details R prompt"
+    }
+  ],
+  "slider_pairs": {
+    "EnemyHP": [
+      "Default_EnemyHP_Track.png",
+      "Default_EnemyHP_Fill_Full.png"
+    ],
+    "PlayerHP": [
+      "Default_PlayerHP_Track.png",
+      "Default_PlayerHP_Fill_Full.png"
+    ],
+    "PlayerSP": [
+      "Default_PlayerSP_Track.png",
+      "Default_PlayerSP_Fill_Full.png"
+    ],
+    "EnemyCardHP": [
+      "Turn_EnemyCardHP_Track.png",
+      "Turn_EnemyCardHP_Fill_Full.png"
+    ],
+    "TurnOrderSlotHP": [
+      "TurnOrderSlot_HP_Track.png",
+      "TurnOrderSlot_HP_Fill_Full.png"
+    ]
+  },
+  "skill_button_states": {
+    "Default": "Turn_SkillButton_Default.png",
+    "Selected": "Turn_SkillButton_Selected.png"
+  },
+  "initial_skill_rows": [
+    {
+      "bbox": [
+        76,
+        468,
+        326,
+        57
+      ],
+      "icon": "Turn_SkillIcon_Attack.png",
+      "title": "일반 공격",
+      "level": "Lv. 1",
+      "cost": "SP 0"
+    },
+    {
+      "bbox": [
+        76,
+        529,
+        326,
+        57
+      ],
+      "icon": "Turn_SkillIcon_Slash.png",
+      "title": "신속 베기",
+      "level": "Lv. 1",
+      "cost": "SP 20"
+    },
+    {
+      "bbox": [
+        76,
+        590,
+        326,
+        57
+      ],
+      "icon": "Turn_SkillIcon_Magic.png",
+      "title": "분홍의 궤적",
+      "level": "Lv. 1",
+      "cost": "SP 30"
+    },
+    {
+      "bbox": [
+        76,
+        651,
+        326,
+        57
+      ],
+      "icon": "Turn_SkillIcon_Locked.png",
+      "title": "흐릿한 경계",
+      "level": "Lv. -",
+      "cost": "SP --"
+    }
+  ],
+  "memory_ui": {
+    "skill_panel_value": "SkillPanel/MemoryCurrentValue (TMP, initial 3)",
+    "hud_counter_values": [
+      "PlayerStatusPanel/MemoryCounter/MemoryCurrentValue (TMP, initial 3)",
+      "PlayerStatusPanel/MemoryCounter/MemoryCapacityValue (TMP, initial 5)"
+    ],
+    "investment_slot_count": 4,
+    "investment_slot_sprites": {
+      "Glow": "Turn_MemorySlot_Glow.png",
+      "Star": "Turn_MemorySlot_Star.png",
+      "Lock": "Turn_MemorySlot_Lock.png"
+    },
+    "initial_indicator_state": "All Glow, Star and Lock GameObjects inactive"
+  },
+  "scene_hierarchy": {
+    "PlayerStatusPanel": [
+      "PlayerHP_Track",
+      "PlayerHP_Slider",
+      "PlayerSP_Track",
+      "PlayerSP_Slider",
+      "PlayerPortrait",
+      "MemoryCounter",
+      "PlayerHP_Label",
+      "PlayerSP_Label"
+    ],
+    "EnemyCard": [
+      "EnemyCardName_TMP",
+      "EnemyCardHP_Track",
+      "EnemyCardHP_Slider"
+    ],
+    "SkillPanel": [
+      "MemoryCurrentValue",
+      "SkillButton_NormalAttack",
+      "SkillButton_QuickSlash",
+      "SkillButton_PinkTrail",
+      "SkillButton_LockedBoundary"
+    ],
+    "SkillDescriptionPanel": [
+      "SkillNameText",
+      "SkillTypeText",
+      "DescriptionText",
+      "PowerLabelText",
+      "PowerValueText",
+      "AccuracyLabelText",
+      "AccuracyValueText",
+      "AttributeLabelText",
+      "AttributeValueText",
+      "RangeLabelText",
+      "RangeValueText",
+      "DetailKeyText",
+      "DetailPromptText"
+    ]
+  },
+  "turn_order_slots": {
+    "scene_parent": "Canvas/Battle_State/DefaultUI",
+    "scene_objects": ["TurnOrderSlot01", "TurnOrderSlot02"],
+    "default_frame": "TurnOrderSlot_DefaultFrame.png",
+    "portraits": ["TurnOrderSlot_Portrait01.png", "TurnOrderSlot_Portrait02.png"],
+    "highlight": "TurnOrderSlot_Highlight.png",
+    "initial_highlight_state": "Both Highlight children inactive; enable on the current actor slot",
+    "index": "Each slot has an editable IndexText TextMeshProUGUI child (initial values 01 and 02)",
+    "hp_slider": "Each slot has HP_Slider with separate Track and Fill sprites, range 0..1, initial value 1",
+    "interaction": "Non-interactive Images; no Button components or scripts"
+  },
+  "slider_default_value": 1,
+  "limitations": "Screenshot UI was flattened over 3D scene. Some translucent panel interiors retain backdrop pixels. Korean enemy names and memory values are separate TMP text."
+}

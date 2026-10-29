@@ -1,6 +1,9 @@
+using System.Collections.Generic;
+using System.Linq;
 using CK.SemesterProject.Battle;
 using UnityEngine;
-using System.Linq;
+using UnityEngine.Animations;
+using UnityEngine.Playables;
 
 namespace CK.SemesterProject.Tutorial
 {
@@ -9,6 +12,8 @@ namespace CK.SemesterProject.Tutorial
     {
         private const float ImpactTime = 0.35f;
         private const float ReturnTime = 0.55f;
+        private const float EffectTailSeconds = .9f;
+        private readonly List<GameObject> _effectTails = new List<GameObject>();
         private readonly Transform _actor;
         private readonly Transform _target;
         private readonly Vector3 _attackPosition;
@@ -19,16 +24,37 @@ namespace CK.SemesterProject.Tutorial
         private readonly int _baseColorId = Shader.PropertyToID("_BaseColor");
         private readonly int _colorId = Shader.PropertyToID("_Color");
         private bool _hasApplied;
+        private bool _movesActor;
         private readonly string _targetId;
         private readonly string _actorId;
         private readonly Quaternion _actorRotation;
+        private readonly BasicSkillEnhancementAsset _enhancement;
+        private readonly int _skillStage;
+        private readonly Animator _animator;
+        private long _actionId;
+        private AnimationClip _animation;
+        private GameObject _effectPrefab;
+        private GameObject _effectInstance;
+        private GameObject _chargeInstance;
+        private float _chargeFraction;
+        private bool _hasSpawnedEffect;
+        private PlayableGraph _animationGraph;
+        private AnimationClipPlayable _animationPlayable;
+        private Transform[] _animatedTransforms;
+        private Vector3[] _localPositions;
+        private Quaternion[] _localRotations;
+        private Vector3[] _localScales;
 
         public Vector3 ActorHome { get; }
         public Vector3 TargetHome { get; }
 
         public TutorialBattleActionPresentation(Transform actor, Transform target, float stopDistance,
-            string targetId = "monster", string actorId = "player")
+            string targetId = "monster", string actorId = "player",
+            BasicSkillEnhancementAsset enhancement = null, int skillStage = 1)
         {
+            _enhancement = enhancement;
+            _skillStage = skillStage;
+            _animator = actor.GetComponent<Animator>();
             _actorId = actorId;
             _actorRotation = actor.rotation;
             _targetId = targetId;
@@ -70,21 +96,79 @@ namespace CK.SemesterProject.Tutorial
         {
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == _actorId
-                && result.Request.TargetId == _targetId;
+                && (result.Request.TargetId == _targetId || result.TargetHits.ContainsKey(_targetId));
             if (!isAttack || progress >= 1f || _actor == null || _target == null)
             {
-                Restore();
+                Restore(isAttack && progress >= 1f);
                 return;
             }
             _hasApplied = true;
+            _movesActor = result.Request.TargetId == _targetId;
             progress = Mathf.Clamp01(progress);
+            if (_actionId != result.ActionId)
+            {
+                _actionId = result.ActionId;
+                _animation = _enhancement != null ? _enhancement.GetAnimation(result.Request.SkillId, _skillStage) : null;
+                _effectPrefab = _enhancement != null ? _enhancement.GetEffect(result.Request.SkillId, _skillStage) : null;
+                _hasSpawnedEffect = false;
+                if (_movesActor)
+                {
+                    BeginAnimation();
+                }
+                GameObject chargePrefab = _enhancement != null ? _enhancement.GetChargeEffect(result.Request.SkillId) : null;
+                _chargeFraction = chargePrefab != null ? _enhancement.ScaledChargeFraction : 0f;
+                if (chargePrefab != null && progress < _chargeFraction)
+                {
+                    _chargeInstance = Object.Instantiate(chargePrefab, _actor);
+                    _chargeInstance.transform.localPosition = Vector3.zero;
+                    _chargeInstance.transform.localRotation = Quaternion.identity;
+                    TutorialChargeVfxPlacement chargePlacement = _chargeInstance.GetComponent<TutorialChargeVfxPlacement>();
+                    if (chargePlacement != null)
+                    {
+                        chargePlacement.Initialize(Camera.main);
+                    }
+                    PlayParticles(_chargeInstance, _enhancement.ChargePlaybackSpeed);
+                }
+            }
+            bool isCharging = progress < _chargeFraction;
+            if (!isCharging && _chargeInstance != null)
+            {
+                _chargeInstance.SetActive(false);
+                Object.Destroy(_chargeInstance);
+                _chargeInstance = null;
+            }
+            // 차징 동안 원래 자리에서 대기하고 이후에만 기존 접근·베기·복귀 연출을 진행한다.
+            progress = Mathf.Clamp01((progress - _chargeFraction) / (1f - _chargeFraction));
+            if (_animationGraph.IsValid())
+            {
+                _animationPlayable.SetTime(progress * _animation.length);
+                _animationGraph.Evaluate(0f);
+            }
             float approach = progress < ImpactTime ? Mathf.SmoothStep(0f, 1f, progress / ImpactTime)
                 : progress < ReturnTime ? 1f : 1f - Mathf.SmoothStep(0f, 1f, (progress - ReturnTime) / (1f - ReturnTime));
-            _actor.position = Vector3.Lerp(ActorHome, _attackPosition, approach);
+            bool primaryTarget = result.Request.TargetId == _targetId;
+            if (primaryTarget)
+            {
+                _actor.position = Vector3.Lerp(ActorHome, _attackPosition, approach);
+            }
             Vector3 facing = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up);
-            if (facing.sqrMagnitude > 0.001f)
+            if (primaryTarget && facing.sqrMagnitude > 0.001f)
             {
                 _actor.rotation = Quaternion.LookRotation(facing);
+            }
+            if (!_hasSpawnedEffect && progress >= ImpactTime)
+            {
+                _hasSpawnedEffect = true;
+                if (_effectPrefab != null)
+                {
+                    _effectInstance = Object.Instantiate(_effectPrefab, _target.position, _target.rotation);
+                    TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
+                    if (placement != null)
+                    {
+                        placement.Initialize(_actor, _target, Camera.main);
+                    }
+                    PlayParticles(_effectInstance);
+                }
             }
             bool tookDamage = false;
             foreach (BattleStateChange change in result.Changes)
@@ -96,7 +180,8 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             float reaction = Mathf.Clamp01((progress - ImpactTime) / (ReturnTime - ImpactTime));
-            bool reacts = tookDamage && result.Hit != null && result.Hit.IsHit
+            BattleHitResult targetHit = result.TargetHits.TryGetValue(_targetId, out BattleHitResult foundHit) ? foundHit : result.Hit;
+            bool reacts = tookDamage && targetHit != null && targetHit.IsHit
                 && progress >= ImpactTime && progress < ReturnTime;
             float strength = reacts ? 1f - reaction : 0f;
             Vector3 forward = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up).normalized;
@@ -125,11 +210,64 @@ namespace CK.SemesterProject.Tutorial
 
         public void Restore()
         {
+            Restore(false);
+        }
+
+        private void Restore(bool letEffectFinish)
+        {
+            if (!letEffectFinish)
+            {
+                foreach (GameObject tail in _effectTails)
+                {
+                    if (tail != null)
+                    {
+                        Object.Destroy(tail);
+                    }
+                }
+                _effectTails.Clear();
+            }
             if (!_hasApplied)
             {
                 return;
             }
-            if (_actor != null)
+            if (_effectInstance != null)
+            {
+                if (letEffectFinish)
+                {
+                    TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
+                    if (placement != null)
+                    {
+                        placement.enabled = false;
+                    }
+                    _effectTails.RemoveAll(tail => tail == null);
+                    _effectTails.Add(_effectInstance);
+                    Object.Destroy(_effectInstance, EffectTailSeconds);
+                }
+                else
+                {
+                    Object.Destroy(_effectInstance);
+                }
+                _effectInstance = null;
+            }
+            if (_chargeInstance != null)
+            {
+                Object.Destroy(_chargeInstance);
+                _chargeInstance = null;
+            }
+            if (_animationGraph.IsValid())
+            {
+                _animationGraph.Destroy();
+                for (int i = 0; i < _animatedTransforms.Length; i++)
+                {
+                    if (_animatedTransforms[i] != null)
+                    {
+                        _animatedTransforms[i].localPosition = _localPositions[i];
+                        _animatedTransforms[i].localRotation = _localRotations[i];
+                        _animatedTransforms[i].localScale = _localScales[i];
+                    }
+                }
+            }
+            if (_movesActor && _actor != null)
             {
                 _actor.position = ActorHome;
                 _actor.rotation = _actorRotation;
@@ -146,6 +284,60 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             _hasApplied = false;
+            _actionId = 0;
+            _animation = null;
+            _effectPrefab = null;
+            _hasSpawnedEffect = false;
+            _chargeFraction = 0f;
+        }
+
+        private static void PlayParticles(GameObject effect, float speedMultiplier = 1f)
+        {
+            ParticleSystem[] particles = effect.GetComponentsInChildren<ParticleSystem>();
+            foreach (ParticleSystem particle in particles)
+            {
+                particle.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = particle.main;
+                main.simulationSpeed *= speedMultiplier;
+            }
+            foreach (ParticleSystem particle in particles)
+            {
+                particle.Play(false);
+            }
+        }
+
+        private void BeginAnimation()
+        {
+            if (_animation == null || _animator == null)
+            {
+                return;
+            }
+            if (_animation.legacy)
+            {
+                Debug.LogWarning("기본 스킬 강화: Animator용 클립을 연결하세요. Legacy 클립: " + _animation.name, _actor);
+                return;
+            }
+            if (_animatedTransforms == null)
+            {
+                _animatedTransforms = _actor.GetComponentsInChildren<Transform>(true);
+                _localPositions = new Vector3[_animatedTransforms.Length];
+                _localRotations = new Quaternion[_animatedTransforms.Length];
+                _localScales = new Vector3[_animatedTransforms.Length];
+            }
+            for (int i = 0; i < _animatedTransforms.Length; i++)
+            {
+                _localPositions[i] = _animatedTransforms[i].localPosition;
+                _localRotations[i] = _animatedTransforms[i].localRotation;
+                _localScales[i] = _animatedTransforms[i].localScale;
+            }
+            // Humanoid 클립도 같은 행동 시간에 맞춰 재생하고 원래 포즈를 복구한다.
+            _animationGraph = PlayableGraph.Create("Basic Skill Enhancement");
+            _animationGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
+            _animationPlayable = AnimationClipPlayable.Create(_animationGraph, _animation);
+            _animationPlayable.SetSpeed(0);
+            var output = AnimationPlayableOutput.Create(_animationGraph, "Skill", _animator);
+            output.SetSourcePlayable(_animationPlayable);
+            _animationGraph.Play();
         }
     }
 }

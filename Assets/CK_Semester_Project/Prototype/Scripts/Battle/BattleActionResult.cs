@@ -11,17 +11,21 @@ namespace CK.SemesterProject.Battle
         public bool WasSkipped { get; }
         public bool IsTurnStartEffect { get; }
         public BattleHitResult Hit { get; }
+        public IReadOnlyDictionary<string, BattleHitResult> TargetHits { get; }
         public bool GrantsExtraAction => Outcome == BattleOutcome.None && Hit != null && Hit.GrantsExtraAction;
         public BattleOutcome Outcome { get; }
         public IReadOnlyList<BattleStateChange> Changes { get; }
 
         internal BattleActionResult(long actionId, BattleActionRequest request, bool wasSkipped,
-            BattleOutcome outcome, IEnumerable<BattleStateChange> changes, BattleHitResult hit = null, bool isTurnStartEffect = false)
+            BattleOutcome outcome, IEnumerable<BattleStateChange> changes, BattleHitResult hit = null, bool isTurnStartEffect = false,
+            IReadOnlyDictionary<string, BattleHitResult> targetHits = null)
         {
             ActionId = actionId;
             Request = request;
             WasSkipped = wasSkipped;
             Hit = hit;
+            TargetHits = new System.Collections.ObjectModel.ReadOnlyDictionary<string, BattleHitResult>(
+                targetHits == null ? new Dictionary<string, BattleHitResult>() : targetHits.ToDictionary(pair => pair.Key, pair => pair.Value));
             IsTurnStartEffect = isTurnStartEffect;
             Outcome = outcome;
             Changes = Array.AsReadOnly(changes.ToArray());

@@ -35,7 +35,25 @@ namespace CK.SemesterProject.Battle
 
             if (actor.Data.MonsterProfile != null && session.Rules.UsesInvestmentStages)
             {
-                return MonsterProfileAi.TryChooseAction(session, snapshot, actor, _randomSeed, out request);
+                if (!MonsterProfileAi.TryChooseAction(session, snapshot, actor, _randomSeed, out request))
+                {
+                    return false;
+                }
+                if (request.Kind == BattleActionKind.Defend)
+                {
+                    BattleSession preview = session.PreviewAction(request);
+                    BattleSnapshot next = preview?.GetSnapshot();
+                    if (next != null && next.Phase == BattlePhase.AwaitingAction && next.CurrentActorId == actor.InstanceId)
+                    {
+                        CombatantState nextActor = next.Combatants.First(unit => unit.InstanceId == actor.InstanceId);
+                        if (MonsterProfileAi.TryChooseAction(preview, next, nextActor, _randomSeed, out BattleActionRequest following)
+                            && following.Kind == BattleActionKind.Defend)
+                        {
+                            return MonsterProfileAi.TryChooseAction(session, snapshot, actor, _randomSeed, out request, allowDefense: false);
+                        }
+                    }
+                }
+                return true;
             }
 
             // 실행기를 호출하지 않고 현재 공통 계산식으로만 예측한다. 난수·상태를 소비하지 않는다.
@@ -64,7 +82,7 @@ namespace CK.SemesterProject.Battle
                 if (choices.Count == 0)
                 {
                     request = new BattleActionRequest(snapshot.TurnId, actor.InstanceId,
-                        IsPlayerOverheated(snapshot) ? BattleActionKind.Wait : BattleActionKind.Defend);
+                        session.Rules.CanMonsterDefend(actor, snapshot.Combatants) ? BattleActionKind.Defend : BattleActionKind.Wait);
                     return true;
                 }
                 // 같은 턴의 재조회는 같은 선택을 반환하고 전투 판정 난수와 분리한다.
@@ -119,14 +137,8 @@ namespace CK.SemesterProject.Battle
 
             // 유효한 이득이 없거나 비용이 부족해도 턴 진행이 멈추지 않게 한다.
             request = new BattleActionRequest(snapshot.TurnId, actor.InstanceId,
-                IsPlayerOverheated(snapshot) ? BattleActionKind.Wait : BattleActionKind.Defend);
+                session.Rules.CanMonsterDefend(actor, snapshot.Combatants) ? BattleActionKind.Defend : BattleActionKind.Wait);
             return true;
-        }
-
-        internal static bool IsPlayerOverheated(BattleSnapshot snapshot)
-        {
-            return snapshot.Combatants.Any(unit => unit.Data.Team == BattleTeam.Player
-                && !unit.IsDead && unit.IsOverheated);
         }
 
         private double EvaluateCandidate(BattleSnapshot snapshot, BattleTeam team, SkillData skill,

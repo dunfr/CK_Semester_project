@@ -7,12 +7,18 @@ namespace CK.SemesterProject.Battle
     public sealed class BattleSession
     {
         private readonly Dictionary<string, int> _actionsTaken = new Dictionary<string, int>();
+        private readonly List<BattleHistoryEntry> _history = new List<BattleHistoryEntry>();
+        private readonly HashSet<string> _damagedByPlayer = new HashSet<string>();
+        private string _lastAfterimageHitId;
+        private string _attackImprintId;
 
         public int GetActionCount(string actorId) => _actionsTaken.TryGetValue(actorId, out int count) ? count : 0;
 
         private readonly IBattleActionResolver _resolver;
         private readonly BattleRules _rules;
         private readonly Random _random;
+        private readonly int _sessionSeed;
+        private readonly List<int> _randomBounds = new List<int>();
         private readonly Dictionary<string, CombatantState> _combatants = new Dictionary<string, CombatantState>();
         private readonly List<string> _roster = new List<string>();
         private readonly HashSet<string> _remaining = new HashSet<string>();
@@ -28,21 +34,70 @@ namespace CK.SemesterProject.Battle
         private bool _isBonusAction;
         private bool _resumeActorAfterPresentation;
 
+        public IReadOnlyList<BattleHistoryEntry> History { get; }
         public BattleActionResult PendingResult { get; private set; }
         public BattleRules Rules => _rules;
         public string EntryInitiatorId { get; private set; }
 
+        // AI 선읽기는 불변 상태를 공유하고 별도 세션에만 쓴다. 실제 난수·이력은 소비하지 않는다.
+        internal BattleSession PreviewAction(BattleActionRequest request)
+        {
+            var preview = new BattleSession(rules: _rules, randomSeed: _sessionSeed);
+            foreach (int bound in _randomBounds)
+            {
+                preview.NextIndex(bound);
+            }
+            foreach (var pair in _combatants)
+            {
+                preview._combatants.Add(pair.Key, pair.Value);
+            }
+            foreach (var pair in _actionsTaken)
+            {
+                preview._actionsTaken.Add(pair.Key, pair.Value);
+            }
+            preview._roster.AddRange(_roster);
+            preview._remaining.UnionWith(_remaining);
+            preview._turnOrder.AddRange(_turnOrder);
+            preview._damagedByPlayer.UnionWith(_damagedByPlayer);
+            preview._lastAfterimageHitId = _lastAfterimageHitId;
+            preview._attackImprintId = _attackImprintId;
+            preview._phase = _phase;
+            preview._outcome = _outcome;
+            preview._entryCondition = _entryCondition;
+            preview._currentActorId = _currentActorId;
+            preview._round = _round;
+            preview._turnId = _turnId;
+            preview._extraActorId = _extraActorId;
+            preview._openingActorId = _openingActorId;
+            preview._isBonusAction = _isBonusAction;
+            preview.EntryInitiatorId = EntryInitiatorId;
+            if (!preview.TrySubmit(request, out BattleActionResult result, out _))
+            {
+                return null;
+            }
+            preview.CompletePresentation(result.ActionId);
+            while (preview.PendingResult != null && preview.PendingResult.IsTurnStartEffect
+                && !preview.PendingResult.WasSkipped)
+            {
+                preview.CompletePresentation(preview.PendingResult.ActionId);
+            }
+            return preview;
+        }
+
         public BattleSession(IBattleActionResolver resolver = null, int? randomSeed = null, BattleRules rules = null)
         {
+            History = _history.AsReadOnly();
             _rules = (resolver as BattleActionResolver)?.Rules ?? rules ?? new BattleRules();
             _resolver = resolver ?? new BattleActionResolver(_rules, randomSeed);
-            _random = randomSeed.HasValue ? new Random(randomSeed.Value) : new Random();
+            _sessionSeed = randomSeed ?? Guid.NewGuid().GetHashCode();
+            _random = new Random(_sessionSeed);
         }
 
         public BattleSnapshot GetSnapshot()
         {
             return new BattleSnapshot(_phase, _outcome, _entryCondition, _round, _turnId,
-                _currentActorId, _roster.Select(id => _combatants[id]), _turnOrder);
+                _currentActorId, _roster.Select(id => _combatants[id]), _turnOrder,
+                _damagedByPlayer, _lastAfterimageHitId, _attackImprintId);
         }
 
         public BattleSnapshot Start(IEnumerable<BattleParticipant> participants,
@@ -94,6 +149,12 @@ namespace CK.SemesterProject.Battle
                         && participant.InitialRageEnergy >= BattleCombatRules.OverheatThreshold));
             }
             _entryCondition = entryCondition;
+            CombatantState[] monsters = _combatants.Values.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
+            CombatantState[] imprints = monsters.Where(unit => unit.Data.Element == BattleElement.Imprint).ToArray();
+            if (monsters.Length == 3 && imprints.Length == 2)
+            {
+                _attackImprintId = imprints[NextIndex(imprints.Length)].InstanceId;
+            }
             _outcome = EvaluateOutcome();
             if (_outcome != BattleOutcome.None)
             {
@@ -147,6 +208,20 @@ namespace CK.SemesterProject.Battle
             foreach (BattleStateChange change in changes)
             {
                 _combatants[change.After.InstanceId] = change.After;
+                if (_combatants[request.ActorId].Data.Team == BattleTeam.Player
+                    && change.After.Data.Team == BattleTeam.Monster && change.After.Hp < change.Before.Hp)
+                {
+                    _damagedByPlayer.Add(change.After.InstanceId);
+                    if (change.After.Data.Element == BattleElement.Afterimage)
+                    {
+                        _lastAfterimageHitId = change.After.InstanceId;
+                    }
+                    if (change.After.Data.Element == BattleElement.Imprint
+                        && (_attackImprintId == null || _combatants[_attackImprintId].IsDead))
+                    {
+                        _attackImprintId = change.After.InstanceId;
+                    }
+                }
             }
             CompleteAction(request, false, changes, hit);
             result = PendingResult;
@@ -205,7 +280,8 @@ namespace CK.SemesterProject.Battle
                 return BattleActionError.InvalidActor;
             }
             CombatantState actor = _combatants[_currentActorId];
-            if (actor.Data.MonsterProfile?.Element == BattleElement.Imprint && request.Kind == BattleActionKind.Defend)
+            if (actor.Data.Team == BattleTeam.Monster && request.Kind == BattleActionKind.Defend
+                && !_rules.CanMonsterDefend(actor, _combatants.Values))
             {
                 return BattleActionError.InvalidAction;
             }
@@ -218,7 +294,7 @@ namespace CK.SemesterProject.Battle
                 }
             }
             int investment = request.MemoryInvestment;
-            if (_resolver is BattleActionResolver && !_rules.TryGetInvestment(actor.Data, request, out investment, out _, out _))
+            if (_resolver is BattleActionResolver && !_rules.TryGetInvestment(actor.Data, request, out investment, out _, out _, GetSnapshot()))
             {
                 return BattleActionError.InvalidMemoryInvestment;
             }
@@ -253,6 +329,10 @@ namespace CK.SemesterProject.Battle
             if ((long)skill.MemoryCost + investment > actor.Memory)
             {
                 return BattleActionError.InsufficientMemory;
+            }
+            if (skill.RageCost > actor.RageEnergy || (skill.RageCost > 0 && !_rules.Mechanics.EnableRage))
+            {
+                return BattleActionError.InsufficientRage;
             }
             return BattleActionError.None;
         }
@@ -303,7 +383,8 @@ namespace CK.SemesterProject.Battle
                     effect.IsDefending ?? before.IsDefending, Clamp((long)before.RageEnergy + effect.RageDelta, 100),
                     effect.ChainStep ?? before.ChainStep, effect.ImprintDamage ?? before.ImprintDamage,
                     _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold, before.HasMemoryLoss,
-                    effect.DefenseDamageMultiplier ?? before.DefenseDamageMultiplier);
+                    effect.DefenseDamageMultiplier ?? before.DefenseDamageMultiplier,
+                    effect.HasAfterimageRecovery ?? before.HasAfterimageRecovery);
                 changes.Add(new BattleStateChange(before, after));
             }
             return changes;
@@ -312,6 +393,12 @@ namespace CK.SemesterProject.Battle
         private static int Clamp(long value, int maximum)
         {
             return (int)Math.Max(0L, Math.Min(maximum, value));
+        }
+
+        private int NextIndex(int maximum)
+        {
+            _randomBounds.Add(maximum);
+            return _random.Next(maximum);
         }
 
         private void BeginRound()
@@ -327,7 +414,8 @@ namespace CK.SemesterProject.Battle
                     {
                         _combatants[id] = new CombatantState(id, unit.Data, unit.Hp, unit.Memory,
                             unit.SkippedTurns, unit.IsDefending, unit.RageEnergy, unit.ChainStep,
-                            unit.ImprintDamage, unit.IsOverheated, hasMemoryLoss: true, defenseDamageMultiplier: unit.DefenseDamageMultiplier);
+                            unit.ImprintDamage, unit.IsOverheated, hasMemoryLoss: true, defenseDamageMultiplier: unit.DefenseDamageMultiplier,
+                            hasAfterimageRecovery: unit.HasAfterimageRecovery);
                     }
                     _remaining.Add(id);
                 }
@@ -342,7 +430,7 @@ namespace CK.SemesterProject.Battle
             // 비교 함수에서 난수를 뽑으면 정렬 규칙이 깨지므로 미리 섞고 안정 정렬한다.
             for (int i = candidates.Count - 1; i > 0; i--)
             {
-                int other = _random.Next(i + 1);
+                int other = NextIndex(i + 1);
                 string previous = candidates[i];
                 candidates[i] = candidates[other];
                 candidates[other] = previous;
@@ -370,12 +458,16 @@ namespace CK.SemesterProject.Battle
             _phase = BattlePhase.AwaitingAction;
             CombatantState actor = _combatants[_currentActorId];
             bool overheated = _rules.Mechanics.EnableRage && actor.RageEnergy >= BattleCombatRules.OverheatThreshold;
-            bool skipped = actor.SkippedTurns > 0 || overheated || actor.HasMemoryLoss;
+            // 같은 라운드의 강탈이나 추가 행동도 다음 자기 행동 전에 고갈을 확인한다.
+            bool memoryDepleted = actor.HasMemoryLoss
+                || (_rules.EnableMemoryLoss && actor.Memory == 0 && actor.Data.InitialMemory > 0);
+            bool skipped = actor.SkippedTurns > 0 || overheated || memoryDepleted;
             int hp = Math.Max(0, actor.Hp - actor.ImprintDamage);
             var after = new CombatantState(actor.InstanceId, actor.Data, hp,
-                actor.HasMemoryLoss && hp > 0 ? Clamp((long)actor.Memory + actor.Data.InitialMemory, actor.Data.MaxMemory) : actor.Memory,
+                memoryDepleted && hp > 0 ? Clamp((long)actor.Memory + actor.Data.InitialMemory, actor.Data.MaxMemory) : actor.Memory,
                 hp == 0 ? 0 : Math.Max(0, actor.SkippedTurns - 1), false,
-                overheated ? 0 : actor.RageEnergy, actor.ChainStep, 0);
+                overheated ? 0 : actor.RageEnergy, actor.ChainStep, 0,
+                hasAfterimageRecovery: !skipped && actor.HasAfterimageRecovery);
             if (!actor.IsDefending && actor.ImprintDamage == 0 && !skipped)
             {
                 return;
@@ -423,7 +515,9 @@ namespace CK.SemesterProject.Battle
                 _extraActorId = null;
             }
             PendingResult = new BattleActionResult(_turnId, request, wasSkipped, _outcome, changes,
-                hit, isTurnStartEffect);
+                hit, isTurnStartEffect, !wasSkipped && !isTurnStartEffect && request.Kind == BattleActionKind.Skill
+                    ? (_resolver as BattleActionResolver)?.TargetHits : null);
+            _history.Add(new BattleHistoryEntry(PendingResult, _combatants[request.ActorId], _rules, GetSnapshot()));
         }
 
         private BattleOutcome EvaluateOutcome()

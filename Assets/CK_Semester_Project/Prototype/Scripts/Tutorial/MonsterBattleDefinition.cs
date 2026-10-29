@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using UnityEngine;
@@ -8,6 +8,24 @@ namespace CK.SemesterProject.Tutorial
     [CreateAssetMenu(menuName = "Battle/Monster Definition")]
     public sealed class MonsterBattleDefinition : ScriptableObject
     {
+        [Serializable]
+        private sealed class BossSkillRule
+        {
+            [SerializeField, Range(0, 3), Tooltip("메모리 구간. 0=75% 이상, 1=50% 이상, 2=25% 이상, 3=25% 미만")]
+            private int _memoryBand;
+            [SerializeField, Range(0, 3), Tooltip("보스 HP 구간. 0=75% 이상부터 3=25% 미만")]
+            private int _bossHpBand;
+            [SerializeField, Range(0, 3), Tooltip("플레이어 HP 구간. 0=75% 이상부터 3=25% 미만")]
+            private int _playerHpBand;
+            [SerializeField, Range(1, 2), Tooltip("선택할 스킬 번호")]
+            private int _skillNumber;
+
+            public BossBehaviorProfile.SkillRule Create()
+            {
+                return new BossBehaviorProfile.SkillRule(_memoryBand, _bossHpBand, _playerHpBand, _skillNumber);
+            }
+        }
+
         [Serializable]
         private sealed class InvestmentRange
         {
@@ -65,14 +83,28 @@ namespace CK.SemesterProject.Tutorial
         private string _displayName;
         [SerializeField, Tooltip("AI 유형과 공격 속성")]
         private BattleElement _element;
-        [SerializeField, Min(1), Tooltip("임시 최대 HP. Monster DT 확정 시 교체")]
+        [SerializeField, Min(1), Tooltip("Monster_DT의 최대 HP")]
         private int _maxHp = 600;
-        [SerializeField, Min(1), Tooltip("임시 기본/최대 메모리. 잔상은 플레이어보다 높게 설정")]
+        [SerializeField, Min(1), Tooltip("Monster_DT의 기본/최대 메모리")]
         private int _memory = 180;
-        [SerializeField, Min(0), Tooltip("임시 기본 공격력")]
+        [SerializeField, Min(0), Tooltip("Monster_DT의 기본 공격력")]
         private int _power = 90;
         [SerializeField, Range(0f, 1f), Tooltip("기본 공격 명중률")]
         private float _accuracy = 1;
+        [SerializeField, Range(0f, 1f), Tooltip("Monster_DT의 회피율. 0.1이면 10%")]
+        private float _evasion;
+        [SerializeField, Tooltip("망각 기본 AI에 보스 전용 스킬 선택표를 적용합니다")]
+        private bool _isBoss;
+        [SerializeField, Min(0), Tooltip("보스 스킬_1의 기본 공격력 추가 피해")]
+        private int _bossSkillOneBonus = 20;
+        [SerializeField, Min(0), Tooltip("보스 스킬_2의 기본 공격력 추가 피해")]
+        private int _bossSkillTwoBonus = 40;
+        [SerializeField, Min(0), Tooltip("보스 스킬_1 기본 메모리 비용")]
+        private int _bossSkillOneCost = 10;
+        [SerializeField, Min(0), Tooltip("보스 스킬_2 기본 메모리 비용")]
+        private int _bossSkillTwoCost = 20;
+        [SerializeField, Tooltip("문서의 보스 스킬 선택표. 빈 배열이면 기본 28행. 미기재 조합은 가장 가까운 행, 동률은 앞 행")]
+        private BossSkillRule[] _bossSkillRules;
         [SerializeField, Tooltip("4개 원소로 구성한 약점 연쇄")]
         private BattleElement[] _weaknessChain;
         [SerializeField, Tooltip("0단계부터 기본 메모리 대비 비용 백분율")]
@@ -92,7 +124,25 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("생존 동료가 망각인 2기 전투")]
         private Tactics _withOblivion;
 
+        [SerializeField, Range(0, 100), Tooltip("3기 조합의 각인 최대 투자 공격: 플레이어 HP 이하 비율")]
+        private int _trioFinisherHpPercent = 40;
+        [SerializeField, Range(0, 100), Tooltip("잔상 2기 생존 방어: 자신의 HP 이하 비율")]
+        private int _trioSurvivorHpPercent = 75;
+        [SerializeField, Range(0f, 1f), Tooltip("잔상 2기 생존 시 방어 확률")]
+        private float _trioSurvivorDefenseChance = 0.5f;
+        [SerializeField, Tooltip("잔상 확률 공격: 1·2·3단계 가중치")]
+        private int[] _trioAttackWeights = { 50, 30, 20 };
+        [SerializeField, Tooltip("대기형 각인 행동 1~5 투자 범위")]
+        private InvestmentRange[] _trioWaitingAttack = new MonsterTrioRules().WaitingAttack.Select(row => new InvestmentRange(row)).ToArray();
+        [SerializeField, Tooltip("잔상 방어: 메모리 내림차순 표, 행동 1~6")]
+        private InvestmentRange[] _trioDefenseForward = new MonsterTrioRules().DefenseForward.Select(row => new InvestmentRange(row)).ToArray();
+        [SerializeField, Tooltip("잔상 방어: 메모리 오름차순 표, 행동 1~6")]
+        private InvestmentRange[] _trioDefenseReverse = new MonsterTrioRules().DefenseReverse.Select(row => new InvestmentRange(row)).ToArray();
+        [SerializeField, Tooltip("잔상 2기 생존 방어: 행동 1~6 투자 범위")]
+        private InvestmentRange[] _trioSurvivorDefense = new MonsterTrioRules().SurvivorDefense.Select(row => new InvestmentRange(row)).ToArray();
+
         public BattleElement Element => _element;
+        public bool IsBoss => _isBoss;
 
         public void InitializeDefaults(BattleElement element)
         {
@@ -118,10 +168,26 @@ namespace CK.SemesterProject.Tutorial
         public CombatantData CreateData()
         {
             var profile = new MonsterBehaviorProfile(_element, _costPercent, _multipliers,
-                _playerThresholds, _selfThresholds, _solo.Create(), _withImprint.Create(), _withAfterimage.Create(), _withOblivion.Create());
+                _playerThresholds, _selfThresholds, _solo.Create(), _withImprint.Create(), _withAfterimage.Create(), _withOblivion.Create(),
+                new MonsterTrioRules(_trioFinisherHpPercent, _trioSurvivorHpPercent, _trioSurvivorDefenseChance,
+                    _trioAttackWeights, _trioWaitingAttack.Select(row => row.Create()).ToArray(),
+                    _trioDefenseForward.Select(row => row.Create()).ToArray(), _trioDefenseReverse.Select(row => row.Create()).ToArray(),
+                    _trioSurvivorDefense.Select(row => row.Create()).ToArray()));
             var attack = new SkillData(_id + "_attack", "공격", _power, _element, accuracy: _accuracy);
+            if (_isBoss)
+            {
+                var first = new SkillData(_id + "_skill_1", "스킬_1", checked(_power + _bossSkillOneBonus),
+                    BattleElement.Oblivion, memoryCost: _bossSkillOneCost, accuracy: _accuracy, englishName: "skill_1");
+                var second = new SkillData(_id + "_skill_2", "스킬_2", checked(_power + _bossSkillTwoBonus),
+                    BattleElement.Oblivion, memoryCost: _bossSkillTwoCost, accuracy: _accuracy, englishName: "skill_2");
+                var boss = new BossBehaviorProfile(first.Id, second.Id,
+                    _bossSkillRules != null && _bossSkillRules.Length > 0 ? _bossSkillRules.Select(rule => rule.Create()) : null);
+                return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
+                    new[] { first, second }, _element, evasion: _evasion, weaknessChain: _weaknessChain,
+                    monsterProfile: profile, bossProfile: boss);
+            }
             return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
-                new[] { attack }, _element, weaknessChain: _weaknessChain, monsterProfile: profile);
+                new[] { attack }, _element, evasion: _evasion, weaknessChain: _weaknessChain, monsterProfile: profile);
         }
     }
 }

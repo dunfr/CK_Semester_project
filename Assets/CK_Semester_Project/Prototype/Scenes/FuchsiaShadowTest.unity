@@ -59913,7 +59913,6 @@ GameObject:
   - component: {fileID: 1516626647}
   - component: {fileID: 1516626646}
   - component: {fileID: 1516626645}
-  - component: {fileID: 1516626648}
   - component: {fileID: 1516626649}
   m_Layer: 0
   m_Name: FuchsiaMovementRig
@@ -59991,25 +59990,6 @@ Transform:
   - {fileID: 2004723449}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
---- !u!114 &1516626648
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1516626644}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4df698a54087c3e43af926ff1d271469, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: CK.Rendering.CharacterLighting::CK.SemesterProject.Rendering.CharacterLighting
-  _sampleOffset: {x: 0, y: 1, z: 0}
-  _smoothTime: 0.35
-  _baseProfile: {fileID: 0}
-  _selfShadowCenter: {x: 0, y: 0.9, z: 0}
-  _selfShadowRadius: 1
-  _overrideProfile: {fileID: 0}
-  _overrideWeight: 0
 --- !u!114 &1516626649
 MonoBehaviour:
   m_ObjectHideFlags: 0

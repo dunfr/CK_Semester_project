@@ -36,7 +36,8 @@ public sealed class CharacterSelfShadowFeature : ScriptableRendererFeature
 
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        if (renderingData.cameraData.camera.cameraType == CameraType.Preview)
+        // 기본 렌더러(PC_Renderer)에 붙어 모든 씬·카메라에서 불리므로, 캐릭터가 없으면 그림자 맵을 만들지도 지우지도 않는다.
+        if (renderingData.cameraData.camera.cameraType == CameraType.Preview || CharacterLighting.Active.Count == 0)
         {
             return;
         }

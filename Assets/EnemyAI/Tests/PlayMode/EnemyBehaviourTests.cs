@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
@@ -62,6 +62,34 @@ namespace Semester.Enemies.Tests
             playerObject = new GameObject("Test Player");
             playerObject.transform.position = origin + offset;
             enemy.player = playerObject.transform;
+        }
+
+        [UnityTest]
+        public IEnumerator HeightLimitProtectsDuctWhileDefaultVisionRemainsAvailable()
+        {
+            CreatePlayer(Vector3.forward * 8f + Vector3.up * 4f);
+            Assert.IsTrue(enemy.IsPlayerVisible());
+            typeof(EnemyStateMachine).GetField("_maximumSightHeightDifference",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(enemy, 2.5f);
+            Assert.IsFalse(enemy.IsPlayerVisible());
+            playerObject.transform.position = origin + Vector3.forward * 8f;
+            Assert.IsTrue(enemy.IsPlayerVisible());
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ScriptedInvestigationMovesAndStationaryGuardThenWaits()
+        {
+            typeof(EnemyStateMachine).GetField("_stationaryGuard",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(enemy, true);
+            Vector3 destination = origin + Vector3.right * 4f;
+            enemy.InvestigatePosition(destination);
+            Assert.AreEqual(EnemyStateMachine.State.PursueLastSeen, enemy.CurrentState);
+            yield return new WaitForSeconds(.3f);
+            Assert.Greater(Vector3.Distance(origin, enemyObject.transform.position), .3f);
+            yield return new WaitForSeconds(2f);
+            Assert.Less(Vector3.Distance(destination, enemyObject.transform.position), .6f);
+            Assert.AreEqual(EnemyStateMachine.State.PatrolWait, enemy.CurrentState);
         }
 
         [UnityTest]

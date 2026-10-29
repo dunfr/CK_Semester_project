@@ -62,6 +62,7 @@ namespace CK.SemesterProject.Battle
         InvalidTarget,
         InvalidMemoryInvestment,
         UnsupportedAction,
-        InsufficientMemory
+        InsufficientMemory,
+        InsufficientRage
     }
 }

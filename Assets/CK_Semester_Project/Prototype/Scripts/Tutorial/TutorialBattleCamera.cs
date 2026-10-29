@@ -7,6 +7,16 @@ namespace CK.SemesterProject.Tutorial
         private static readonly Collider[] _overlaps = new Collider[64];
         private static readonly RaycastHit[] _hits = new RaycastHit[64];
 
+        public static Pose GetBasePose(Vector3 playerSlot, Vector3 enemySlot, Vector3 offset)
+        {
+            Vector3 forward = Vector3.ProjectOnPlane(enemySlot - playerSlot, Vector3.up).normalized;
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            float scale = Mathf.Sqrt(Mathf.Max(1f, Vector3.Distance(playerSlot, enemySlot) / 4f));
+            Vector3 focus = Vector3.Lerp(playerSlot, enemySlot, 0.55f) + Vector3.up * 0.9f;
+            Vector3 position = playerSlot + (right * offset.x + forward * offset.z + Vector3.up * offset.y) * scale;
+            return new Pose(position, Quaternion.LookRotation(focus - position));
+        }
+
         // Offset: 플레이어 기준 오른쪽/높이/전방. 양수 X와 음수 Z가 어깨 뒤 구도다.
         public static bool TryGetPose(Vector3 playerSlot, Vector3 enemySlot, Transform player, Transform enemy,
             Vector3 offset, float fieldOfView, float aspect, out Pose pose)
@@ -17,15 +27,12 @@ namespace CK.SemesterProject.Tutorial
             {
                 return false;
             }
-            Vector3 right = Vector3.Cross(Vector3.up, forward);
-            // 간격이 커져도 카메라가 같은 비율로 멀어져 거리감이 상쇄되지 않게 한다.
-            float scale = Mathf.Sqrt(Mathf.Max(1f, Vector3.Distance(playerSlot, enemySlot) / 4f));
+            Pose basePose = GetBasePose(playerSlot, enemySlot, offset);
             Vector3 focus = Vector3.Lerp(playerSlot, enemySlot, 0.55f) + Vector3.up * 0.9f;
             for (int heightStep = 0; heightStep < 3; heightStep++)
             {
                 float raise = heightStep * 0.4f;
-                Vector3 position = playerSlot + (right * offset.x + forward * offset.z) * scale
-                    + Vector3.up * (offset.y * scale + raise);
+                Vector3 position = basePose.position + Vector3.up * raise;
                 Quaternion rotation = Quaternion.LookRotation(focus - position);
                 if (!IsClear(position, player, enemy)
                     || !CanSee(position, playerSlot + Vector3.up * 0.25f, player, enemy)
