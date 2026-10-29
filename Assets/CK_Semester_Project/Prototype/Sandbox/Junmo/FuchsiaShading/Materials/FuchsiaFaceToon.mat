@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FuchsiaFaceToon
-  m_Shader: {fileID: 4800000, guid: 3e5f669be5a3d4d469787b88f629c08f, type: 3}
+  m_Shader: {fileID: 4800000, guid: 779f9767c3617354bad431d3b817bf81, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -17,32 +17,102 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap: {}
+  stringTagMap:
+    RenderType: Opaque
   disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 2963e57c56067c54e89c2eaa791cf783, type: 3}
+        m_Texture: {fileID: 2800000, guid: edddbd428c1f4e84690902f741c71815, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _FaceShadowMap:
+        m_Texture: {fileID: 2800000, guid: d9b38ae407d26b548950ce3b736fb8cf, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AmbientStrength: 0.1
+    - _AdditionalLightCeiling: 0.35
+    - _AdditionalLightStrength: 0.35
+    - _AdditionalShadowFill: 0.8
+    - _AmbientStrength: 1
+    - _BacklightHighlightFade: 0.85
+    - _BacklightShadeDim: 0.25
+    - _CharacterShadowSlot: -1
     - _Cull: 0
-    - _DeepShadeStep: 0.17
-    - _ShadeFeather: 0.035
-    - _ShadeStep: 0.35
+    - _DeepShadeStep: 0.25
+    - _DepthRimShadowFade: 0.35
+    - _DepthRimStrength: 0.3
+    - _DepthRimThreshold: 0.12
+    - _DepthRimWidth: 4
+    - _DirectLightCeiling: 0.48
+    - _DirectLightStrength: 1.8
+    - _EnvironmentShadowStrength: 1
+    - _FaceAmbientFill: 0.35
+    - _FaceShadowFeather: 0.025
+    - _FaceShadowOffset: 0.12
+    - _FaceStyleStrength: 1
+    - _HairShadowBias: 0.003
+    - _HairShadowDistance: 0.035
+    - _HairShadowStrength: 0.75
+    - _HighlightFeather: 0.015
+    - _HighlightSize: 0.055
+    - _HighlightStrength: 0
+    - _LightNormalize: 1
+    - _LitBrightness: 1
+    - _OutlineDarkWiden: 0
+    - _OutlineLightTint: 0.3
+    - _OutlineMaxScale: 3
+    - _OutlineMinScale: 0.2
+    - _OutlineSaturation: 1.5
+    - _OutlineShadeWiden: 0
+    - _OutlineThinScale: 0.25
+    - _OutlineUseThickness: 0
+    - _OutlineWidth: 1
+    - _OutlineZOffset: 0.2
+    - _ReceiveShadowStrength: 0.5
+    - _RimPower: 5
+    - _RimShadowFeather: 0.25
+    - _RimShadowPower: 3
+    - _RimShadowStrength: 0
+    - _RimShadowWidth: 1.3
+    - _RimStrength: 0
+    - _SelfShadowBias: 0.02
+    - _SelfShadowSoftness: 0.2
+    - _SelfShadowStrength: 0
+    - _ShadeAmbientTint: 0.3
+    - _ShadeEdgeHardness: 0
+    - _ShadeEdgeSaturation: 1.6
+    - _ShadeEdgeWidth: 0.12
+    - _ShadeFeather: 0.025
+    - _ShadeSaturation: 1.3
+    - _ShadeStep: 0.24
+    - _ShadingStrength: 1
+    - _StyleAxesSpace: 0
     - _UseEmission: 0
     m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _DeepShadeColor: {r: 0.82, g: 0.69, b: 0.74, a: 1}
+    - _BaseColor: {r: 1, g: 0.95, b: 0.92, a: 1}
+    - _CharacterBrightness: {r: 1, g: 0.35, b: 1.15, a: 0}
+    - _CharacterKeyColor: {r: 1, g: 1, b: 1, a: 0}
+    - _CharacterKeyDirection: {r: 0, g: 1, b: 0, a: 0}
+    - _CharacterRimTint: {r: 1, g: 1, b: 1, a: 1}
+    - _DeepShadeColor: {r: 0.9, g: 0.82, b: 0.83, a: 1}
+    - _DepthRimColor: {r: 1, g: 0.96, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _ShadeColor: {r: 0.95, g: 0.86, b: 0.88, a: 1}
+    - _HighlightColor: {r: 0.85, g: 0.86, b: 0.96, a: 1}
+    - _OutlineColor: {r: 0.41999996, g: 0.29999998, b: 0.39999998, a: 1}
+    - _RimColor: {r: 0.75, g: 0.85, b: 1, a: 1}
+    - _RimShadowColor: {r: 0.78, g: 0.77, b: 0.92, a: 1}
+    - _ShadeColor: {r: 0.96, g: 0.8, b: 0.82, a: 1}
+    - _ShadeEdgeColor: {r: 1, g: 0.96, b: 0.97999996, a: 1}
+    - _StyleForwardOS: {r: 0, g: -1.0000001, b: -0.00000011920929, a: 0}
+    - _StyleRightOS: {r: 1, g: 0, b: 0, a: 0}
+    - _StyleUpOS: {r: 0, g: -0.00000011920929, b: 1.0000001, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
