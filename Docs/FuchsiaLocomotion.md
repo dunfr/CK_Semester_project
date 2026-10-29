@@ -14,11 +14,12 @@
 기본 경로: `Assets/CK_Semester_Project/Prototype/Sandbox/Junmo/FuchsiaShading/`
 
 - `Prefabs/FuchsiaAnimated.prefab`: `Assets/Ani_perpef(test)/Idle/idle.fbx`에서 만든 프리팹 Variant. 유효한 Generic `idleAvatar`와 7개 SkinnedMeshRenderer를 사용한다.
-- `Animations/FuchsiaLocomotion.controller`: float `Speed`를 사용하는 1D Blend Tree. Idle 0, Walk 0.5, Run 1.
-- `Animations/FuchsiaIdle.anim`, `FuchsiaWalk.anim`, `FuchsiaRun.anim`: 각 FBX의 모션을 복사한 반복 재생용 클립. Biped 루트의 수평 시작 오프셋을 제거해 모션 전환 시 위치가 튀지 않도록 했다. 원래의 전투 대기 자세와 방향 변화는 유지한다.
+- `Animations/FuchsiaLocomotion.controller`: 이동 FSM용 상태 3개(`Idle` / `Walk` / `Run`). 전이와 파라미터 없이 코드가 상태마다 CrossFade로 넘긴다(2026-10-29, 아래 "이동 FSM" 참고).
+- 모션: Walk·Run은 `Assets/Ani_perpef(test)`의 `walking.fbx`, `running.fbx` 클립(Take 001)을 그대로 쓴다. Idle은 `idle.fbx`의 Bip001이 41cm 옆·7cm 아래에 있어, 그 오프셋만 뺀 같은 모션 `Animations/FuchsiaIdle.anim`을 쓴다(나머지 본은 원본과 차이 0).
+- `Animations/FuchsiaWalk.anim`, `FuchsiaRun.anim`: 이전 Blend Tree용 복사본. 원본 FBX와 같아 Controller에서는 더 이상 쓰지 않는다.
 - 기존 얼굴·머리·의상 툰 머티리얼과 투명 안경알을 재사용한다. 검은 `Materials/FuchsiaKatanaToon.mat`에서 제공된 Katana_BaseColor 텍스처를 사용한다.
 
-PlayerMovement의 Animator 필드는 새 자식 Animator를 참조하며 Normalize Animation Speed가 활성화되어 있다. 실제 CharacterController 수평 이동 속도를 파라미터로 전달한다. 기본 걷기는 3m/s, 달리기는 5.4m/s이며 Root Motion은 꺼져 있다. 다른 씬에서는 기본값 false로 기존 Speed/Direction 전달 방식을 유지한다.
+PlayerMovement의 Animator 필드는 새 자식 Animator를 참조한다. Controller에 Idle / Walk / Run 상태가 있으면 상태마다 자기 모션을 재생하고, 없으면(다른 씬의 UnityChan 등) 기존 Speed/Direction 파라미터 방식을 쓴다. 기본 걷기는 3m/s, 달리기는 5.4m/s이며 Root Motion은 꺼져 있다.
 
 모델 스케일은 기존의 1.07563651을 유지하고 새 리그의 원점과 CharacterController 접촉 여유에 맞게 로컬 위치를 `(0, -0.025, 0)`으로 조정했다. 렌더러의 컬링 범위는 세 모션과 Blend Tree의 중간 자세를 샘플링해 각 rootBone 공간에서 계산했다.
 
@@ -69,4 +70,23 @@ PlayerMovement의 Animator 필드는 새 자식 Animator를 참조하며 Normali
 
 ## 전투 대기 모션
 
-전투 진입 시 TutorialBattleController는 실제 자식 Fuchsia 모델의 활성 Animator를 찾는다. 이동을 비활성화하고 Speed를 즉시 0으로 설정해 FuchsiaIdle만 재생한다. Animator를 정지시키지 않으므로 대기 모션은 계속 반복된다. 전투 종료/취소 시 이전 Animator 재생 속도를 복원하고 필드 이동 코드가 다시 Walk/Run 파라미터를 갱신한다.
+전투 진입 시 TutorialBattleController는 실제 자식 Fuchsia 모델의 활성 Animator를 찾는다. 이동을 비활성화하면 PlayerMovement가 Idle 상태로 돌아가 FuchsiaIdle을 재생한다(파라미터 방식 Controller는 Speed 0). Animator를 정지시키지 않으므로 대기 모션은 계속 반복된다. 전투 종료/취소 시 이전 Animator 재생 속도를 복원하고, 이동이 다시 켜지면 FSM이 입력에 맞춰 Walk/Run 상태로 넘어간다.
+
+## 2026-10-29 이동 FSM(상태 패턴)
+
+`Assets/CK_Semester_Project/Prototype/Scripts/Tutorial/`
+
+- `PlayerMovement`: FSM의 주인. 매 프레임 입력을 `PlayerMovementInput`으로 모으고, 현재 상태의 `GetNextState`로 다음 상태를 고른 뒤(바뀌면 이전 상태 `Exit` → 새 상태 `Enter`) `Tick`으로 이동시킨다.
+- `PlayerMovementState`: 상태 하나의 기반 클래스. `Enter` / `Exit` / `GetNextState` / `Tick`과 Animator 상태 이름(기본은 상태 이름과 같음)을 가진다. 기본 `Enter`는 같은 이름의 Animator 상태로 0.15초 CrossFade한다.
+- `PlayerGroundedState`: 땅 위 상태 공통 전이. 입력 없음 → Idle, 이동 → Walk, 이동 + Shift(또는 HUD 달리기 토글) → Run. Shift만 눌러서는 달리지 않는다.
+- `PlayerMoveState`: 걷기·달리기 공통. 정해진 속도로 이동하고, 벽에 막혀 실제로 거의 움직이지 못하면 상태는 그대로 둔 채 Idle 모션을 보여 준다(제자리 걸음 방지).
+- `PlayerIdleState` / `PlayerWalkState` / `PlayerRunState`: 상태별 이름과 이동 속도만 정한다.
+
+### 새 상태 추가(예: 점프)
+
+1. `PlayerMovementInput`에 점프 입력을 추가하고 `PlayerMovement.Update`에서 Space를 읽어 채운다.
+2. `PlayerJumpState : PlayerMovementState`를 만든다. `Enter`에서 위로 속도를 주고, `Tick`에서 공중 이동을, `GetNextState`에서 착지하면 땅 위 상태로 돌아가는 전이를 정한다(수직 속도·접지 상태를 다룰 메서드는 PlayerMovement에 추가).
+3. `PlayerMovement`에 `JumpState` 인스턴스를 두고, `PlayerGroundedState.GetNextState` 맨 앞에 점프 전이를 넣는다.
+4. 모션이 생기면 Controller에 `Jump` 상태를 추가하고 클립을 연결한다. Controller에 그 상태가 없는 동안에는 이전 모션을 유지하고 경고를 한 번만 남긴다.
+
+검증: PlayMode 테스트 `PlayerLocomotionStateTests` 3개와 새 `PlayerAnimationStateTests` 3개 통과(실제 프리팹·Controller로 상태별 모션, 벽에 막힘, 이동 비활성화 시 Idle, 각 모션에서 몸이 충돌체 위에 남는지 확인). `TutorialBattleCameraSettingsTests`·`PrototypeHudIntegrationTests`는 `65e9470` 이후 씬의 전투 컨트롤러 `_enemies`가 10개라 SetUp에서 멈춘다(이번 변경 전부터, 미수정).

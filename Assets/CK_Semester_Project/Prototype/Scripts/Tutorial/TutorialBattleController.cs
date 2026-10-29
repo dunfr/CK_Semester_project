@@ -701,8 +701,7 @@ namespace CK.SemesterProject.Tutorial
             if (_animator != null && _animator.runtimeAnimatorController != null)
             {
                 _animatorSpeed = _animator.speed;
-                // 자식 모델의 이동 Blend Tree를 Idle로 전환하고 대기 모션은 계속 재생한다.
-                _animator.SetFloat("Speed", 0f);
+                // 이동을 끄면 PlayerMovement가 Idle 상태로 돌아가 대기 모션을 재생한다. 대기 모션은 계속 반복한다.
                 _animator.speed = 1f;
                 _animator.Update(0f);
             }

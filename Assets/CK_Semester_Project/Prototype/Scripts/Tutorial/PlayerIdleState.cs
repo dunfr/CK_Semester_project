@@ -2,22 +2,11 @@ using UnityEngine;
 
 namespace CK.SemesterProject.Tutorial
 {
-    internal sealed class PlayerIdleState : PlayerMovementState
+    internal sealed class PlayerIdleState : PlayerGroundedState
     {
         public override string Name => "Idle";
 
-        public override PlayerMovementState GetNextState(PlayerMovement player, Vector2 input,
-            bool sprintRequested)
-        {
-            if (!HasMovementInput(input))
-            {
-                return this;
-            }
-
-            return sprintRequested ? player.RunState : player.WalkState;
-        }
-
-        public override void Move(PlayerMovement player, Vector2 input)
+        public override void Tick(PlayerMovement player, in PlayerMovementInput input)
         {
             player.MoveCharacter(Vector2.zero, 0f);
         }
