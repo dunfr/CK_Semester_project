@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace CK.SemesterProject.LevelDesign
 {
-    /// <summary>콘솔 데스크의 카드 키(C01: 데스크 안 → 올라옴 → 보유). 올라온 뒤 E로 획득(I03).</summary>
+    /// <summary>콘솔 데스크의 카드 키(C01: 데스크 안 → 올라옴 → 보유). 올라온 뒤 F로 획득(I03).</summary>
     public sealed class CardKeyDesk : LevelInteractable
     {
         [SerializeField, Tooltip("데스크 안에 숨겨 둔 카드 키")]

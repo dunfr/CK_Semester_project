@@ -31,6 +31,9 @@ namespace CK.SemesterProject.LevelDesign
         protected override void Awake()
         {
             base.Awake();
+            // 씬에서 삭제된 구성 요소가 목록에 남아 있어도 운행이 멈추지 않도록 빈 항목을 제외한다.
+            _carParts = _carParts == null ? new Transform[0] : System.Array.FindAll(_carParts, part => part != null);
+            _floorDisplays = _floorDisplays == null ? new TextMesh[0] : System.Array.FindAll(_floorDisplays, display => display != null);
             if (_carParts == null || _carParts.Length == 0 || _boardingZone == null || _arrivalDoor == null)
             {
                 Debug.LogError(name + ": 엘리베이터 참조가 누락되었습니다.", this);

@@ -23,6 +23,8 @@ namespace CK.SemesterProject.LevelDesign
         private float _openSeconds = 1f;
         [SerializeField, Tooltip("닫힌 동안 적 경로를 막는 장애물(선택)")]
         private NavMeshObstacle _obstacle;
+        [SerializeField, Tooltip("열린 뒤 끌 충돌체(선택). 문틀 상단이 낮으면 CharacterController가 바닥 이음매에서 계단 오르기를 시도하다 상단에 막히므로 꺼 둡니다.")]
+        private Collider[] _collidersDisabledWhenOpen = Array.Empty<Collider>();
 
         private Vector3 _panelClosedPosition;
         private Vector3[] _sinkingClosedPositions = Array.Empty<Vector3>();
@@ -70,6 +72,7 @@ namespace CK.SemesterProject.LevelDesign
             IsOpen = false;
             SetProgress(0f);
             SetPartsActive(true);
+            SetExtraCollidersEnabled(true);
             if (_obstacle != null)
             {
                 _obstacle.enabled = true;
@@ -85,6 +88,7 @@ namespace CK.SemesterProject.LevelDesign
             }
             SetProgress(1f);
             SetPartsActive(false);
+            SetExtraCollidersEnabled(false);
             if (_obstacle != null)
             {
                 _obstacle.enabled = false;
@@ -122,6 +126,17 @@ namespace CK.SemesterProject.LevelDesign
                 foreach (Collider panelCollider in _panel.GetComponentsInChildren<Collider>(true))
                 {
                     panelCollider.enabled = isActive;
+                }
+            }
+        }
+
+        private void SetExtraCollidersEnabled(bool isEnabled)
+        {
+            foreach (Collider extraCollider in _collidersDisabledWhenOpen)
+            {
+                if (extraCollider != null)
+                {
+                    extraCollider.enabled = isEnabled;
                 }
             }
         }

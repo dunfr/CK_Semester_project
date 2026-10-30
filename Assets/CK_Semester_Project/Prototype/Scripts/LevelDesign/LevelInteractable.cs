@@ -2,11 +2,11 @@ using UnityEngine;
 
 namespace CK.SemesterProject.LevelDesign
 {
-    /// <summary>플레이어가 트리거 범위 안에서 E 키로 사용하는 레벨 오브젝트의 공통 기반.</summary>
+    /// <summary>플레이어가 트리거 범위 안에서 F 키로 사용하는 레벨 오브젝트의 공통 기반.</summary>
     [RequireComponent(typeof(Collider))]
     public abstract class LevelInteractable : MonoBehaviour
     {
-        [SerializeField, Tooltip("[E] 뒤에 표시할 안내 문구")]
+        [SerializeField, Tooltip("[F] 뒤에 표시할 안내 문구")]
         private string _prompt = "상호작용";
         [SerializeField] private LevelProgress _progress;
 

@@ -17,6 +17,9 @@ namespace CK.SemesterProject.Tutorial
     {
         [SerializeField, Min(0.1f), Tooltip("행동 결과를 표시한 뒤 다음 행동으로 넘어가는 시간(초)")]
         private float _actionSeconds = 1.2f;
+        private const float MinimumBattleSpacing = 4f;
+        private static readonly float[] FallbackSpacingScales = { 1f, 0.75f, 0.55f };
+
         [SerializeField, Min(2f), Tooltip("전투 진입 시 플레이어와 몬스터 사이의 목표 간격(m)")]
         private float _battleSpacing = 9f;
         // 기존 씬의 Vector3 설정을 새 XY / Distance 필드로 한 번 이전한다.
@@ -655,10 +658,7 @@ namespace CK.SemesterProject.Tutorial
                 _encounterMembers.Select(member => member.GetComponent<NavMeshAgent>()).ToArray());
             _encounter = enemy;
             SetBackgroundEnemiesHidden(true);
-            Pose battlePose = default;
-            if (!formation.TryPlace(_battleSpacing, (playerSlot, enemySlot) => TryGetGroupPose(
-                playerSlot, enemySlot, formation.EnemySlots, ConfiguredCameraOffset,
-                _battleFieldOfView, out battlePose)))
+            if (!TryPlaceFormation(formation, out Pose battlePose))
             {
                 SetBackgroundEnemiesHidden(false);
                 _encounterMembers = Array.Empty<EnemyStateMachine>();
@@ -791,6 +791,25 @@ namespace CK.SemesterProject.Tutorial
                 HasSelectedBattleTarget = true;
                 RefreshUI();
             }
+        }
+
+        // 좁은 방(튜토리얼 캡슐 구역 등)에서도 진입할 수 있도록 기본 간격으로 자리가 없으면 간격을 줄여 다시 찾는다.
+        private bool TryPlaceFormation(TutorialBattleFormation formation, out Pose battlePose)
+        {
+            foreach (float scale in FallbackSpacingScales)
+            {
+                float spacing = Mathf.Max(MinimumBattleSpacing, _battleSpacing * scale);
+                Pose candidatePose = default;
+                if (formation.TryPlace(spacing, (playerSlot, enemySlot) => TryGetGroupPose(
+                    playerSlot, enemySlot, formation.EnemySlots, ConfiguredCameraOffset,
+                    _battleFieldOfView, out candidatePose)))
+                {
+                    battlePose = candidatePose;
+                    return true;
+                }
+            }
+            battlePose = default;
+            return false;
         }
 
         private bool TryGetGroupPose(Vector3 playerSlot, Vector3 enemyCenter, Vector3[] slots,

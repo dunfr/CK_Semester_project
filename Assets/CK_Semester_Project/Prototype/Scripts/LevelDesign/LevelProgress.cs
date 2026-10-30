@@ -10,7 +10,7 @@ using UnityEngine.InputSystem;
 namespace CK.SemesterProject.LevelDesign
 {
     /// <summary>
-    /// 레벨 기믹이 함께 쓰는 진행 상태(카드 키 C01), 조작 잠금, E 상호작용 입력, 안내 문구, 카메라 고정을 관리한다.
+    /// 레벨 기믹이 함께 쓰는 진행 상태(카드 키 C01), 조작 잠금, F 상호작용 입력, 안내 문구, 카메라 고정을 관리한다.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class LevelProgress : MonoBehaviour
@@ -31,6 +31,8 @@ namespace CK.SemesterProject.LevelDesign
         [SerializeField, Tooltip("현재 목표 표시 패널")]
         private GameObject _objectivePanel;
         [SerializeField] private TMP_Text _objectiveText;
+
+        private const string InteractKeyLabel = "F";
 
         private readonly List<LevelInteractable> _candidates = new List<LevelInteractable>();
         private readonly HashSet<object> _lockOwners = new HashSet<object>();
@@ -188,9 +190,9 @@ namespace CK.SemesterProject.LevelDesign
             {
                 return;
             }
-            _hintText.text = "[E] " + current.Prompt;
+            _hintText.text = "[" + InteractKeyLabel + "] " + current.Prompt;
             Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
+            if (keyboard != null && keyboard.fKey.wasPressedThisFrame)
             {
                 current.Interact();
             }

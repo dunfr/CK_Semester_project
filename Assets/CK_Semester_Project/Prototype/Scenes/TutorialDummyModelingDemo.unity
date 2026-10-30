@@ -2382,6 +2382,8 @@ MonoBehaviour:
   _sinkDepth: 5.2
   _openSeconds: 1
   _obstacle: {fileID: 87441733}
+  _collidersDisabledWhenOpen:
+  - {fileID: 284561555}
 --- !u!208 &87441733
 NavMeshObstacle:
   m_ObjectHideFlags: 0
@@ -11315,6 +11317,7 @@ MonoBehaviour:
   _sinkDepth: 5.2
   _openSeconds: 1
   _obstacle: {fileID: 483575135}
+  _collidersDisabledWhenOpen: []
 --- !u!208 &483575135
 NavMeshObstacle:
   m_ObjectHideFlags: 0
@@ -12389,6 +12392,7 @@ MonoBehaviour:
   _sinkDepth: 5.2
   _openSeconds: 1
   _obstacle: {fileID: 0}
+  _collidersDisabledWhenOpen: []
 --- !u!4 &519762232
 Transform:
   m_ObjectHideFlags: 0
@@ -13110,7 +13114,7 @@ Transform:
   m_GameObject: {fileID: 557499523}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.9, z: 0}
+  m_LocalPosition: {x: 0.27, y: 0.9, z: -0.27}
   m_LocalScale: {x: 0.6999999, y: 0.9, z: 0.6999999}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -38123,17 +38127,13 @@ MonoBehaviour:
   - {fileID: 1440628518}
   - {fileID: 1794653210}
   - {fileID: 2143608849}
-  - {fileID: 0}
-  - {fileID: 0}
   _boardingZone: {fileID: 1794653211}
   _travelHeight: -55
   _travelSeconds: 7
   _floorHeight: 5
   _departureDoor: {fileID: 1837448327}
   _arrivalDoor: {fileID: 519762231}
-  _floorDisplays:
-  - {fileID: 0}
-  - {fileID: 0}
+  _floorDisplays: []
 --- !u!1 &1440850436
 GameObject:
   m_ObjectHideFlags: 0
@@ -43939,6 +43939,7 @@ MonoBehaviour:
   _sinkDepth: 5.2
   _openSeconds: 1
   _obstacle: {fileID: 1729748163}
+  _collidersDisabledWhenOpen: []
 --- !u!208 &1729748163
 NavMeshObstacle:
   m_ObjectHideFlags: 0
@@ -47056,6 +47057,7 @@ MonoBehaviour:
   _sinkDepth: 5.2
   _openSeconds: 1
   _obstacle: {fileID: 0}
+  _collidersDisabledWhenOpen: []
 --- !u!64 &1839511092
 MeshCollider:
   m_ObjectHideFlags: 0
