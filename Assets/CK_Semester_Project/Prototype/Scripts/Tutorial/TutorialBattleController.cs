@@ -18,6 +18,7 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Min(0.1f), Tooltip("행동 결과를 표시한 뒤 다음 행동으로 넘어가는 시간(초)")]
         private float _actionSeconds = 1.2f;
         private const float MinimumBattleSpacing = 4f;
+        private const float ArenaMemberSpacing = 2.5f;
         private static readonly float[] FallbackSpacingScales = { 1f, 0.75f, 0.55f };
 
         [SerializeField, Min(2f), Tooltip("전투 진입 시 플레이어와 몬스터 사이의 목표 간격(m)")]
@@ -54,6 +55,8 @@ namespace CK.SemesterProject.Tutorial
         private int _encounterSize = 1;
         [SerializeField, Tooltip("필드 좌클릭/접촉 자동 진입 사용. 조합 선택 테스트 씬에서는 끕니다.")]
         private bool _automaticEncounters = true;
+        [SerializeField, Tooltip("전투 전용 장소의 중심(선택). 지정하면 전투 시작 시 플레이어와 참여 몬스터를 이곳으로 옮겨 싸우고, 종료 후 원래 자리로 돌려보냅니다. 플레이어는 중심의 -Z(뒤), 몬스터는 +Z(앞) 쪽에 섭니다.")]
+        private Transform _battleArena;
         [SerializeField, Tooltip("튜토리얼 플레이어 이동 컴포넌트")]
         private PlayerMovement _movement;
         [SerializeField, Tooltip("필드 카메라 입력")]
@@ -141,6 +144,9 @@ namespace CK.SemesterProject.Tutorial
         private bool _movementEnabled;
         private bool _orbitEnabled;
         private bool _brainEnabled;
+        private bool _isInBattleArena;
+        private Pose _arenaReturnPlayerPose;
+        private Pose[] _arenaReturnMemberPoses = Array.Empty<Pose>();
         private float _animatorSpeed;
         private Vector3 _spawn;
         private Vector3 _cameraPosition;
@@ -654,12 +660,14 @@ namespace CK.SemesterProject.Tutorial
             var session = new BattleSession(rules: new BattleRules(monsterCollisionMemoryBonus: _collisionMemoryBonus));
             session.Start(participants, entry, entry == BattleEntryCondition.PlayerInitiated ? "player"
                 : entry == BattleEntryCondition.MonsterCollision ? GetMonsterId(0) : null);
+            MoveToBattleArena();
             var formation = new TutorialBattleFormation(_characterController,
                 _encounterMembers.Select(member => member.GetComponent<NavMeshAgent>()).ToArray());
             _encounter = enemy;
             SetBackgroundEnemiesHidden(true);
             if (!TryPlaceFormation(formation, out Pose battlePose))
             {
+                ReturnFromBattleArena(false);
                 SetBackgroundEnemiesHidden(false);
                 _encounterMembers = Array.Empty<EnemyStateMachine>();
                 _encounterCooldown = Time.time + 1;
@@ -791,6 +799,78 @@ namespace CK.SemesterProject.Tutorial
                 HasSelectedBattleTarget = true;
                 RefreshUI();
             }
+        }
+
+        // 필드 지형과 관계없이 넓은 전용 장소에서 전투하도록 참여자를 옮긴다. 장소가 없으면 기존처럼 현재 자리에서 배치한다.
+        private void MoveToBattleArena()
+        {
+            if (_battleArena == null || _isInBattleArena)
+            {
+                return;
+            }
+            _arenaReturnPlayerPose = new Pose(_movement.transform.position, _movement.transform.rotation);
+            _arenaReturnMemberPoses = _encounterMembers.Select(member => new Pose(member.transform.position, member.transform.rotation)).ToArray();
+            Vector3 forward = Vector3.ProjectOnPlane(_battleArena.forward, Vector3.up).normalized;
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            Vector3 center = _battleArena.position;
+            SetPlayerPose(center - forward * (_battleSpacing * 0.5f), Quaternion.LookRotation(forward));
+            for (int i = 0; i < _encounterMembers.Length; i++)
+            {
+                float sideOffset = (i - (_encounterMembers.Length - 1) * 0.5f) * ArenaMemberSpacing;
+                WarpEnemy(_encounterMembers[i], center + forward * (_battleSpacing * 0.5f) + right * sideOffset, Quaternion.LookRotation(-forward));
+            }
+            Physics.SyncTransforms();
+            _isInBattleArena = true;
+        }
+
+        private void ReturnFromBattleArena(bool keepPlayerPosition)
+        {
+            if (!_isInBattleArena)
+            {
+                return;
+            }
+            _isInBattleArena = false;
+            // 패배 시에는 Formation이 플레이어를 체크포인트로 옮겼으므로 플레이어 위치는 유지한다.
+            if (!keepPlayerPosition)
+            {
+                SetPlayerPose(_arenaReturnPlayerPose.position, _arenaReturnPlayerPose.rotation);
+            }
+            for (int i = 0; i < _encounterMembers.Length && i < _arenaReturnMemberPoses.Length; i++)
+            {
+                if (_encounterMembers[i] != null)
+                {
+                    WarpEnemy(_encounterMembers[i], _arenaReturnMemberPoses[i].position, _arenaReturnMemberPoses[i].rotation);
+                }
+            }
+            _arenaReturnMemberPoses = Array.Empty<Pose>();
+            Physics.SyncTransforms();
+        }
+
+        private void SetPlayerPose(Vector3 position, Quaternion rotation)
+        {
+            bool wasEnabled = _characterController.enabled;
+            _characterController.enabled = false;
+            _movement.transform.SetPositionAndRotation(position, rotation);
+            _characterController.enabled = wasEnabled;
+            CinemachineCamera follow = _movement.GetComponentInChildren<CinemachineCamera>();
+            if (follow != null)
+            {
+                follow.PreviousStateIsValid = false;
+            }
+        }
+
+        private static void WarpEnemy(EnemyStateMachine enemy, Vector3 position, Quaternion rotation)
+        {
+            NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+            if (agent != null && agent.enabled && agent.isOnNavMesh)
+            {
+                agent.Warp(position);
+            }
+            else
+            {
+                enemy.transform.position = position;
+            }
+            enemy.transform.rotation = rotation;
         }
 
         // 좁은 방(튜토리얼 캡슐 구역 등)에서도 진입할 수 있도록 기본 간격으로 자리가 없으면 간격을 줄여 다시 찾는다.
@@ -1147,6 +1227,7 @@ namespace CK.SemesterProject.Tutorial
             }
             _monsterPresentations = Array.Empty<TutorialBattleActionPresentation>();
             _formation?.Restore(respawn ? (Vector3?)_spawn : null);
+            ReturnFromBattleArena(respawn);
             _formation = null;
             if (_fieldUI != null)
             {
