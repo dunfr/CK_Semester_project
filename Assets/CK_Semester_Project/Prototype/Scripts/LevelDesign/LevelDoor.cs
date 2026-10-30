@@ -25,6 +25,8 @@ namespace CK.SemesterProject.LevelDesign
         private NavMeshObstacle _obstacle;
         [SerializeField, Tooltip("열린 뒤 끌 충돌체(선택). 문틀 상단이 낮으면 CharacterController가 바닥 이음매에서 계단 오르기를 시도하다 상단에 막히므로 꺼 둡니다.")]
         private Collider[] _collidersDisabledWhenOpen = Array.Empty<Collider>();
+        [SerializeField, Range(0.3f, 1f), Tooltip("열리는 동안 이 진행도(0~1)부터 문짝·상단 충돌을 꺼서 지나갈 수 있게 합니다. 1이면 다 열린 뒤에 끕니다.")]
+        private float _passableProgress = 0.8f;
 
         private Vector3 _panelClosedPosition;
         private Vector3[] _sinkingClosedPositions = Array.Empty<Vector3>();
@@ -81,14 +83,22 @@ namespace CK.SemesterProject.LevelDesign
 
         private IEnumerator OpenRoutine()
         {
+            bool isPassable = false;
             for (float elapsed = 0f; elapsed < _openSeconds; elapsed += Time.deltaTime)
             {
-                SetProgress(Mathf.SmoothStep(0f, 1f, elapsed / _openSeconds));
+                float progress = Mathf.SmoothStep(0f, 1f, elapsed / _openSeconds);
+                SetProgress(progress);
+                // 문짝이 머리 위로 거의 올라갔는데도 끝까지 막혀 '열렸는데 걸리는' 느낌이 나지 않도록 미리 통과시킨다.
+                if (!isPassable && progress >= _passableProgress)
+                {
+                    isPassable = true;
+                    SetBlockingCollidersEnabled(false);
+                }
                 yield return null;
             }
             SetProgress(1f);
             SetPartsActive(false);
-            SetExtraCollidersEnabled(false);
+            SetBlockingCollidersEnabled(false);
             if (_obstacle != null)
             {
                 _obstacle.enabled = false;
@@ -128,6 +138,18 @@ namespace CK.SemesterProject.LevelDesign
                     panelCollider.enabled = isActive;
                 }
             }
+        }
+
+        private void SetBlockingCollidersEnabled(bool isEnabled)
+        {
+            if (_panel != null)
+            {
+                foreach (Collider panelCollider in _panel.GetComponentsInChildren<Collider>(true))
+                {
+                    panelCollider.enabled = isEnabled;
+                }
+            }
+            SetExtraCollidersEnabled(isEnabled);
         }
 
         private void SetExtraCollidersEnabled(bool isEnabled)

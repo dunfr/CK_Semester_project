@@ -34,6 +34,8 @@ namespace CK.SemesterProject.LevelDesign
         private void Awake()
         {
             GetComponent<Collider>().isTrigger = true;
+            // 씬에서 덕트 메시가 지워지면 빈 칸이 남으므로 빼고 쓴다.
+            _ductParts = _ductParts == null ? null : System.Array.FindAll(_ductParts, part => part != null);
             if (_progress == null || _landingPoint == null || _ductParts == null || _ductParts.Length == 0)
             {
                 Debug.LogError("DuctCollapse: 덕트 b 참조가 누락되었습니다.", this);
