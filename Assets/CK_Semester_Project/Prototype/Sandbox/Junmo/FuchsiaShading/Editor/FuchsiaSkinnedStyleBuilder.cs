@@ -18,6 +18,11 @@ public static class FuchsiaSkinnedStyleBuilder
     private const float UvMatchDistance = .01f;
     private const string FaceMaterial = "FuchsiaFaceToon";
     private const string HairMaterial = "FuchsiaHairToon";
+    private const string HeadStyleName = "FuchsiaUpdated_head_Style";
+    // 표정 블렌드셰이프 원본: 그래픽 파트 모션 FBX의 머리 메시(다섯 모션 FBX의 머리가 모두 같다).
+    // 표정 때문에 정점이 더 쪼개져 있어(2164 대 1904) 정점 번호 대신 위치·텍스처 UV로 짝을 찾는다.
+    private const string ExpressionSourceModel = "Assets/FuchsiaAnimation/standing_idle.fbx";
+    private const float ExpressionMatchDistance = 1e-4f;
 
     [MenuItem("Tools/Fuchsia/Build Skinned Style Meshes")]
     private static void BuildFromMenu()
@@ -25,6 +30,31 @@ public static class FuchsiaSkinnedStyleBuilder
         string summary = Build();
         Debug.Log(summary);
         EditorUtility.DisplayDialog("Skinned Style Meshes", summary, "OK");
+    }
+
+    [MenuItem("Tools/Fuchsia/Transfer Head Expressions")]
+    private static void TransferHeadExpressionsFromMenu()
+    {
+        string summary = TransferHeadExpressions();
+        Debug.Log(summary);
+        EditorUtility.DisplayDialog("Head Expressions", summary, "OK");
+    }
+
+    // 이미 구운 머리 스타일 메시에 표정 블렌드셰이프만 다시 옮긴다. UV1/UV2·정점 색·프리팹은 그대로 둔다.
+    public static string TransferHeadExpressions()
+    {
+        var mesh = AssetDatabase.LoadAssetAtPath<Mesh>($"{OutputFolder}/{HeadStyleName}.asset");
+        if (mesh == null)
+        {
+            return $"{HeadStyleName}.asset을 찾지 못했습니다.";
+        }
+        bool wasReadable = mesh.isReadable;
+        SetReadable(mesh, true);
+        string summary = CopyBlendShapes(mesh, ExpressionSource());
+        SetReadable(mesh, wasReadable);
+        EditorUtility.SetDirty(mesh);
+        AssetDatabase.SaveAssetIfDirty(mesh);
+        return summary;
     }
 
     public static string Build()
@@ -85,7 +115,8 @@ public static class FuchsiaSkinnedStyleBuilder
             // 두 모델은 같은 텍스처 UV 배치를 쓰므로, 텍스처 UV가 같은 기존 정점의 스타일 좌표(UV2)를 그대로 옮긴다.
             log.Add("face " + TransferStyleData(headStyle, i => faceVertices.Contains(i), StaticStyleSamples(StaticFaceMeshes)));
             log.Add("hair " + TransferStyleData(hairStyle, _ => true, StaticStyleSamples(StaticHairMeshes)));
-            head.sharedMesh = SaveMesh(headStyle, "FuchsiaUpdated_head_Style");
+            log.Add("expression " + CopyBlendShapes(headStyle, ExpressionSource()));
+            head.sharedMesh = SaveMesh(headStyle, HeadStyleName);
             hair.sharedMesh = SaveMesh(hairStyle, "FuchsiaUpdated_hair_Style");
 
             Animator animator = contents.GetComponentInChildren<Animator>(true);
@@ -281,6 +312,152 @@ public static class FuchsiaSkinnedStyleBuilder
         }
         mesh.SetUVs(2, uv2);
         return $"UV 전이 {matched}/{total} (나머지는 식으로 계산한 값)";
+    }
+
+    private static Mesh ExpressionSource()
+    {
+        return AssetDatabase.LoadAllAssetsAtPath(ExpressionSourceModel).OfType<Mesh>()
+            .FirstOrDefault(m => m.name == "head" && m.blendShapeCount > 0);
+    }
+
+    // 표정 블렌드셰이프를 옮긴다. 위치 델타는 원본 값을 그대로 쓴다.
+    // 노멀·탄젠트 델타는 원본 값을 쓰지 않는다. 임포트 때 다시 계산한 노멀과 원본 노멀의 차이가 움직이지 않는 정점에도 들어 있어
+    // (EB_anger는 45정점만 움직이는데 2114정점에 노멀 델타가 있다) 표정이 켜질 때마다 얼굴 전체 명암·외곽선이 흔들린다.
+    // 대신 표정으로 기울어진 면 방향만큼 이 메시의 노멀·탄젠트를 돌린다. 움직임이 닿지 않는 정점의 델타는 0이다.
+    private static string CopyBlendShapes(Mesh target, Mesh source)
+    {
+        if (source == null)
+        {
+            return $"표정 원본({ExpressionSourceModel}의 head)이 없어 기존 블렌드셰이프 유지";
+        }
+        int[] match = MatchVertices(target, source);
+        Vector3[] points = target.vertices;
+        Vector3[] normals = target.normals;
+        Vector4[] tangents = target.tangents;
+        bool hasTangents = tangents.Length == points.Length;
+        int[] triangles = target.triangles;
+        int[] weld = WeldByPosition(points);
+        Vector3[] restFacing = WeldedFaceNormals(points, triangles, weld);
+        var sourceDeltas = new Vector3[source.vertexCount];
+        var shaped = new Vector3[points.Length];
+        var log = new List<string>();
+        target.ClearBlendShapes();
+        for (int shape = 0; shape < source.blendShapeCount; shape++)
+        {
+            string name = source.GetBlendShapeName(shape);
+            for (int frame = 0; frame < source.GetBlendShapeFrameCount(shape); frame++)
+            {
+                source.GetBlendShapeFrameVertices(shape, frame, sourceDeltas, null, null);
+                var deltaPoints = new Vector3[points.Length];
+                var deltaNormals = new Vector3[points.Length];
+                var deltaTangents = hasTangents ? new Vector3[points.Length] : null;
+                int moved = 0, turned = 0;
+                for (int i = 0; i < points.Length; i++)
+                {
+                    deltaPoints[i] = match[i] >= 0 ? sourceDeltas[match[i]] : Vector3.zero;
+                    shaped[i] = points[i] + deltaPoints[i];
+                    if (deltaPoints[i].sqrMagnitude > 0f) moved++;
+                }
+                Vector3[] shapedFacing = WeldedFaceNormals(shaped, triangles, weld);
+                for (int i = 0; i < points.Length; i++)
+                {
+                    if (restFacing[i] == shapedFacing[i] || restFacing[i] == Vector3.zero || shapedFacing[i] == Vector3.zero)
+                    {
+                        continue;
+                    }
+                    Quaternion turn = Quaternion.FromToRotation(restFacing[i], shapedFacing[i]);
+                    deltaNormals[i] = turn * normals[i] - normals[i];
+                    if (hasTangents) deltaTangents[i] = turn * (Vector3)tangents[i] - (Vector3)tangents[i];
+                    turned++;
+                }
+                target.AddBlendShapeFrame(name, source.GetBlendShapeFrameWeight(shape, frame), deltaPoints, deltaNormals, deltaTangents);
+                log.Add($"{name} 이동 {moved}·노멀 {turned}");
+            }
+        }
+        return $"블렌드셰이프 {target.blendShapeCount}개 ({string.Join(", ", log)}), 짝 없는 정점 {match.Count(i => i < 0)}";
+    }
+
+    // 대상 정점마다 위치·텍스처 UV가 같은 원본 정점을 찾는다. 같은 지점에서 쪼개진 정점이 여럿이면 노멀·탄젠트가 가장 가까운 것을 고른다.
+    // 짝이 없으면 -1(표정 델타 0).
+    private static int[] MatchVertices(Mesh target, Mesh source)
+    {
+        Vector3[] targetPoints = target.vertices, sourcePoints = source.vertices;
+        Vector3[] targetNormals = target.normals, sourceNormals = source.normals;
+        Vector4[] targetTangents = target.tangents, sourceTangents = source.tangents;
+        bool compareTangents = targetTangents.Length == targetPoints.Length && sourceTangents.Length == sourcePoints.Length;
+        var targetUv = new List<Vector2>();
+        var sourceUv = new List<Vector2>();
+        target.GetUVs(0, targetUv);
+        source.GetUVs(0, sourceUv);
+        float cell = ExpressionMatchDistance * 10f;
+        float limit = ExpressionMatchDistance * ExpressionMatchDistance;
+        var grid = new Dictionary<Vector3Int, List<int>>();
+        for (int s = 0; s < sourcePoints.Length; s++)
+        {
+            Vector3Int key = Vector3Int.FloorToInt(sourcePoints[s] / cell);
+            if (!grid.TryGetValue(key, out List<int> list)) grid[key] = list = new List<int>();
+            list.Add(s);
+        }
+        var match = new int[targetPoints.Length];
+        for (int i = 0; i < targetPoints.Length; i++)
+        {
+            Vector3Int key = Vector3Int.FloorToInt(targetPoints[i] / cell);
+            float best = float.MaxValue;
+            match[i] = -1;
+            for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                if (!grid.TryGetValue(key + new Vector3Int(dx, dy, dz), out List<int> list)) continue;
+                foreach (int s in list)
+                {
+                    if ((sourcePoints[s] - targetPoints[i]).sqrMagnitude > limit || (sourceUv[s] - targetUv[i]).sqrMagnitude > limit) continue;
+                    float score = (sourceNormals[s] - targetNormals[i]).sqrMagnitude
+                        + (compareTangents ? ((Vector3)sourceTangents[s] - (Vector3)targetTangents[i]).sqrMagnitude : 0f);
+                    if (score < best) { best = score; match[i] = s; }
+                }
+            }
+        }
+        return match;
+    }
+
+    // UV 이음매·하드 엣지로 쪼개진 정점을 같은 위치끼리 한 묶음으로 본다.
+    private static int[] WeldByPosition(Vector3[] points)
+    {
+        var groups = new Dictionary<Vector3, int>();
+        var weld = new int[points.Length];
+        for (int i = 0; i < points.Length; i++)
+        {
+            if (!groups.TryGetValue(points[i], out int group))
+            {
+                group = groups.Count;
+                groups.Add(points[i], group);
+            }
+            weld[i] = group;
+        }
+        return weld;
+    }
+
+    // 묶음별 면적 가중 면 방향. 쪼개진 정점도 같은 방향을 받아 표정 노멀 회전이 이음매에서 갈라지지 않는다.
+    private static Vector3[] WeldedFaceNormals(Vector3[] points, int[] triangles, int[] weld)
+    {
+        var sums = new Vector3[points.Length];
+        for (int t = 0; t < triangles.Length; t += 3)
+        {
+            int a = triangles[t], b = triangles[t + 1], c = triangles[t + 2];
+            Vector3 face = Vector3.Cross(points[b] - points[a], points[c] - points[a]);
+            sums[weld[a]] += face;
+            sums[weld[b]] += face;
+            sums[weld[c]] += face;
+        }
+        var facing = new Vector3[points.Length];
+        for (int i = 0; i < points.Length; i++)
+        {
+            Vector3 sum = sums[weld[i]];
+            float length = sum.magnitude;
+            facing[i] = length > 1e-12f ? sum / length : Vector3.zero;
+        }
+        return facing;
     }
 
     private static Mesh SaveMesh(Mesh mesh, string name)

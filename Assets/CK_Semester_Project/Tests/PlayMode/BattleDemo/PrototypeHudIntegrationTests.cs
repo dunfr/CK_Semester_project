@@ -105,14 +105,14 @@ namespace CK.SemesterProject.Battle.Tests
             Component movement = GameObject.Find("Fuchsia Player").GetComponent("PlayerMovement");
             MethodInfo move = movement.GetType().GetMethod("Move", PrivateInstance);
             Vector3 start = movement.transform.position;
-            move.Invoke(movement, new object[] { Vector2.up, false });
+            move.Invoke(movement, new object[] { Vector2.up, false, false });
             float walkDistance = Vector3.ProjectOnPlane(movement.transform.position - start, Vector3.up).magnitude;
             start = movement.transform.position;
-            move.Invoke(movement, new object[] { Vector2.up, true });
+            move.Invoke(movement, new object[] { Vector2.up, true, false });
             float sprintDistance = Vector3.ProjectOnPlane(movement.transform.position - start, Vector3.up).magnitude;
             Assert.That(walkDistance, Is.GreaterThan(0f));
             Assert.That(sprintDistance / walkDistance, Is.EqualTo(1.8f).Within(.05f));
-            move.Invoke(movement, new object[] { Vector2.zero, true });
+            move.Invoke(movement, new object[] { Vector2.zero, true, false });
             Assert.That(movement.GetType().GetProperty("IsSprinting").GetValue(movement), Is.False);
             Assert.That(BeginBattle(true), Is.True, "좌클릭 UI로 실제 필드 전투가 시작되어야 합니다.");
             yield return null;

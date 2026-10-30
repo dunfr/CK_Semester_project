@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 namespace CK.SemesterProject.Tutorial
 {
     // 플레이어 이동 FSM의 주인. 입력을 모아 현재 상태에 넘기고, 상태가 고른 다음 상태로 바꾼다.
-    // 상태(Idle / Walk / Run)는 PlayerMovementState를 상속한 클래스이며, 들어올 때 Animator Controller의 같은 이름 상태 모션을 재생한다.
+    // 상태(Idle / Walk / Run / Jump)는 PlayerMovementState를 상속한 클래스이며, 들어올 때 Animator Controller의 같은 이름 상태 모션을 재생한다.
     // Controller에 그 상태들이 없으면(다른 씬의 UnityChan 등) 기존처럼 Speed / Direction 파라미터만 넘긴다.
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CharacterController))]
@@ -21,6 +21,10 @@ namespace CK.SemesterProject.Tutorial
 
         [SerializeField, Min(1f), Tooltip("달리기 시 기본 이동 속도 배율.")]
         private float _sprintMultiplier = 1.8f;
+        [SerializeField, Min(0f), Tooltip("Space 점프로 오르는 높이(m). 점프 모션에서 몸이 떠오르는 높이(약 0.5m)에 맞춘다.")]
+        private float _jumpHeight = .5f;
+        [SerializeField, Min(0f), Tooltip("Space를 누른 뒤 발이 땅을 떠날 때까지의 시간(초). 점프 모션 앞부분의 웅크림 길이에 맞춘다.")]
+        private float _jumpTakeoffDelay = .1f;
         private bool _isSprintToggled;
 
         public bool IsSprinting { get; private set; }
@@ -31,8 +35,12 @@ namespace CK.SemesterProject.Tutorial
         internal PlayerMovementState IdleState { get; } = new PlayerIdleState();
         internal PlayerMovementState WalkState { get; } = new PlayerWalkState();
         internal PlayerMovementState RunState { get; } = new PlayerRunState();
+        internal PlayerMovementState JumpState { get; } = new PlayerJumpState();
         internal float WalkSpeed => _moveSpeed;
         internal float RunSpeed => _moveSpeed * _sprintMultiplier;
+        internal float JumpTakeoffDelay => _jumpTakeoffDelay;
+        // 마지막 이동에서 발밑이 땅에 닿았다.
+        internal bool IsGrounded => _controller.isGrounded;
 
         public void ToggleSprint()
         {
@@ -106,16 +114,26 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
+        // 꺼져 있는 동안 다른 모션(전투 대기 등)으로 바뀌었을 수 있으므로, 다시 켜지면 현재 상태의 모션으로 돌아간다.
+        private void OnEnable()
+        {
+            if (_usesStateAnimations && _currentState != null)
+            {
+                _playingAnimationHash = 0;
+                PlayStateAnimation(_currentState);
+            }
+        }
+
         private void Update()
         {
             bool isShiftHeld = Keyboard.current != null
                 && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
-            Move(ReadMovement(), isShiftHeld);
+            Move(ReadMovement(), isShiftHeld, ReadJumpPressed());
         }
 
-        private void Move(Vector2 input, bool isShiftHeld)
+        private void Move(Vector2 input, bool isShiftHeld, bool isJumpPressed)
         {
-            var movementInput = new PlayerMovementInput(input, _isSprintToggled || isShiftHeld);
+            var movementInput = new PlayerMovementInput(input, _isSprintToggled || isShiftHeld, isJumpPressed);
             ChangeState(_currentState.GetNextState(this, movementInput));
             _currentState.Tick(this, movementInput);
             if (!_usesStateAnimations)
@@ -133,8 +151,9 @@ namespace CK.SemesterProject.Tutorial
 
             _currentState?.Exit(this);
             _currentState = nextState;
-            IsSprinting = nextState.IsSprinting;
+            // Enter에서 직전 상태의 달리기 여부를 볼 수 있도록(점프는 뛰기 직전 속도를 유지한다) 들어간 뒤에 바꾼다.
             nextState.Enter(this);
+            IsSprinting = nextState.IsSprinting;
         }
 
         // States choose horizontal movement; grounding and gravity apply in every state.
@@ -167,6 +186,17 @@ namespace CK.SemesterProject.Tutorial
             {
                 _verticalSpeed = -2f;
             }
+            // 점프 중 머리가 천장에 닿으면 더 오르지 않고 떨어진다.
+            if ((collisions & CollisionFlags.Above) != 0 && _verticalSpeed > 0f)
+            {
+                _verticalSpeed = 0f;
+            }
+        }
+
+        // 점프 상태가 발을 뗄 때 부른다. _jumpHeight까지 오르는 위쪽 속도를 주고, 내려오는 것은 MoveCharacter의 중력에 맡긴다.
+        internal void TakeOff()
+        {
+            _verticalSpeed = Mathf.Sqrt(2f * _gravity * _jumpHeight);
         }
 
         // 상태가 들어올 때 그 상태의 모션으로 넘어간다.
@@ -174,6 +204,28 @@ namespace CK.SemesterProject.Tutorial
         {
             _showsBlockedPose = false;
             CrossFadeTo(state, state.AnimatorStateHash);
+        }
+
+        // 같은 상태를 처음부터 다시 할 때(착지 동작 중 다시 점프) 그 모션도 처음부터 재생한다.
+        internal void RestartStateAnimation(PlayerMovementState state)
+        {
+            _playingAnimationHash = 0;
+            PlayStateAnimation(state);
+        }
+
+        // 반복하지 않는 상태 모션(점프)을 끝까지 재생했는지. 그 모션을 재생하지 못하는 Controller라면 기다릴 것이 없으므로 끝난 것으로 본다.
+        internal bool HasFinishedStateAnimation(PlayerMovementState state)
+        {
+            if (!_usesStateAnimations || _playingAnimationHash != state.AnimatorStateHash
+                || _animator == null || !_animator.isActiveAndEnabled)
+            {
+                return true;
+            }
+
+            AnimatorStateInfo info = _animator.IsInTransition(0)
+                ? _animator.GetNextAnimatorStateInfo(0)
+                : _animator.GetCurrentAnimatorStateInfo(0);
+            return info.shortNameHash == state.AnimatorStateHash && info.normalizedTime >= 1f;
         }
 
         // 걷기·달리기 중 벽에 막혀 실제로 거의 움직이지 못하면 Idle 모션을 보여 준다(제자리 걸음 방지).
@@ -191,7 +243,7 @@ namespace CK.SemesterProject.Tutorial
             CrossFadeTo(state, blocked ? IdleState.AnimatorStateHash : state.AnimatorStateHash);
         }
 
-        // Controller에 없는 상태(모션이 아직 없는 점프 등)로는 넘어가지 않고 지금 모션을 유지한다.
+        // Controller에 없는 상태(모션이 아직 없는 상태)로는 넘어가지 않고 지금 모션을 유지한다.
         private void CrossFadeTo(PlayerMovementState state, int animationHash)
         {
             if (!_usesStateAnimations || animationHash == _playingAnimationHash
@@ -264,6 +316,14 @@ namespace CK.SemesterProject.Tutorial
             return Vector2.ClampMagnitude(new Vector2(
                 (keyboard.dKey.isPressed ? 1f : 0f) - (keyboard.aKey.isPressed ? 1f : 0f),
                 (keyboard.wKey.isPressed ? 1f : 0f) - (keyboard.sKey.isPressed ? 1f : 0f)), 1f);
+        }
+
+        // 이동 키처럼 게임 화면에 마우스가 잠겨 있을 때만 Space를 점프로 읽는다.
+        private static bool ReadJumpPressed()
+        {
+            Keyboard keyboard = Keyboard.current;
+            return Application.isFocused && Cursor.lockState == CursorLockMode.Locked
+                && keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
         }
 
         public void Teleport(Vector3 position)

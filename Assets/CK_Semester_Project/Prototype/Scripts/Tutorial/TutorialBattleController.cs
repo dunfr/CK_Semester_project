@@ -133,6 +133,15 @@ namespace CK.SemesterProject.Tutorial
         private UnityEngine.Events.UnityAction[] _targetActions;
         private CharacterController _characterController;
         private Animator _animator;
+        private PlayerBattleAnimation _battleAnimation;
+        // 플레이어 행동 모션(궁극기 등)을 재생 중인 행동과 그 길이. 연출은 모션이 끝날 때까지 기다린다.
+        private long _playerMotionActionId = -1;
+        private float _playerMotionSeconds;
+        private bool _playerMotionApproaches = true;
+        // 연출 카메라(궁극기의 Ult_cam)로 보고 있는지와, 끝나면 되돌아갈 그 직전의 전투 시점.
+        private bool _isCinematicCameraActive;
+        private Pose _cinematicReturnPose;
+        private float _cinematicReturnFieldOfView;
         private bool[] _enemyEnabled;
         private bool _fieldUIWasActive;
         private bool _movementEnabled;
@@ -168,7 +177,8 @@ namespace CK.SemesterProject.Tutorial
                     && pending.Request.Kind == BattleActionKind.Skill && !pending.WasSkipped
                     && !pending.IsTurnStartEffect && _basicSkillEnhancement != null
                     && _basicSkillEnhancement.GetChargeEffect(pending.Request.SkillId) != null;
-                return hasPlayerCharge ? _actionSeconds * _basicSkillEnhancement.ChargeDurationScale : _actionSeconds;
+                float seconds = hasPlayerCharge ? _actionSeconds * _basicSkillEnhancement.ChargeDurationScale : _actionSeconds;
+                return pending != null && pending.ActionId == _playerMotionActionId ? Mathf.Max(seconds, _playerMotionSeconds) : seconds;
             }
         }
 
@@ -249,6 +259,7 @@ namespace CK.SemesterProject.Tutorial
             _characterController = _movement.GetComponent<CharacterController>();
             _animator = _movement.GetComponentsInChildren<Animator>()
                 .FirstOrDefault(animator => animator.enabled && animator.runtimeAnimatorController != null);
+            _battleAnimation = _movement.GetComponentInChildren<PlayerBattleAnimation>();
             _spawn = _movement.transform.position;
             _lastPlayerPosition = _spawn;
             _playerState.Initialize(_playerData);
@@ -283,7 +294,7 @@ namespace CK.SemesterProject.Tutorial
             }
             _battleUI.SetActive(false);
             _notice.text = _enemies.Any(enemy => enemy != null)
-                ? "WASD 이동 · 가까운 몬스터에 좌클릭 선제 진입 · Space 소리"
+                ? "WASD 이동 · 가까운 몬스터에 좌클릭 선제 진입 · Q 소리"
                 : "WASD 이동 · SHIFT 달리기";
         }
 
@@ -338,7 +349,8 @@ namespace CK.SemesterProject.Tutorial
                 {
                     if (pending.Request.ActorId == "player" && pending.Request.TargetId == GetMonsterId(i))
                     {
-                        _presentations[i].Sample(pending, _elapsed / PresentationSeconds);
+                        _presentations[i].Sample(pending, _elapsed / PresentationSeconds,
+                            pending.ActionId != _playerMotionActionId || _playerMotionApproaches);
                     }
                     else if (pending.Request.ActorId == GetMonsterId(i) && pending.Request.TargetId == "player")
                     {
@@ -374,7 +386,7 @@ namespace CK.SemesterProject.Tutorial
                 RefreshUI();
             }
             SetBattleCameraActive(_debugBattleCamera);
-            if (!_isBattleCameraActive)
+            if (!_isBattleCameraActive || UpdateCinematicCamera())
             {
                 return;
             }
@@ -419,6 +431,38 @@ namespace CK.SemesterProject.Tutorial
                     Quaternion.Slerp(_camera.transform.rotation, target.rotation, blend));
                 _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fieldOfView, blend);
             }
+        }
+
+        // 플레이어 행동 모션에 연출 카메라가 있으면(궁극기의 Ult_cam) 재생하는 동안 그 시점으로 바꾸고, 참을 돌려준다.
+        // 모션이 끝나면 연출 직전의 전투 시점으로 되돌리고 거짓을 돌려줘, 기존 전투 카메라가 그 시점에서 이어서 움직인다.
+        private bool UpdateCinematicCamera()
+        {
+            Pose pose = default;
+            float horizontalFieldOfView = 0f;
+            if (_battleAnimation != null && _battleAnimation.TryGetCinematicCamera(out pose, out horizontalFieldOfView))
+            {
+                if (!_isCinematicCameraActive)
+                {
+                    _isCinematicCameraActive = true;
+                    _cinematicReturnPose = new Pose(_camera.transform.position, _camera.transform.rotation);
+                    _cinematicReturnFieldOfView = _camera.fieldOfView;
+                }
+                // 모션의 컷 전환을 그대로 보여 주도록 따라가지 않고 바로 맞춘다.
+                _camera.transform.SetPositionAndRotation(pose.position, pose.rotation);
+                if (horizontalFieldOfView > 0f)
+                {
+                    _camera.fieldOfView = Camera.HorizontalToVerticalFieldOfView(horizontalFieldOfView, _camera.aspect);
+                }
+                return true;
+            }
+
+            if (_isCinematicCameraActive)
+            {
+                _isCinematicCameraActive = false;
+                _camera.transform.SetPositionAndRotation(_cinematicReturnPose.position, _cinematicReturnPose.rotation);
+                _camera.fieldOfView = _cinematicReturnFieldOfView;
+            }
+            return false;
         }
 
         private void OnValidate()
@@ -466,6 +510,7 @@ namespace CK.SemesterProject.Tutorial
             }
             _isBattleCameraActive = active;
             _isCameraDragging = false;
+            _isCinematicCameraActive = false;
             if (active)
             {
                 _orbit.enabled = false;
@@ -547,7 +592,8 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
+            // Space는 점프(PlayerMovement)라 유인 소리는 Q로 낸다.
+            if (keyboard != null && keyboard.qKey.wasPressedThisFrame)
             {
                 EnemyNoise.Emit(position, 12f, _movement.gameObject);
             }
@@ -701,8 +747,13 @@ namespace CK.SemesterProject.Tutorial
             if (_animator != null && _animator.runtimeAnimatorController != null)
             {
                 _animatorSpeed = _animator.speed;
-                // 이동을 끄면 PlayerMovement가 Idle 상태로 돌아가 대기 모션을 재생한다. 대기 모션은 계속 반복한다.
+                // 이동을 끄면 PlayerMovement가 멈추고, PlayerBattleAnimation이 전투 대기 모션을 반복한다.
+                // 전투 모션이 없는 캐릭터는 PlayerMovement의 Idle 대기 모션을 그대로 반복한다.
                 _animator.speed = 1f;
+                if (_battleAnimation != null)
+                {
+                    _battleAnimation.EnterBattle();
+                }
                 _animator.Update(0f);
             }
             _orbit.enabled = false;
@@ -864,6 +915,12 @@ namespace CK.SemesterProject.Tutorial
             }
             _cachedSnapshot = null;
             _elapsed = 0;
+            if (request.ActorId == "player" && request.Kind == BattleActionKind.Skill && !result.WasSkipped
+                && _battleAnimation != null)
+            {
+                _playerMotionSeconds = _battleAnimation.PlaySkill(request.SkillId, out _playerMotionApproaches);
+                _playerMotionActionId = _playerMotionSeconds > 0f ? result.ActionId : -1;
+            }
             string actor = Snapshot.Combatants.First(unit => unit.InstanceId == request.ActorId).Data.DisplayName;
             _notice.text = result.WasSkipped ? actor + " 행동 불능" : request.Kind == BattleActionKind.Defend ? actor + " 방어"
                 : result.Hit != null && !result.Hit.IsHit ? actor + " 공격 빗나감" : actor + " 행동 완료";
@@ -1085,7 +1142,7 @@ namespace CK.SemesterProject.Tutorial
             RestoreExploration(state.Outcome != BattleOutcome.Victory, state.Outcome == BattleOutcome.Victory);
             _battleUI.SetActive(false);
             FieldBattleEnded?.Invoke(state.Outcome);
-            _notice.text = _enemies.All(enemy => enemy == null || !enemy.gameObject.activeSelf) ? "모든 몬스터를 처치했습니다." : "WASD 이동 · 좌클릭 선제 진입 · Space 소리";
+            _notice.text = _enemies.All(enemy => enemy == null || !enemy.gameObject.activeSelf) ? "모든 몬스터를 처치했습니다." : "WASD 이동 · 좌클릭 선제 진입 · Q 소리";
         }
 
         public void CancelBattle()
@@ -1141,6 +1198,14 @@ namespace CK.SemesterProject.Tutorial
             {
                 _animator.speed = _animatorSpeed;
             }
+            // 전투 모션을 비우면 다시 켜지는 PlayerMovement가 필드 모션으로 되돌린다.
+            if (_battleAnimation != null)
+            {
+                _battleAnimation.ExitBattle();
+            }
+            _playerMotionActionId = -1;
+            _playerMotionSeconds = 0f;
+            _isCinematicCameraActive = false;
             _movement.enabled = _movementEnabled;
             _orbit.enabled = _orbitEnabled;
             SetBackgroundEnemiesHidden(false);

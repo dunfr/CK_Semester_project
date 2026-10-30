@@ -92,7 +92,8 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
-        public void Sample(BattleActionResult result, float progress)
+        // approachTarget이 false면 대상 앞까지 다가갔다 돌아오지 않고 제자리에서 대상을 바라본다(동작이 모션 안에 다 들어 있는 궁극기 등).
+        public void Sample(BattleActionResult result, float progress, bool approachTarget = true)
         {
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == _actorId
@@ -147,7 +148,7 @@ namespace CK.SemesterProject.Tutorial
             float approach = progress < ImpactTime ? Mathf.SmoothStep(0f, 1f, progress / ImpactTime)
                 : progress < ReturnTime ? 1f : 1f - Mathf.SmoothStep(0f, 1f, (progress - ReturnTime) / (1f - ReturnTime));
             bool primaryTarget = result.Request.TargetId == _targetId;
-            if (primaryTarget)
+            if (primaryTarget && approachTarget)
             {
                 _actor.position = Vector3.Lerp(ActorHome, _attackPosition, approach);
             }
