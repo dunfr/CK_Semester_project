@@ -153,6 +153,73 @@ namespace CK.SemesterProject.Battle.Tests
                 "Fuchsia animation must use achieved horizontal speed, not held movement input.");
         }
 
+        [Test]
+        public void SpaceJumpsFromGroundOnceAndLandsBackToIdle()
+        {
+            float groundY = _movement.transform.localPosition.y;
+            Move(Vector2.zero, false, true);
+            Assert.That(State, Is.EqualTo("Jump"));
+
+            // 공중에서 누르는 Space는 무시한다(이중 점프 없음).
+            float peak = 0f;
+            bool wasAirborne = false;
+            int steps = Mathf.CeilToInt(2f / Mathf.Max(Time.deltaTime, .0001f));
+            for (int i = 0; i < steps && State == "Jump"; i++)
+            {
+                Move(Vector2.zero, false, wasAirborne && !_controller.isGrounded);
+                wasAirborne |= !_controller.isGrounded;
+                peak = Mathf.Max(peak, _movement.transform.localPosition.y - groundY);
+            }
+
+            Assert.That(wasAirborne, Is.True);
+            // 프레임 단위 중력 적분은 최고점을 프레임 길이에 비례해 조금 낮게 잡는다.
+            Assert.That(peak, Is.InRange(.48f - 2.5f * Time.deltaTime, .52f),
+                "The jump must rise to the configured 0.5m only once.");
+            Assert.That(State, Is.EqualTo("Idle"), "Without a jump animation the jump ends on landing.");
+            // 착지한 CharacterController는 바닥에서 Skin Width만큼 떨어져 멈춘다(처음 놓인 0.02m는 그보다 바닥에 가깝다).
+            Assert.That(_controller.isGrounded, Is.True);
+            Assert.That(_movement.transform.localPosition.y - groundY, Is.LessThan(_controller.skinWidth + .01f));
+        }
+
+        [Test]
+        public void RunningJumpKeepsRunSpeedInAirAndLandsIntoInputState()
+        {
+            Move(Vector2.up, true);
+            Assert.That(State, Is.EqualTo("Run"));
+            Move(Vector2.up, true, true);
+            Assert.That(State, Is.EqualTo("Jump"));
+            Assert.That(IsSprinting, Is.True, "A running jump keeps the sprint state for the HUD and footstep noise.");
+
+            bool wasAirborne = false;
+            int steps = Mathf.CeilToInt(2f / Mathf.Max(Time.deltaTime, .0001f));
+            for (int i = 0; i < steps && State == "Jump"; i++)
+            {
+                // Shift를 놓아도 공중에서는 뛰기 직전 속도를 유지한다.
+                Move(Vector2.up, false);
+                if (!_controller.isGrounded)
+                {
+                    wasAirborne = true;
+                    Assert.That(HorizontalSpeed, Is.EqualTo(3f * 1.8f).Within(.05f));
+                }
+            }
+
+            Assert.That(wasAirborne, Is.True);
+            Assert.That(State, Is.EqualTo("Walk"), "Landing with move input must go straight to the state chosen by input.");
+            Assert.That(IsSprinting, Is.False);
+        }
+
+        [Test]
+        public void SpaceDoesNotJumpWhileFalling()
+        {
+            _movement.transform.localPosition += Vector3.up * 3f;
+            Physics.SyncTransforms();
+            Move(Vector2.zero, false);
+            Assert.That(_controller.isGrounded, Is.False);
+
+            Move(Vector2.zero, false, true);
+            Assert.That(State, Is.EqualTo("Idle"), "Space must not jump while the feet are off the ground.");
+        }
+
         private string State => (string)_movement.GetType()
             .GetProperty("CurrentMovementStateName").GetValue(_movement);
         private bool IsSprinting => (bool)_movement.GetType().GetProperty("IsSprinting").GetValue(_movement);
@@ -160,7 +227,8 @@ namespace CK.SemesterProject.Battle.Tests
         private float HorizontalSpeed => Vector3.ProjectOnPlane(_controller.velocity, Vector3.up).magnitude;
         private float AnimationSpeed => (float)_normalizedAnimationSpeed.Invoke(_movement, null);
 
-        private void Move(Vector2 input, bool shiftHeld) => _move.Invoke(_movement, new object[] { input, shiftHeld });
+        private void Move(Vector2 input, bool shiftHeld, bool jumpPressed = false) =>
+            _move.Invoke(_movement, new object[] { input, shiftHeld, jumpPressed });
         private void ToggleSprint() => _movement.GetType().GetMethod("ToggleSprint").Invoke(_movement, null);
     }
 }

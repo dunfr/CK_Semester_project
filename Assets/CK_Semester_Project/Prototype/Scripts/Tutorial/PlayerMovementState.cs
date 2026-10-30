@@ -6,8 +6,8 @@ namespace CK.SemesterProject.Tutorial
     // - Enter / Exit: 들어오고 나갈 때 할 일. 기본 Enter는 Animator Controller의 AnimatorStateName 상태로 넘어간다.
     // - GetNextState: 이번 입력으로 넘어갈 상태. 그대로 있으려면 자기 자신을 돌려준다.
     // - Tick: 이 상태에 있는 동안 매 프레임 하는 이동.
-    // 새 상태(예: 점프)는 이 클래스를 상속해 만들고, PlayerMovement에 인스턴스를 두고,
-    // 그 상태로 들어갈 수 있는 상태(땅 위 상태라면 PlayerGroundedState)의 GetNextState에 전이를 넣는다.
+    // 새 상태(예: 낙하)는 이 클래스를 상속해 만들고, PlayerMovement에 인스턴스를 두고,
+    // 그 상태로 들어갈 수 있는 상태(땅 위 상태라면 PlayerGroundedState)의 GetNextState에 전이를 넣는다(PlayerJumpState 참고).
     internal abstract class PlayerMovementState
     {
         private int _animatorStateHash;

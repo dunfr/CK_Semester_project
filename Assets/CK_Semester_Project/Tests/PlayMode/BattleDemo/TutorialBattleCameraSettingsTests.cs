@@ -193,27 +193,27 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(Field<Animator>("_animator"), Is.SameAs(animator));
             MethodInfo move = _movement.GetType().GetMethod("Move", PrivateInstance);
             animator.speed = .75f;
-            move.Invoke(_movement, new object[] { Vector2.up, true });
+            move.Invoke(_movement, new object[] { Vector2.up, true, false });
             animator.Update(.3f);
             Assert.That(animator.GetCurrentAnimatorStateInfo(0).IsName("Run"), Is.True);
             CameraState fieldState;
             Vector3 playerHome;
             Assert.That(BeginBattleFromPreview(out fieldState, out playerHome), Is.True);
             Assert.That(animator.speed, Is.GreaterThan(0f));
-            yield return new WaitForSeconds(.2f);
-            Assert.That(animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"), Is.True,
-                "전투 중에는 이동 FSM이 Idle 상태 모션을 재생해야 합니다.");
+            yield return new WaitForSeconds(.3f);
+            Assert.That(animator.GetCurrentAnimatorStateInfo(0).IsName("BattleIdle"), Is.True,
+                "전투 중에는 전투 모션 FSM이 전투 대기(BattleIdle) 모션을 재생해야 합니다.");
             Assert.That(animator.GetCurrentAnimatorClipInfo(0)
-                .Any(info => info.clip.name == "FuchsiaIdle" && info.weight > .99f), Is.True);
+                .Any(info => info.clip.name == "FuchsiaAttackIdle" && info.weight > .99f), Is.True);
             float startedAt = animator.GetCurrentAnimatorStateInfo(0).normalizedTime;
             yield return new WaitForSeconds(.2f);
-            Assert.That(animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"), Is.True);
+            Assert.That(animator.GetCurrentAnimatorStateInfo(0).IsName("BattleIdle"), Is.True);
             Assert.That(animator.GetCurrentAnimatorStateInfo(0).normalizedTime, Is.GreaterThan(startedAt),
-                "Idle 상태를 유지하면서 대기 모션 자체는 재생되어야 합니다.");
+                "전투 대기 상태를 유지하면서 대기 모션 자체는 재생되어야 합니다.");
             Invoke("CancelBattle");
             Assert.That(animator.speed, Is.EqualTo(.75f));
             Assert.That(_movement.enabled, Is.True);
-            move.Invoke(_movement, new object[] { Vector2.up, true });
+            move.Invoke(_movement, new object[] { Vector2.up, true, false });
             animator.Update(.3f);
             Assert.That(animator.GetCurrentAnimatorStateInfo(0).IsName("Run"), Is.True,
                 "필드 복귀 후 이동 상태 모션이 다시 재생되어야 합니다.");

@@ -1,0 +1,118 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: FuchsiaEyesToon
+  m_Shader: {fileID: 4800000, guid: 779f9767c3617354bad431d3b817bf81, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap:
+    RenderType: Opaque
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BaseMap:
+        m_Texture: {fileID: 2800000, guid: edddbd428c1f4e84690902f741c71815, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _EmissionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _FaceShadowMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AdditionalLightCeiling: 0.35
+    - _AdditionalLightStrength: 0.35
+    - _AdditionalShadowFill: 0.8
+    - _AmbientStrength: 0.8
+    - _BacklightHighlightFade: 0.85
+    - _BacklightShadeDim: 0.25
+    - _CharacterShadowSlot: -1
+    - _Cull: 0
+    - _DeepShadeStep: 0.17
+    - _DepthRimShadowFade: 0.35
+    - _DepthRimStrength: 0
+    - _DepthRimThreshold: 0.12
+    - _DepthRimWidth: 4
+    - _DirectLightCeiling: 0.48
+    - _DirectLightStrength: 1.6
+    - _EnvironmentShadowStrength: 1
+    - _FaceAmbientFill: 0.5
+    - _FaceShadowFeather: 0.04
+    - _FaceShadowOffset: 0.08
+    - _FaceStyleStrength: 0
+    - _HairShadowBias: 0.003
+    - _HairShadowDistance: 0.03
+    - _HairShadowStrength: 0
+    - _HighlightFeather: 0.015
+    - _HighlightSize: 0.055
+    - _HighlightStrength: 0
+    - _LightNormalize: 1
+    - _LitBrightness: 1
+    - _OutlineDarkWiden: 0
+    - _OutlineLightTint: 0.3
+    - _OutlineMaxScale: 3
+    - _OutlineMinScale: 0.2
+    - _OutlineSaturation: 1.5
+    - _OutlineShadeWiden: 0
+    - _OutlineThinScale: 0.25
+    - _OutlineUseThickness: 0
+    - _OutlineWidth: 0
+    - _OutlineZOffset: 0.2
+    - _ReceiveShadowStrength: 0.25
+    - _RimPower: 5
+    - _RimShadowFeather: 0.25
+    - _RimShadowPower: 3
+    - _RimShadowStrength: 0
+    - _RimShadowWidth: 1.3
+    - _RimStrength: 0
+    - _SelfShadowBias: 0.02
+    - _SelfShadowSoftness: 0.2
+    - _SelfShadowStrength: 0
+    - _ShadeAmbientTint: 0.3
+    - _ShadeEdgeHardness: 0
+    - _ShadeEdgeSaturation: 1.6
+    - _ShadeEdgeWidth: 0.12
+    - _ShadeFeather: 0.009
+    - _ShadeSaturation: 1
+    - _ShadeStep: 0.38
+    - _ShadingStrength: 0.15
+    - _StyleAxesSpace: 0
+    - _UseEmission: 0
+    m_Colors:
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _CharacterBrightness: {r: 1, g: 0.35, b: 1.15, a: 0}
+    - _CharacterKeyColor: {r: 1, g: 1, b: 1, a: 0}
+    - _CharacterKeyDirection: {r: 0, g: 1, b: 0, a: 0}
+    - _CharacterRimTint: {r: 1, g: 1, b: 1, a: 1}
+    - _DeepShadeColor: {r: 0.82, g: 0.69, b: 0.74, a: 1}
+    - _DepthRimColor: {r: 1, g: 0.96, b: 1, a: 1}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _HighlightColor: {r: 0.85, g: 0.86, b: 0.96, a: 1}
+    - _OutlineColor: {r: 0.41999996, g: 0.29999998, b: 0.39999998, a: 1}
+    - _RimColor: {r: 0.75, g: 0.85, b: 1, a: 1}
+    - _RimShadowColor: {r: 0.78, g: 0.77, b: 0.92, a: 1}
+    - _ShadeColor: {r: 0.85, g: 0.84, b: 0.92, a: 1}
+    - _ShadeEdgeColor: {r: 1, g: 1, b: 1, a: 0}
+    - _StyleForwardOS: {r: 0, g: -1, b: 0, a: 0}
+    - _StyleRightOS: {r: 1, g: 0, b: 0, a: 0}
+    - _StyleUpOS: {r: 0, g: 0, b: 1, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
