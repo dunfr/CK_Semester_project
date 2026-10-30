@@ -240,7 +240,8 @@ namespace CK.SemesterProject.Tutorial
         private void Awake()
         {
             MigrateCameraSettings();
-            _enemies ??= Array.Empty<EnemyStateMachine>();
+            // 에디터에서 지운 적이 목록에 빈 칸으로 남아 있을 수 있으므로 빼고 쓴다.
+            _enemies = _enemies == null ? Array.Empty<EnemyStateMachine>() : _enemies.Where(enemy => enemy != null).ToArray();
             if (_movement == null || _orbit == null || _camera == null || _brain == null || _characters == null
                 || _fieldUI == null || _skillTable == null || _basicSkillEnhancement == null
                 || _battleUI == null

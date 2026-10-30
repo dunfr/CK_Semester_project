@@ -31,7 +31,7 @@ namespace CK.SemesterProject.LevelDesign
 
         [Header("References")]
         [SerializeField] private LevelProgress _progress;
-        [SerializeField, Tooltip("콘솔 데스크 앞 경비병(1-4)")]
+        [SerializeField, Tooltip("콘솔 데스크 앞 경비병(1-4). 비우면 경비병 연출 없이 캡슐 연출 뒤 바로 카드 키가 올라옵니다.")]
         private EnemyStateMachine _guard;
         [SerializeField, Tooltip("경비병이 버튼을 누르는 위치·방향")]
         private Transform _guardButtonPoint;
@@ -57,14 +57,14 @@ namespace CK.SemesterProject.LevelDesign
 
         private void Awake()
         {
-            if (_progress == null || _guard == null || _guardButtonPoint == null || _desk == null || _deskView == null
+            if (_progress == null || _desk == null || _deskView == null
                 || _deskFocus == null || _press == null || _tubeFill == null)
             {
                 Debug.LogError("TutorialStartSequence: 연출 참조가 누락되었습니다.", this);
                 enabled = false;
                 return;
             }
-            _guardAgent = _guard.GetComponent<NavMeshAgent>();
+            _guardAgent = _guard != null ? _guard.GetComponent<NavMeshAgent>() : null;
             _tubeFill.localScale = new Vector3(_tubeFill.localScale.x, 0.01f, _tubeFill.localScale.z);
         }
 
@@ -80,14 +80,28 @@ namespace CK.SemesterProject.LevelDesign
         {
             _progress.LockControls(this);
             _progress.SetObjective("상황 지켜보기");
-            _guard.enabled = false;
+            bool hasGuard = _guard != null && _guardButtonPoint != null;
+            if (hasGuard)
+            {
+                _guard.enabled = false;
+            }
             yield return null;
-            yield return WalkGuardToButton();
-            yield return new WaitForSeconds(_buttonPressSeconds);
+            if (hasGuard)
+            {
+                yield return WalkGuardToButton();
+                yield return new WaitForSeconds(_buttonPressSeconds);
+            }
             SetAlarm(true);
             yield return AnimatePress();
             yield return AnimateTube();
             _progress.UnlockControls(this);
+            if (!hasGuard)
+            {
+                // 경비병이 배치되지 않았으면 처치 조건 없이 카드 키를 올린다.
+                _hasRaisedCardKey = true;
+                yield return RaiseCardKey();
+                yield break;
+            }
             _progress.SetObjective("경비병을 처치하거나 출입문 확인");
             _guard.enabled = true;
             _isWaitingForAttack = true;
@@ -95,7 +109,7 @@ namespace CK.SemesterProject.LevelDesign
 
         private void Update()
         {
-            if (!_isWaitingForAttack)
+            if (!_isWaitingForAttack || _guard == null)
             {
                 return;
             }
@@ -198,7 +212,7 @@ namespace CK.SemesterProject.LevelDesign
 
         private void OnBattleEnded(BattleOutcome outcome)
         {
-            if (_hasRaisedCardKey || outcome != BattleOutcome.Victory || _guard.gameObject.activeSelf)
+            if (_hasRaisedCardKey || outcome != BattleOutcome.Victory || _guard == null || _guard.gameObject.activeSelf)
             {
                 return;
             }
