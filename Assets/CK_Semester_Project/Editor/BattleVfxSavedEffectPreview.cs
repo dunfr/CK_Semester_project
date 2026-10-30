@@ -26,7 +26,6 @@ namespace CK.SemesterProject.EditorTools
         private bool[] _rendererEnabled;
         private Transform _dummy;
         private Transform _anchor;
-        private SocketSlashEffect _socketSlash;
         private Scene _scene;
         private double _lastTime;
         private float _effectSpeed;
@@ -94,29 +93,8 @@ namespace CK.SemesterProject.EditorTools
                 EffectLightPulse[] bladePulses = _instance.GetComponentsInChildren<EffectLightPulse>(true)
                     .Where(item => item.enabled).ToArray();
                 DisablePreviewBehaviours(_instance, false);
-                if (_placement.AttachmentAnchor == BattleVfxEffectAnchor.BladeSocket)
-                {
-                    _socketSlash = _instance.GetComponent<SocketSlashEffect>();
-                    if (_socketSlash != null)
-                    {
-                        _socketSlash.Attach(_anchor);
-                        GameObject impact = _socketSlash.ReleaseImpact(dummy, Camera.main);
-                        if (impact != null)
-                        {
-                            foreach (Transform child in impact.GetComponentsInChildren<Transform>(true))
-                            {
-                                child.gameObject.hideFlags = HideFlags.HideInHierarchy | HideFlags.DontSaveInEditor | HideFlags.DontSaveInBuild;
-                            }
-                            _lightPulses = bladePulses.Concat(impact.GetComponentsInChildren<EffectLightPulse>(true)
-                                .Where(item => item.enabled)).ToArray();
-                            DisablePreviewBehaviours(impact);
-                        }
-                    }
-                }
-                if (_lightPulses == null)
-                {
-                    _lightPulses = bladePulses;
-                }
+                // TODO: 슬래시 이펙트 재제작 후 칼날 소켓 슬래시의 타격 분리(ReleaseImpact) 미리보기를 다시 연결한다.
+                _lightPulses = bladePulses;
                 DisablePreviewBehaviours(_instance);
                 _fades = GetPreviewComponents<SakuraSlashFade>();
                 _streaks = GetPreviewComponents<SakuraImpactStreakPlayer>();
@@ -137,11 +115,6 @@ namespace CK.SemesterProject.EditorTools
                     particle.randomSeed = 12345u;
                 }
                 _effectDuration = SkillVfxPlayback.EstimateDuration(_instance);
-                if (_socketSlash != null && _socketSlash.ImpactInstance != null)
-                {
-                    _effectDuration = Mathf.Max(_effectDuration,
-                        SkillVfxPlayback.EstimateDuration(_socketSlash.ImpactInstance));
-                }
                 foreach (SakuraSlashFade fade in _fades)
                 {
                     _effectDuration = Mathf.Max(_effectDuration, fade.Duration / _effectSpeed);
@@ -269,10 +242,6 @@ namespace CK.SemesterProject.EditorTools
         public void Stop()
         {
             IsPlaying = false;
-            if (_socketSlash != null)
-            {
-                _socketSlash.ClearImpact();
-            }
             if (_instance != null)
             {
                 Object.DestroyImmediate(_instance);
@@ -281,7 +250,6 @@ namespace CK.SemesterProject.EditorTools
             _prefab = null;
             _dummy = null;
             _anchor = null;
-            _socketSlash = null;
             _particles = null;
             _particleTimes = null;
             _fades = null;
@@ -327,10 +295,7 @@ namespace CK.SemesterProject.EditorTools
 
         private T[] GetPreviewComponents<T>() where T : Component
         {
-            T[] components = _instance.GetComponentsInChildren<T>(true);
-            return _socketSlash != null && _socketSlash.ImpactInstance != null
-                ? components.Concat(_socketSlash.ImpactInstance.GetComponentsInChildren<T>(true)).ToArray()
-                : components;
+            return _instance.GetComponentsInChildren<T>(true);
         }
 
         private static void DisablePreviewBehaviours(GameObject root, bool includeLightPulses = true)

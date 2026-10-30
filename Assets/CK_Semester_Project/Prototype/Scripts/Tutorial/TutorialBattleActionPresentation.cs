@@ -11,6 +11,7 @@ namespace CK.SemesterProject.Tutorial
     public sealed class TutorialBattleActionPresentation
     {
         private const float EffectTailSeconds = .9f;
+        private const float DefaultSlashLeadFraction = .12f;
         private readonly List<GameObject> _effectTails = new List<GameObject>();
         private readonly Transform _actor;
         private readonly Transform _target;
@@ -32,7 +33,6 @@ namespace CK.SemesterProject.Tutorial
         private AnimationClip _animation;
         private GameObject _effectPrefab;
         private GameObject _effectInstance;
-        private SocketSlashEffect _socketEffect;
         private GameObject _chargeInstance;
         private float _chargeFraction;
         private float _impactTime = .35f;
@@ -40,10 +40,7 @@ namespace CK.SemesterProject.Tutorial
         private float _effectTailSeconds = EffectTailSeconds;
         private bool _hasSpawnedEffect;
         private bool _isSocketSlash;
-        private bool _hasTriggeredSocketImpact;
-        private bool _hasFinishedSocketSwing;
         private float _slashStartTime;
-        private float _slashEndTime;
         private PlayableGraph _animationGraph;
         private AnimationClipPlayable _animationPlayable;
         private Transform[] _animatedTransforms;
@@ -125,19 +122,15 @@ namespace CK.SemesterProject.Tutorial
                 _animation = _enhancement != null ? _enhancement.GetAnimation(result.Request.SkillId, _skillStage) : null;
                 _effectPrefab = _enhancement != null ? _enhancement.GetEffect(result.Request.SkillId, _skillStage) : null;
                 _hasSpawnedEffect = false;
-                _hasTriggeredSocketImpact = false;
-                _hasFinishedSocketSwing = false;
-                _isSocketSlash = _effectPrefab != null && (_effectPrefab.GetComponent<SocketSlashEffect>() != null
-                    || _effectPrefab.GetComponent<TutorialSlashVfxPlacement>() != null);
+                // TODO: 슬래시 이펙트 재제작 후 SocketSlashEffect 기반 칼날 궤적·타격 분리 연출을 다시 연결한다.
+                _isSocketSlash = _effectPrefab != null && _effectPrefab.GetComponent<TutorialSlashVfxPlacement>() != null;
                 BeginAnimation();
                 GameObject chargePrefab = _enhancement != null ? _enhancement.GetChargeEffect(result.Request.SkillId) : null;
                 _chargeFraction = chargePrefab != null
                     ? _enhancement.GetChargeProgressFraction(result.Request.SkillId, _skillStage, presentationSeconds) : 0f;
                 _impactTime = _enhancement != null ? _enhancement.GetImpactFraction(result.Request.SkillId, _skillStage) : .35f;
                 _returnTime = Mathf.Min(.98f, Mathf.Max(.55f, _impactTime + .15f));
-                SocketSlashEffect socketSettings = _effectPrefab != null ? _effectPrefab.GetComponent<SocketSlashEffect>() : null;
-                _slashStartTime = Mathf.Max(0f, _impactTime - (socketSettings != null ? socketSettings.SwingLeadFraction : .12f));
-                _slashEndTime = Mathf.Min(.98f, _impactTime + (socketSettings != null ? socketSettings.SwingTailFraction : .12f));
+                _slashStartTime = Mathf.Max(0f, _impactTime - DefaultSlashLeadFraction);
                 if (chargePrefab != null && progress < _chargeFraction)
                 {
                     _chargeInstance = Object.Instantiate(chargePrefab, _actor);
@@ -206,16 +199,6 @@ namespace CK.SemesterProject.Tutorial
                     }
                 }
             }
-            if (_socketEffect != null && !_hasTriggeredSocketImpact && progress >= _impactTime)
-            {
-                _hasTriggeredSocketImpact = true;
-                _socketEffect.ReleaseImpact(_target, Camera.main);
-            }
-            if (_socketEffect != null && !_hasFinishedSocketSwing && progress >= _slashEndTime)
-            {
-                _hasFinishedSocketSwing = true;
-                _socketEffect.FinishSwing();
-            }
             bool tookDamage = false;
             foreach (BattleStateChange change in result.Changes)
             {
@@ -277,22 +260,7 @@ namespace CK.SemesterProject.Tutorial
             }
             if (_effectInstance != null)
             {
-                if (_socketEffect != null)
-                {
-                    _socketEffect.FinishSwing();
-                    if (letEffectFinish)
-                    {
-                        QueueTail(_socketEffect.TakeImpact());
-                    }
-                    else
-                    {
-                        _socketEffect.ClearImpact();
-                    }
-                    _effectInstance.SetActive(false);
-                    Object.Destroy(_effectInstance);
-                    _socketEffect = null;
-                }
-                else if (letEffectFinish)
+                if (letEffectFinish)
                 {
                     TutorialSlashVfxPlacement placement = _effectInstance.GetComponent<TutorialSlashVfxPlacement>();
                     if (placement != null)
@@ -347,8 +315,6 @@ namespace CK.SemesterProject.Tutorial
             _effectPrefab = null;
             _hasSpawnedEffect = false;
             _isSocketSlash = false;
-            _hasTriggeredSocketImpact = false;
-            _hasFinishedSocketSwing = false;
             _chargeFraction = 0f;
         }
 
@@ -361,12 +327,6 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             _effectInstance = Object.Instantiate(_effectPrefab, socket, false);
-            _socketEffect = _effectInstance.GetComponent<SocketSlashEffect>();
-            if (_socketEffect == null)
-            {
-                _socketEffect = _effectInstance.AddComponent<SocketSlashEffect>();
-            }
-            _socketEffect.Attach(socket);
             if (settings.Enabled)
             {
                 // A slash's authored offsets are socket-local even for older Actor/Target placement records.

@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f183da8a8364df848ab98b082d884b5a, type: 3}
+  m_Name: Sample_BasicAttack
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.SkillSequence.SkillSequenceAsset
+  _casterClip: {fileID: 7400000, guid: 93dd91c398124e948afc2d4c321ac904, type: 2}
+  _clipStart: 0
+  _duration: 3
+  _frameRate: 30
+  _useMovement: 1
+  _approachStart: 0.9410503
+  _approachEnd: 1.2625313
+  _attackDistance: 1.2
+  _returnStart: 1.6316924
+  _returnEnd: 1.912255
+  _moveCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _vfxEvents:
+  - _name: "\uC774\uD399\uD2B8 1"
+    _time: 0
+    _prefab: {fileID: 5329720332027559207, guid: 48ccbd52c19c0834892053abcbb6f424, type: 3}
+    _anchor: 3
+    _bone: 18
+    _followAnchor: 0
+    _targetMode: 0
+    _positionOffset: {x: -0.3607143, y: -1.47, z: -6.920041}
+    _rotationOffset: {x: 0, y: 0, z: 0}
+    _scale: 0.49796
+    _lifetime: 0
+    _playbackSpeed: 1
+  _hitTimes: []
