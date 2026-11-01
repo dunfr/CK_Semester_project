@@ -19,6 +19,14 @@ namespace CK.SemesterProject.SkillSequence
         private float _duration = 1.5f;
         [SerializeField, Min(1f), Tooltip("에디터 프레임 표시·스냅 기준(fps)")]
         private float _frameRate = 30f;
+        [SerializeField, Tooltip("켜면 몬스터가 시전하고 플레이어가 대상이 되는 적 스킬입니다. 어느 슬롯에서 쓰든 이펙트 방향은 시전자→대상 기준으로 맞춰집니다.")]
+        private bool _isEnemySkill;
+
+        [Header("Cutscene (선택)")]
+        [SerializeField, Tooltip("카메라 무빙이 필요한 컷신(Unity Timeline). 스튜디오에서는 미리보지 않고 게임에서 그대로 재생합니다.")]
+        private SkillCutsceneAsset _cutscene;
+        [SerializeField, Min(0f), Tooltip("컷신 시작 시점(초)")]
+        private float _cutsceneStart;
 
         [Header("Movement (선택)")]
         [SerializeField, Tooltip("켜면 대상 앞까지 다가갔다가 제자리로 돌아옵니다.")]
@@ -40,11 +48,16 @@ namespace CK.SemesterProject.SkillSequence
         [SerializeField] private List<SkillVfxEvent> _vfxEvents = new List<SkillVfxEvent>();
         [SerializeField, Tooltip("타격(피해 표시) 시점(초)")]
         private List<float> _hitTimes = new List<float>();
+        [SerializeField, Tooltip("카메라 흔들림 이벤트")]
+        private List<SkillCameraShakeEvent> _shakeEvents = new List<SkillCameraShakeEvent>();
 
         public AnimationClip CasterClip => _casterClip;
         public float ClipStart => _clipStart;
         public float Duration => _duration;
         public float FrameRate => _frameRate;
+        public bool IsEnemySkill => _isEnemySkill;
+        public SkillCutsceneAsset Cutscene => _cutscene;
+        public float CutsceneStart => _cutsceneStart;
         public bool UseMovement => _useMovement;
         public float ApproachStart => _approachStart;
         public float ApproachEnd => Mathf.Max(_approachStart, _approachEnd);
@@ -54,5 +67,6 @@ namespace CK.SemesterProject.SkillSequence
         public AnimationCurve MoveCurve => _moveCurve;
         public IReadOnlyList<SkillVfxEvent> VfxEvents => _vfxEvents;
         public IReadOnlyList<float> HitTimes => _hitTimes;
+        public IReadOnlyList<SkillCameraShakeEvent> ShakeEvents => _shakeEvents;
     }
 }

@@ -198,6 +198,12 @@ namespace CK.SemesterProject.SkillSequence
 
         private static Bounds CalculateBounds(Transform target)
         {
+            // 몸 크기는 충돌체(CharacterController·CapsuleCollider)를 우선 쓴다.
+            // 렌더러 크기는 무기·옷자락까지 포함해 실제 몸보다 훨씬 커져서, 접근 거리·대상 원이 어긋난다.
+            if (TryGetBodyBounds(target, out Bounds bodyBounds))
+            {
+                return bodyBounds;
+            }
             bool hasBounds = false;
             Bounds bounds = new Bounds(target.position + Vector3.up, Vector3.one);
             foreach (Renderer renderer in target.GetComponentsInChildren<Renderer>())
@@ -217,6 +223,41 @@ namespace CK.SemesterProject.SkillSequence
                     bounds.Encapsulate(renderer.bounds);
                 }
             }
+            return bounds;
+        }
+
+        private static bool TryGetBodyBounds(Transform target, out Bounds bounds)
+        {
+            CharacterController controller = target.GetComponentInChildren<CharacterController>();
+            if (controller != null)
+            {
+                bounds = MakeCapsuleBounds(controller.transform, controller.center, controller.radius, controller.height, 1);
+                return true;
+            }
+            foreach (CapsuleCollider capsule in target.GetComponentsInChildren<CapsuleCollider>())
+            {
+                if (!capsule.isTrigger)
+                {
+                    bounds = MakeCapsuleBounds(capsule.transform, capsule.center, capsule.radius, capsule.height, capsule.direction);
+                    return true;
+                }
+            }
+            bounds = default;
+            return false;
+        }
+
+        private static Bounds MakeCapsuleBounds(Transform owner, Vector3 center, float radius, float height, int direction)
+        {
+            Vector3 scale = owner.lossyScale;
+            Vector3 axis = direction == 0 ? owner.right : direction == 2 ? owner.forward : owner.up;
+            float axisScale = Mathf.Abs(direction == 0 ? scale.x : direction == 2 ? scale.z : scale.y);
+            float radiusScale = direction == 1 ? Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.z)) : Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+            float worldRadius = radius * radiusScale;
+            float halfSegment = Mathf.Max(0f, height * axisScale * 0.5f - worldRadius);
+            Vector3 worldCenter = owner.TransformPoint(center);
+            Bounds bounds = new Bounds(worldCenter, Vector3.one * worldRadius * 2f);
+            bounds.Encapsulate(new Bounds(worldCenter + axis * halfSegment, Vector3.one * worldRadius * 2f));
+            bounds.Encapsulate(new Bounds(worldCenter - axis * halfSegment, Vector3.one * worldRadius * 2f));
             return bounds;
         }
     }

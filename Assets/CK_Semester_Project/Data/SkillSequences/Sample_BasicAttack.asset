@@ -13,15 +13,18 @@ MonoBehaviour:
   m_Name: Sample_BasicAttack
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.SkillSequence.SkillSequenceAsset
   _casterClip: {fileID: 7400000, guid: 93dd91c398124e948afc2d4c321ac904, type: 2}
-  _clipStart: 0
+  _clipStart: 0.16666667
   _duration: 3
   _frameRate: 30
+  _isEnemySkill: 0
+  _cutscene: {fileID: 0}
+  _cutsceneStart: 0
   _useMovement: 1
-  _approachStart: 0.9410503
-  _approachEnd: 1.2625313
+  _approachStart: 1.2666667
+  _approachEnd: 1.6666666
   _attackDistance: 1.2
-  _returnStart: 1.6316924
-  _returnEnd: 1.912255
+  _returnStart: 2.1666667
+  _returnEnd: 2.5666666
   _moveCurve:
     serializedVersion: 2
     m_Curve:
@@ -48,15 +51,16 @@ MonoBehaviour:
     m_RotationOrder: 4
   _vfxEvents:
   - _name: "\uC774\uD399\uD2B8 1"
-    _time: 0
+    _time: 0.1
     _prefab: {fileID: 5329720332027559207, guid: 48ccbd52c19c0834892053abcbb6f424, type: 3}
     _anchor: 3
     _bone: 18
     _followAnchor: 0
     _targetMode: 0
-    _positionOffset: {x: -0.3607143, y: -1.47, z: -6.920041}
+    _positionOffset: {x: 0.2340455, y: -1.4822862, z: -6.771915}
     _rotationOffset: {x: 0, y: 0, z: 0}
-    _scale: 0.49796
+    _scale: 0.41455653
     _lifetime: 0
     _playbackSpeed: 1
   _hitTimes: []
+  _shakeEvents: []

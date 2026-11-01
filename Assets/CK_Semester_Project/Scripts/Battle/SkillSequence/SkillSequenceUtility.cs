@@ -21,6 +21,25 @@ namespace CK.SemesterProject.SkillSequence
                 float delay = main.startDelay.constantMax;
                 lifetime = Mathf.Max(lifetime, delay + main.duration + main.startLifetime.constantMax);
             }
+            // 이펙터가 Timeline(PlayableDirector)·Animator로 만든 이펙트는 그 길이도 포함한다.
+            foreach (UnityEngine.Playables.PlayableDirector director in prefab.GetComponentsInChildren<UnityEngine.Playables.PlayableDirector>(true))
+            {
+                if (director.playableAsset != null)
+                {
+                    lifetime = Mathf.Max(lifetime, (float)director.playableAsset.duration);
+                }
+            }
+            foreach (Animator animator in prefab.GetComponentsInChildren<Animator>(true))
+            {
+                if (animator.runtimeAnimatorController == null)
+                {
+                    continue;
+                }
+                foreach (AnimationClip clip in animator.runtimeAnimatorController.animationClips)
+                {
+                    lifetime = Mathf.Max(lifetime, clip.length);
+                }
+            }
             return lifetime > 0f ? Mathf.Min(lifetime, MaximumLifetime) : DefaultLifetime;
         }
 

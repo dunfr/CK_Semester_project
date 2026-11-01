@@ -6,22 +6,27 @@ using UnityEngine;
 namespace CK.SemesterProject.SkillSequence.EditorTools
 {
     /// <summary>
-    /// 스킬 연출 스튜디오. 애니메이션을 배치하고, 타임라인에 이펙트 생성 시점·타격 시점을 찍고,
-    /// 씬 뷰 핸들로 이펙트 위치를 잡는다. 몬스터 접근 이동과 몬스터 위치(포메이션 슬롯) 구분은 선택 기능이다.
-    /// 미리보기 무대는 저장되지 않는 임시 오브젝트(HideFlags.DontSave)로 만든다.
+    /// 스킬 연출 스튜디오(런타임 전투 연출 전용). 애니메이션·이동·타격·카메라 흔들림·이펙트를 한 타임라인에서 편집한다.
+    /// 별도 무대를 만들지 않고, 지금 열린 씬의 플레이어·몬스터(SkillStudioStageAnchor에 지정)와 메인 카메라를 그대로 쓴다.
+    /// 그래서 씬 뷰·게임 뷰에 보이는 모습이 곧 미리보기다.
+    /// - 아군 스킬: 플레이어가 시전, 선택한 슬롯의 몬스터가 대상
+    /// - 적 스킬: 선택한 슬롯의 몬스터가 시전, 플레이어가 대상
+    /// 미리보기 중 바뀐 플레이어·몬스터 포즈는 창을 닫거나 씬을 저장할 때 원래대로 되돌린다.
+    /// 이펙트 미리보기 오브젝트만 저장되지 않는 임시 오브젝트(HideFlags.DontSave)로 만든다.
+    /// 카메라 무빙이 필요한 컷신은 여기서 만들지 않고 Unity Timeline(SkillCutsceneAsset)으로 연결만 한다.
     /// </summary>
     public sealed class SkillSequenceStudioWindow : EditorWindow
     {
-        private const string StageName = "__SkillSequenceStudio";
-        private const string DefaultCasterPath = "Assets/CK_Semester_Project/Prototype/Sandbox/Junmo/FuchsiaShading/Prefabs/FuchsiaUpdatedAnimated.prefab";
+        private const string StageName = "__SkillSequencePreview";
+        private const string LegacyStageName = "__SkillSequenceStudio";
         private const string DefaultSequenceFolder = "Assets/CK_Semester_Project/Data/SkillSequences";
         private const float LabelWidth = 120f;
         private const float RulerHeight = 20f;
         private const float RowHeight = 22f;
         private const float MarkerWidth = 9f;
         private const float EdgeGrabWidth = 6f;
-        private const int FixedRowCount = 3;
-        private static readonly Vector3 StageOrigin = new Vector3(500f, 0f, 500f);
+        private const int FixedRowCount = 4;
+        private const int ShakeRow = 3;
 
         private enum DragTarget
         {
@@ -35,8 +40,19 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             ApproachStart,
             ApproachEnd,
             HoldMove,
+            ShakeMove,
+            ShakeStart,
+            ShakeEnd,
             ReturnStart,
             ReturnEnd
+        }
+
+        private struct TransformState
+        {
+            public Transform Transform;
+            public Vector3 LocalPosition;
+            public Quaternion LocalRotation;
+            public Vector3 LocalScale;
         }
 
         private sealed class PreviewInstance
@@ -46,6 +62,8 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             public GameObject Prefab;
             public GameObject Instance;
             public ParticleSystem[] Particles;
+            public UnityEngine.Playables.PlayableDirector[] Directors;
+            public Animator[] Animators;
             public bool IsActive;
             public float LocalTime;
             public Vector3 Position;
@@ -59,27 +77,22 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         }
 
         [SerializeField] private SkillSequenceAsset _sequence;
-        [SerializeField] private GameObject _casterPrefab;
-        [SerializeField] private GameObject _enemyPrefab;
-        [SerializeField] private bool _useFormation = true;
-        [SerializeField] private int _enemyCount = 3;
         [SerializeField] private int _targetSlot = 1;
-        [SerializeField] private float _slotSpacing = 2.5f;
-        [SerializeField] private float _stageDistance = 7f;
-        [SerializeField] private float _enemyScale = 1f;
         [SerializeField] private bool _snapToFrame = true;
         [SerializeField] private bool _loop = true;
         [SerializeField] private float _playSpeed = 1f;
         [SerializeField] private bool _showStageSettings = true;
         [SerializeField] private bool _showSequenceSettings = true;
 
-        private readonly List<Transform> _enemies = new List<Transform>();
+        private readonly List<Transform> _contextTargets = new List<Transform>();
         private readonly List<PreviewInstance> _previews = new List<PreviewInstance>();
+        private readonly List<TransformState> _savedPoses = new List<TransformState>();
         private float _time;
         private bool _isPlaying;
         private double _lastUpdateTime;
         private int _selectedEvent = -1;
         private int _selectedHit = -1;
+        private int _selectedShake = -1;
         private DragTarget _drag;
         private int _dragIndex;
         private float _dragGrabOffset;
@@ -89,14 +102,19 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         private Vector2 _scroll;
         private Rect _trackRect;
         private GameObject _stageRoot;
-        private GameObject _caster;
-        private Transform _stageCenter;
+        private int _contextSlot = -1;
+        private bool _contextForEnemySkill;
+        private string _contextSignature;
         private SkillSequenceContext _context;
         private SkillSequenceSampler _sampler;
         private AnimationClip _samplerClip;
         private SerializedObject _serialized;
+        private SkillStudioStageAnchor _anchor;
 
-        private int TargetIndex => _useFormation ? Mathf.Clamp(_targetSlot, 0, Mathf.Max(0, _enemyCount - 1)) : 0;
+        private int SlotCount => GetSlots().Count;
+        /// <summary>미리보기 슬롯. 아군 스킬이면 맞는 몬스터, 적 스킬이면 시전하는 몬스터.</summary>
+        private int ActiveSlot => Mathf.Clamp(_targetSlot, 0, Mathf.Max(0, SlotCount - 1));
+        private bool IsEnemySkill => _sequence != null && _sequence.IsEnemySkill;
 
         [MenuItem("CK/스킬 연출 스튜디오")]
         private static void Open()
@@ -109,11 +127,10 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         private void OnEnable()
         {
             titleContent = new GUIContent("스킬 연출 스튜디오");
-            if (_casterPrefab == null)
-            {
-                _casterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultCasterPath);
-            }
             SceneView.duringSceneGui += OnSceneGUI;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving += OnSceneSaving;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved += OnSceneSaved;
+            UnityEditor.SceneManagement.EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
             EditorApplication.update += OnEditorUpdate;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
             Undo.undoRedoPerformed += OnUndoRedo;
@@ -132,6 +149,9 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         private void OnDisable()
         {
             SceneView.duringSceneGui -= OnSceneGUI;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaving -= OnSceneSaving;
+            UnityEditor.SceneManagement.EditorSceneManager.sceneSaved -= OnSceneSaved;
+            UnityEditor.SceneManagement.EditorSceneManager.activeSceneChangedInEditMode -= OnActiveSceneChanged;
             EditorApplication.update -= OnEditorUpdate;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             Undo.undoRedoPerformed -= OnUndoRedo;
@@ -163,8 +183,11 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             }
 
             SerializedObject serialized = GetSerialized();
+            HandleShortcuts(serialized);
             DrawSequenceSettings(serialized);
+            DrawWarnings();
             DrawTransport(serialized);
+            DrawSlotBar();
             DrawTimeline(serialized);
             DrawSelection(serialized);
             if (serialized.ApplyModifiedProperties())
@@ -202,50 +225,54 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
 
         private void DrawStageSettings()
         {
-            _showStageSettings = EditorGUILayout.Foldout(_showStageSettings, "미리보기 무대", true);
+            _showStageSettings = EditorGUILayout.Foldout(_showStageSettings, "씬 무대", true);
             if (!_showStageSettings)
             {
                 return;
             }
             EditorGUI.indentLevel++;
-            EditorGUI.BeginChangeCheck();
-            _casterPrefab = (GameObject)EditorGUILayout.ObjectField(new GUIContent("시전자", "애니메이션을 적용할 캐릭터 프리팹(Animator 필요)"), _casterPrefab, typeof(GameObject), false);
-            _enemyPrefab = (GameObject)EditorGUILayout.ObjectField(new GUIContent("몬스터", "비우면 캡슐 더미를 사용합니다."), _enemyPrefab, typeof(GameObject), false);
-            _enemyScale = EditorGUILayout.Slider(new GUIContent("몬스터 크기", "몬스터 크기가 달라도 이펙트가 맞는지 확인용"), _enemyScale, 0.3f, 4f);
-            _stageDistance = EditorGUILayout.Slider(new GUIContent("아군-적 거리", "시전자 제자리와 몬스터 줄 사이 거리(m)"), _stageDistance, 2f, 20f);
-            _useFormation = EditorGUILayout.Toggle(new GUIContent("몬스터 위치 구분", "켜면 여러 몬스터를 슬롯(포메이션)에 세우고 대상 슬롯을 고릅니다."), _useFormation);
-            if (_useFormation)
+            if (_anchor == null)
             {
-                _enemyCount = EditorGUILayout.IntSlider("몬스터 수", _enemyCount, 1, 5);
-                _slotSpacing = EditorGUILayout.Slider("슬롯 간격", _slotSpacing, 1f, 6f);
-                string[] labels = new string[_enemyCount];
-                for (int i = 0; i < _enemyCount; i++)
-                {
-                    labels[i] = "슬롯 " + (i + 1);
-                }
+                _anchor = FindStageAnchor();
+            }
+            if (_anchor == null)
+            {
+                EditorGUILayout.HelpBox("지금 씬에 무대 설정(SkillStudioStageAnchor)이 없습니다.\n씬에 있는 플레이어·몬스터를 그대로 쓰므로, 무대 설정을 만들고 플레이어와 몬스터 슬롯을 지정하세요.", MessageType.Info);
                 EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.PrefixLabel("대상 슬롯");
-                _targetSlot = GUILayout.Toolbar(Mathf.Clamp(_targetSlot, 0, _enemyCount - 1), labels);
+                GUILayout.Space(EditorGUI.indentLevel * 15f);
+                if (GUILayout.Button("무대 설정 만들기"))
+                {
+                    CreateStageAnchor();
+                }
                 EditorGUILayout.EndHorizontal();
             }
-            if (EditorGUI.EndChangeCheck())
+            else
             {
-                BuildStage();
-                _needsRefresh = true;
+                EditorGUILayout.LabelField("플레이어", _anchor.Player != null ? _anchor.Player.name : "(비어 있음 — 무대 설정에서 지정)");
+                EditorGUILayout.LabelField("몬스터 슬롯", SlotCount + "개");
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(EditorGUI.indentLevel * 15f);
+                if (GUILayout.Button("무대 설정 선택"))
+                {
+                    Selection.activeObject = _anchor.gameObject;
+                }
+                if (GUILayout.Button("씬 뷰로 보기"))
+                {
+                    FrameStage();
+                }
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.LabelField(" ", "게임 뷰 = 씬 메인 카메라 그대로(카메라 흔들림 포함). 플레이어·몬스터를 선택하면 원래 자리로 돌아가 옮길 수 있습니다.", EditorStyles.wordWrappedMiniLabel);
             }
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.Space(EditorGUI.indentLevel * 15f);
-            if (GUILayout.Button("무대 다시 만들기"))
-            {
-                BuildStage();
-                _needsRefresh = true;
-            }
-            if (GUILayout.Button("씬 뷰로 보기"))
-            {
-                FrameStage();
-            }
-            EditorGUILayout.EndHorizontal();
             EditorGUI.indentLevel--;
+        }
+
+        private void CreateStageAnchor()
+        {
+            GameObject anchorObject = new GameObject("SkillStudioStage");
+            Undo.RegisterCreatedObjectUndo(anchorObject, "무대 설정 만들기");
+            _anchor = anchorObject.AddComponent<SkillStudioStageAnchor>();
+            Selection.activeObject = anchorObject;
+            _needsRefresh = true;
         }
 
         private void DrawSequenceSettings(SerializedObject serialized)
@@ -269,8 +296,30 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             }
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.PropertyField(serialized.FindProperty("_frameRate"), new GUIContent("프레임(fps)"));
+            EditorGUILayout.PropertyField(serialized.FindProperty("_isEnemySkill"), new GUIContent("적 스킬", "켜면 선택한 슬롯의 몬스터가 시전하고 플레이어가 대상이 됩니다. 슬롯을 바꿔 가며 모든 위치에서 어색하지 않은지 확인하세요."));
+            SerializedProperty cutscene = serialized.FindProperty("_cutscene");
+            EditorGUILayout.PropertyField(cutscene, new GUIContent("컷신 Timeline(선택)", "카메라 무빙이 필요한 연출. 스튜디오에서는 미리보지 않고 게임에서 그대로 재생합니다. Create > CK > Skill Cutscene"));
+            if (cutscene.objectReferenceValue != null)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(serialized.FindProperty("_cutsceneStart"), new GUIContent("컷신 시작(초)"));
+                var cutsceneAsset = (SkillCutsceneAsset)cutscene.objectReferenceValue;
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(EditorGUI.indentLevel * 15f);
+                using (new EditorGUI.DisabledScope(cutsceneAsset.Prefab == null))
+                {
+                    if (GUILayout.Button("컷신 프리팹 열기 (Timeline 편집)"))
+                    {
+                        AssetDatabase.OpenAsset(cutsceneAsset.Prefab);
+                        EditorApplication.ExecuteMenuItem("Window/Sequencing/Timeline");
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.LabelField(" ", cutsceneAsset.Prefab == null ? "컷신 프리팹이 비어 있습니다." : $"컷신 길이 {cutsceneAsset.Duration:0.00}s (스튜디오 미리보기 없음)", EditorStyles.miniLabel);
+                EditorGUI.indentLevel--;
+            }
             SerializedProperty useMovement = serialized.FindProperty("_useMovement");
-            EditorGUILayout.PropertyField(useMovement, new GUIContent("몬스터에게 다가가기", "켜면 접근→공격→복귀 이동을 합니다(기본 공격용). 특수 스킬처럼 제자리에서 쓰면 끄세요."));
+            EditorGUILayout.PropertyField(useMovement, new GUIContent("대상에게 다가가기", "켜면 접근→공격→복귀 이동을 합니다(기본 공격용). 특수 스킬처럼 제자리에서 쓰면 끄세요."));
             if (useMovement.boolValue)
             {
                 EditorGUI.indentLevel++;
@@ -331,7 +380,164 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             {
                 AddHit(serialized);
             }
+            if (GUILayout.Button("+ 흔들림", EditorStyles.toolbarButton, GUILayout.Width(60f)))
+            {
+                AddShake(serialized);
+            }
             EditorGUILayout.EndHorizontal();
+        }
+
+        /// <summary>미리보기 슬롯 선택. 같은 스킬이 어느 슬롯에서든 어색하지 않은지 바꿔 가며 확인한다.</summary>
+        private void DrawSlotBar()
+        {
+            EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+            GUILayout.Label(IsEnemySkill ? "시전 몬스터" : "대상 몬스터", EditorStyles.miniBoldLabel, GUILayout.Width(70f));
+            int slotCount = SlotCount;
+            if (slotCount == 0)
+            {
+                GUILayout.Label("몬스터 슬롯이 없습니다(씬 무대 설정에서 지정).", EditorStyles.miniLabel);
+            }
+            else
+            {
+                string[] labels = new string[slotCount];
+                for (int i = 0; i < slotCount; i++)
+                {
+                    labels[i] = "슬롯 " + (i + 1);
+                }
+                EditorGUI.BeginChangeCheck();
+                int slot = GUILayout.Toolbar(ActiveSlot, labels, EditorStyles.toolbarButton, GUILayout.Width(Mathf.Min(70f * slotCount, 350f)));
+                if (EditorGUI.EndChangeCheck())
+                {
+                    _targetSlot = slot;
+                    _needsRefresh = true;
+                }
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.Label(IsEnemySkill ? "적 스킬: 몬스터 → 플레이어" : "아군 스킬: 플레이어 → 몬스터", EditorStyles.miniLabel);
+            EditorGUILayout.EndHorizontal();
+        }
+
+        /// <summary>실제 전투에서 문제가 될 만한 설정을 알려 준다.</summary>
+        private void DrawWarnings()
+        {
+            List<string> warnings = new List<string>();
+            float duration = _sequence.Duration;
+            if (_sequence.HitTimes.Count == 0)
+            {
+                warnings.Add("타격 시점이 없습니다. 실제 전투에서 피해·피격 반응이 들어가지 않습니다.");
+            }
+            int missingPrefab = 0;
+            int lateEvents = 0;
+            foreach (SkillVfxEvent vfxEvent in _sequence.VfxEvents)
+            {
+                if (vfxEvent.Prefab == null)
+                {
+                    missingPrefab++;
+                }
+                if (vfxEvent.Time > duration)
+                {
+                    lateEvents++;
+                }
+            }
+            foreach (float hit in _sequence.HitTimes)
+            {
+                if (hit > duration)
+                {
+                    lateEvents++;
+                }
+            }
+            foreach (SkillCameraShakeEvent shake in _sequence.ShakeEvents)
+            {
+                if (shake.Time > duration)
+                {
+                    lateEvents++;
+                }
+            }
+            if (missingPrefab > 0)
+            {
+                warnings.Add($"프리팹이 비어 있는 이펙트 {missingPrefab}개");
+            }
+            if (lateEvents > 0)
+            {
+                warnings.Add($"전체 길이({duration:0.00}s)보다 뒤에 있는 항목 {lateEvents}개 — 게임에서는 실행되지 않습니다.");
+            }
+            if (_sequence.Cutscene != null && _sequence.CutsceneStart > duration)
+            {
+                warnings.Add("컷신 시작이 전체 길이보다 뒤에 있어 재생되지 않습니다.");
+            }
+            if (_sequence.UseMovement && _sequence.ReturnEnd > duration)
+            {
+                warnings.Add("복귀가 끝나기 전에 연출이 끝납니다. 전체 길이를 늘리거나 복귀를 당기세요.");
+            }
+            if (warnings.Count > 0)
+            {
+                EditorGUILayout.HelpBox(string.Join("\n", warnings), MessageType.Warning);
+            }
+        }
+
+        /// <summary>Space 재생/정지, ←/→ 한 프레임, Delete 선택 항목 삭제. 입력칸에 글자를 쓰는 중에는 무시한다.</summary>
+        private void HandleShortcuts(SerializedObject serialized)
+        {
+            Event current = Event.current;
+            if (current.type != EventType.KeyDown || EditorGUIUtility.editingTextField || GUIUtility.keyboardControl != 0)
+            {
+                return;
+            }
+            float frame = 1f / Mathf.Max(1f, _sequence.FrameRate);
+            switch (current.keyCode)
+            {
+                case KeyCode.Space:
+                    _isPlaying = !_isPlaying;
+                    if (_isPlaying && _time >= _sequence.Duration)
+                    {
+                        _time = 0f;
+                    }
+                    _lastUpdateTime = EditorApplication.timeSinceStartup;
+                    break;
+                case KeyCode.LeftArrow:
+                    _isPlaying = false;
+                    SetTime(SkillSequenceUtility.SnapToFrame(_time - frame, _sequence.FrameRate));
+                    break;
+                case KeyCode.RightArrow:
+                    _isPlaying = false;
+                    SetTime(SkillSequenceUtility.SnapToFrame(_time + frame, _sequence.FrameRate));
+                    break;
+                case KeyCode.Delete:
+                    if (!DeleteSelection(serialized))
+                    {
+                        return;
+                    }
+                    break;
+                default:
+                    return;
+            }
+            current.Use();
+            Repaint();
+        }
+
+        private bool DeleteSelection(SerializedObject serialized)
+        {
+            SerializedProperty events = serialized.FindProperty("_vfxEvents");
+            SerializedProperty hits = serialized.FindProperty("_hitTimes");
+            SerializedProperty shakes = serialized.FindProperty("_shakeEvents");
+            if (_selectedEvent >= 0 && _selectedEvent < events.arraySize)
+            {
+                DeleteVfxEvent(serialized, _selectedEvent);
+                return true;
+            }
+            if (_selectedShake >= 0 && _selectedShake < shakes.arraySize)
+            {
+                shakes.DeleteArrayElementAtIndex(_selectedShake);
+                _selectedShake = -1;
+                return true;
+            }
+            if (_selectedHit >= 0 && _selectedHit < hits.arraySize)
+            {
+                hits.DeleteArrayElementAtIndex(_selectedHit);
+                _selectedHit = -1;
+                return true;
+            }
+            return false;
         }
 
         #endregion
@@ -360,12 +566,20 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                 DrawAnimationRow(area, viewDuration);
                 DrawMovementRow(area, viewDuration);
                 DrawHitRow(area, hits, viewDuration);
+                DrawShakeRow(area, serialized.FindProperty("_shakeEvents"), viewDuration);
                 for (int i = 0; i < events.arraySize; i++)
                 {
                     DrawEventRow(area, events.GetArrayElementAtIndex(i), i, viewDuration);
                 }
                 float endX = TimeToX(_sequence.Duration, viewDuration);
                 EditorGUI.DrawRect(new Rect(endX, area.y, 1f, area.height), new Color(1f, 0.4f, 0.3f, 0.8f));
+                if (_sequence.Cutscene != null)
+                {
+                    // 컷신은 미리보지 않고 시작 시점만 표시한다.
+                    float cutsceneX = TimeToX(_sequence.CutsceneStart, viewDuration);
+                    EditorGUI.DrawRect(new Rect(cutsceneX - 1f, area.y, 2f, area.height), new Color(0.65f, 0.45f, 1f));
+                    GUI.Label(new Rect(cutsceneX + 3f, area.y + 2f, 60f, RulerHeight), "컷신", EditorStyles.miniBoldLabel);
+                }
                 float playheadX = TimeToX(_time, viewDuration);
                 EditorGUI.DrawRect(new Rect(playheadX - 1f, area.y, 2f, area.height), new Color(1f, 0.85f, 0.2f));
             }
@@ -373,6 +587,11 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             for (int i = 0; i < events.arraySize; i++)
             {
                 AddBlockCursors(GetEventBlockRect(area, i, events.GetArrayElementAtIndex(i).FindPropertyRelative("_time").floatValue, viewDuration));
+            }
+            SerializedProperty shakeList = serialized.FindProperty("_shakeEvents");
+            for (int i = 0; i < shakeList.arraySize; i++)
+            {
+                AddBlockCursors(GetShakeBlockRect(GetTrackRow(area, ShakeRow), shakeList.GetArrayElementAtIndex(i), viewDuration));
             }
             if (_sequence.CasterClip != null)
             {
@@ -429,6 +648,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             GUI.Label(Inset(GetRowRect(area, 0)), "애니메이션", EditorStyles.miniBoldLabel);
             GUI.Label(Inset(GetRowRect(area, 1)), _sequence.UseMovement ? "이동" : "이동(사용 안 함)", EditorStyles.miniBoldLabel);
             GUI.Label(Inset(GetRowRect(area, 2)), "타격", EditorStyles.miniBoldLabel);
+            GUI.Label(Inset(GetRowRect(area, ShakeRow)), "카메라 흔들림", EditorStyles.miniBoldLabel);
             for (int i = 0; i < events.arraySize; i++)
             {
                 Rect labelRect = Inset(GetRowRect(area, FixedRowCount + i));
@@ -502,6 +722,35 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             }
         }
 
+        private void DrawShakeRow(Rect area, SerializedProperty shakes, float viewDuration)
+        {
+            Rect row = GetTrackRow(area, ShakeRow);
+            for (int i = 0; i < shakes.arraySize; i++)
+            {
+                Rect block = GetShakeBlockRect(row, shakes.GetArrayElementAtIndex(i), viewDuration);
+                bool isSelected = i == _selectedShake;
+                if (isSelected)
+                {
+                    EditorGUI.DrawRect(new Rect(block.x - 1f, block.y - 1f, block.width + 2f, block.height + 2f), Color.white);
+                }
+                EditorGUI.DrawRect(block, isSelected ? new Color(0.85f, 0.5f, 0.2f) : new Color(0.7f, 0.42f, 0.18f));
+                Color edge = new Color(1f, 1f, 1f, isSelected ? 0.9f : 0.55f);
+                EditorGUI.DrawRect(new Rect(block.x, block.y, 3f, block.height), edge);
+                EditorGUI.DrawRect(new Rect(block.xMax - 3f, block.y, 3f, block.height), edge);
+                if (block.width > 50f)
+                {
+                    GUI.Label(new Rect(block.x + 6f, block.y, block.width - 10f, block.height), "흔들림 " + (i + 1), EditorStyles.whiteMiniLabel);
+                }
+            }
+        }
+
+        private Rect GetShakeBlockRect(Rect row, SerializedProperty shake, float viewDuration)
+        {
+            float time = shake.FindPropertyRelative("_time").floatValue;
+            float duration = shake.FindPropertyRelative("_duration").floatValue;
+            return GetSpanRect(row, time, time + duration, viewDuration);
+        }
+
         private void DrawHitRow(Rect area, SerializedProperty hits, float viewDuration)
         {
             Rect row = GetTrackRow(area, 2);
@@ -570,7 +819,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                     PickDragTarget(area, current.mousePosition, events, hits, viewDuration);
                     _dragViewDuration = viewDuration;
                     GUIUtility.hotControl = controlId;
-                    if (_drag != DragTarget.VfxEventStart && _drag != DragTarget.VfxEventEnd)
+                    if (_drag != DragTarget.VfxEventStart && _drag != DragTarget.VfxEventEnd && _drag != DragTarget.ShakeStart && _drag != DragTarget.ShakeEnd)
                     {
                         ApplyDrag(serialized, events, hits, current.mousePosition.x, viewDuration);
                     }
@@ -594,22 +843,6 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                     _dragViewDuration = 0f;
                     Repaint();
                     current.Use();
-                    break;
-                case EventType.KeyDown:
-                    if (current.keyCode == KeyCode.Delete && GUIUtility.keyboardControl == 0)
-                    {
-                        if (_selectedEvent >= 0 && _selectedEvent < events.arraySize)
-                        {
-                            DeleteVfxEvent(serialized, _selectedEvent);
-                            current.Use();
-                        }
-                        else if (_selectedHit >= 0 && _selectedHit < hits.arraySize)
-                        {
-                            hits.DeleteArrayElementAtIndex(_selectedHit);
-                            _selectedHit = -1;
-                            current.Use();
-                        }
-                    }
                     break;
             }
         }
@@ -645,6 +878,37 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                 SelectEvent(i);
                 return;
             }
+            SerializedProperty shakes = _serialized.FindProperty("_shakeEvents");
+            Rect shakeRow = GetTrackRow(area, ShakeRow);
+            for (int i = 0; i < shakes.arraySize; i++)
+            {
+                SerializedProperty shake = shakes.GetArrayElementAtIndex(i);
+                Rect shakeBlock = GetShakeBlockRect(shakeRow, shake, viewDuration);
+                if (!new Rect(shakeBlock.x - 3f, shakeBlock.y - 2f, shakeBlock.width + 6f, shakeBlock.height + 4f).Contains(mouse))
+                {
+                    continue;
+                }
+                float shakeTime = shake.FindPropertyRelative("_time").floatValue;
+                _dragIndex = i;
+                _dragEventEnd = shakeTime + shake.FindPropertyRelative("_duration").floatValue;
+                if (mouse.x <= shakeBlock.x + EdgeGrabWidth)
+                {
+                    _drag = DragTarget.ShakeStart;
+                }
+                else if (mouse.x >= shakeBlock.xMax - EdgeGrabWidth)
+                {
+                    _drag = DragTarget.ShakeEnd;
+                }
+                else
+                {
+                    _drag = DragTarget.ShakeMove;
+                    _dragGrabOffset = XToTime(mouse.x, viewDuration) - shakeTime;
+                }
+                _selectedShake = i;
+                _selectedEvent = -1;
+                _selectedHit = -1;
+                return;
+            }
             Rect hitRow = GetTrackRow(area, 2);
             for (int i = 0; i < hits.arraySize; i++)
             {
@@ -654,6 +918,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                     _dragIndex = i;
                     _selectedHit = i;
                     _selectedEvent = -1;
+                    _selectedShake = -1;
                     return;
                 }
             }
@@ -705,7 +970,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         private void ApplyDrag(SerializedObject serialized, SerializedProperty events, SerializedProperty hits, float mouseX, float viewDuration)
         {
             float rawTime = XToTime(mouseX, viewDuration);
-            if (_drag == DragTarget.VfxEventMove || _drag == DragTarget.HoldMove || _drag == DragTarget.AnimationMove)
+            if (_drag == DragTarget.VfxEventMove || _drag == DragTarget.HoldMove || _drag == DragTarget.AnimationMove || _drag == DragTarget.ShakeMove)
             {
                 rawTime -= _dragGrabOffset;
             }
@@ -739,6 +1004,25 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                     SetTime(time - minimumLength * 0.5f);
                     Repaint();
                     return;
+                }
+                case DragTarget.ShakeMove:
+                    serialized.FindProperty("_shakeEvents").GetArrayElementAtIndex(_dragIndex).FindPropertyRelative("_time").floatValue = time;
+                    break;
+                case DragTarget.ShakeStart:
+                {
+                    SerializedProperty shake = serialized.FindProperty("_shakeEvents").GetArrayElementAtIndex(_dragIndex);
+                    time = Mathf.Min(time, _dragEventEnd - minimumLength);
+                    shake.FindPropertyRelative("_time").floatValue = time;
+                    shake.FindPropertyRelative("_duration").floatValue = _dragEventEnd - time;
+                    break;
+                }
+                case DragTarget.ShakeEnd:
+                {
+                    SerializedProperty shake = serialized.FindProperty("_shakeEvents").GetArrayElementAtIndex(_dragIndex);
+                    float start = shake.FindPropertyRelative("_time").floatValue;
+                    time = Mathf.Max(time, start + minimumLength);
+                    shake.FindPropertyRelative("_duration").floatValue = time - start;
+                    break;
                 }
                 case DragTarget.Hit:
                     hits.GetArrayElementAtIndex(_dragIndex).floatValue = time;
@@ -792,6 +1076,10 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             {
                 duration = Mathf.Max(duration, vfxEvent.Time + vfxEvent.GetEffectiveLifetime());
             }
+            foreach (SkillCameraShakeEvent shake in _sequence.ShakeEvents)
+            {
+                duration = Mathf.Max(duration, shake.Time + shake.Duration);
+            }
             return Mathf.Max(0.1f, duration * 1.05f);
         }
 
@@ -839,10 +1127,27 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         {
             SerializedProperty events = serialized.FindProperty("_vfxEvents");
             SerializedProperty hits = serialized.FindProperty("_hitTimes");
+            SerializedProperty shakes = serialized.FindProperty("_shakeEvents");
             EditorGUILayout.Space(6f);
             if (_selectedEvent >= 0 && _selectedEvent < events.arraySize)
             {
                 DrawSelectedEvent(serialized, events, _selectedEvent);
+            }
+            else if (_selectedShake >= 0 && _selectedShake < shakes.arraySize)
+            {
+                SerializedProperty shake = shakes.GetArrayElementAtIndex(_selectedShake);
+                EditorGUILayout.LabelField("카메라 흔들림 " + (_selectedShake + 1), EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(shake.FindPropertyRelative("_time"), new GUIContent("시점(초)"));
+                EditorGUILayout.PropertyField(shake.FindPropertyRelative("_duration"), new GUIContent("길이(초)"));
+                EditorGUILayout.PropertyField(shake.FindPropertyRelative("_amplitude"), new GUIContent("위치 세기(m)"));
+                EditorGUILayout.PropertyField(shake.FindPropertyRelative("_rotationAmplitude"), new GUIContent("회전 세기(도)"));
+                EditorGUILayout.PropertyField(shake.FindPropertyRelative("_frequency"), new GUIContent("빠르기(Hz)"));
+                EditorGUILayout.HelpBox("게임 뷰에서 재생·스크러빙하면 흔들림이 보입니다. 기본 공격 위치 0.05~0.1 / 강한 타격 0.15~0.3", MessageType.None);
+                if (GUILayout.Button("흔들림 삭제"))
+                {
+                    shakes.DeleteArrayElementAtIndex(_selectedShake);
+                    _selectedShake = -1;
+                }
             }
             else if (_selectedHit >= 0 && _selectedHit < hits.arraySize)
             {
@@ -858,14 +1163,18 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             else
             {
                 EditorGUILayout.HelpBox(
+                    "• 단축키: Space 재생/정지, ←/→ 한 프레임, Delete 선택 항목 삭제\n" +
+                    "• 슬롯 바: 아군 스킬은 맞는 몬스터, 적 스킬은 시전하는 몬스터를 고릅니다. 모든 슬롯에서 확인하세요.\n" +
                     "• 눈금자/빈 곳 클릭·드래그: 시간 이동\n" +
                     "• 이펙트 블럭: 가운데 잡고 끌기 = 시점 이동, 왼쪽 끝 = 시작 조절(끝 고정), 오른쪽 끝 = 길이 조절\n" +
                     "• 애니메이션 블럭: 끌어서 시작 시점 이동\n" +
                     "• 이동 블럭: 가운데 = 전체 이동, 양 끝 = 출발·복귀 완료, 안쪽 두 선 = 도착·복귀 시작\n" +
+                    "• 카메라 흔들림 블럭: 이펙트 블럭과 같은 방식 (+ 흔들림으로 추가, 게임 뷰에서 확인)\n" +
                     "• 타격 마커: 실제 전투에서 피해·피격 반응이 들어가는 순간 (드래그로 이동, Delete로 삭제)\n" +
                     "• 이펙트 이름 클릭 또는 씬에서 이펙트를 직접 클릭: 선택\n" +
                     "• 선택한 이펙트는 일반 오브젝트처럼 이동(W)·회전(E)·크기(R), 인스펙터 Transform 숫자로 조절 → 자동 저장\n" +
-                    "• 위치는 '기준점 + 차이값'으로 저장되므로 몬스터 크기·위치가 달라도 같은 부위에 생성됩니다.",
+                    "• 위치는 '기준점 + 차이값'으로 저장되고, 방향은 '시전자가 대상을 바라보는 방향' 기준이라 슬롯이 바뀌어도 같은 부위·방향에 생성됩니다.\n" +
+                    "• 카메라 무빙이 필요한 연출은 시퀀스 설정의 '컷신 Timeline'에 연결합니다(Timeline 창에서 편집).",
                     MessageType.None);
             }
         }
@@ -949,6 +1258,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             vfxEvent.FindPropertyRelative("_playbackSpeed").floatValue = 1f;
             _selectedEvent = index;
             _selectedHit = -1;
+            _selectedShake = -1;
         }
 
         private void AddHit(SerializedObject serialized)
@@ -958,6 +1268,22 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             hits.GetArrayElementAtIndex(hits.arraySize - 1).floatValue = _time;
             _selectedHit = hits.arraySize - 1;
             _selectedEvent = -1;
+            _selectedShake = -1;
+        }
+
+        private void AddShake(SerializedObject serialized)
+        {
+            SerializedProperty shakes = serialized.FindProperty("_shakeEvents");
+            shakes.arraySize++;
+            SerializedProperty shake = shakes.GetArrayElementAtIndex(shakes.arraySize - 1);
+            shake.FindPropertyRelative("_time").floatValue = _time;
+            shake.FindPropertyRelative("_duration").floatValue = 0.35f;
+            shake.FindPropertyRelative("_amplitude").floatValue = 0.1f;
+            shake.FindPropertyRelative("_rotationAmplitude").floatValue = 0.8f;
+            shake.FindPropertyRelative("_frequency").floatValue = 22f;
+            _selectedShake = shakes.arraySize - 1;
+            _selectedEvent = -1;
+            _selectedHit = -1;
         }
 
         private void DeleteVfxEvent(SerializedObject serialized, int index)
@@ -971,6 +1297,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         {
             _selectedEvent = index;
             _selectedHit = -1;
+            _selectedShake = -1;
             GUI.FocusControl(null);
             if (index < _sequence.VfxEvents.Count)
             {
@@ -1008,6 +1335,11 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
 
         private void OnSelectionChanged()
         {
+            if (_context != null ? IsStageActorSelected() : (_anchor != null && !IsStageActorSelected()))
+            {
+                RefreshPreview();
+                SceneView.RepaintAll();
+            }
             GameObject selected = Selection.activeGameObject;
             if (selected == null)
             {
@@ -1027,6 +1359,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                 }
                 _selectedEvent = preview.EventIndex;
                 _selectedHit = -1;
+                _selectedShake = -1;
                 Repaint();
                 return;
             }
@@ -1104,7 +1437,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
 
         private void OnSceneGUI(SceneView sceneView)
         {
-            if (_stageRoot == null || _context == null || _sequence == null || EditorApplication.isPlayingOrWillChangePlaymode)
+            if (_context == null || _sequence == null || EditorApplication.isPlayingOrWillChangePlaymode)
             {
                 return;
             }
@@ -1159,21 +1492,18 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
 
         private void DrawStageLabels()
         {
-            int targetIndex = _context.SelectedTargetIndex;
-            for (int i = 0; i < _enemies.Count; i++)
+            int activeSlot = ActiveSlot;
+            bool isEnemySkill = IsEnemySkill;
+            List<Transform> slots = GetSlots();
+            for (int i = 0; i < slots.Count; i++)
             {
-                Transform enemy = _enemies[i];
-                if (enemy == null)
-                {
-                    continue;
-                }
-                bool isTarget = i == targetIndex;
-                Vector3 feet = _context.GetTargetFeet(enemy);
-                float radius = _context.GetTargetRadius(enemy);
-                Handles.color = isTarget ? new Color(1f, 0.8f, 0.2f) : new Color(1f, 1f, 1f, 0.35f);
-                Handles.DrawWireDisc(feet + Vector3.up * 0.02f, Vector3.up, radius + 0.15f, isTarget ? 3f : 1f);
-                Vector3 top = _context.GetTargetCenter(enemy) + Vector3.up * (_context.GetTargetCenter(enemy).y - feet.y + 0.3f);
-                Handles.Label(top, _useFormation ? $"슬롯 {i + 1}{(isTarget ? " (대상)" : "")}" : "대상", EditorStyles.whiteBoldLabel);
+                bool isActive = i == activeSlot;
+                string role = isActive ? (isEnemySkill ? " (시전)" : " (대상)") : "";
+                DrawActorLabel(slots[i], $"슬롯 {i + 1}{role}", isActive, isEnemySkill ? new Color(1f, 0.45f, 0.35f) : new Color(1f, 0.8f, 0.2f));
+            }
+            if (_anchor != null && _anchor.Player != null)
+            {
+                DrawActorLabel(_anchor.Player, isEnemySkill ? "플레이어 (대상)" : "플레이어 (시전)", true, isEnemySkill ? new Color(1f, 0.8f, 0.2f) : new Color(0.4f, 0.8f, 1f));
             }
             if (_sequence.UseMovement && _sampler != null && _context.SelectedTarget != null)
             {
@@ -1186,24 +1516,89 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             }
         }
 
+        private void DrawActorLabel(Transform actor, string label, bool highlight, Color color)
+        {
+            Vector3 feet = _context.GetTargetFeet(actor);
+            Vector3 center = _context.GetTargetCenter(actor);
+            float radius = _context.GetTargetRadius(actor);
+            Handles.color = highlight ? color : new Color(1f, 1f, 1f, 0.35f);
+            Handles.DrawWireDisc(feet + Vector3.up * 0.02f, Vector3.up, radius + 0.15f, highlight ? 3f : 1f);
+            Handles.Label(center + Vector3.up * (center.y - feet.y + 0.3f), label, EditorStyles.whiteBoldLabel);
+        }
+
         private void FrameStage()
         {
-            if (!EnsureStage())
-            {
-                return;
-            }
             SceneView sceneView = SceneView.lastActiveSceneView;
-            if (sceneView == null)
+            if (sceneView == null || _anchor == null || _anchor.Player == null)
             {
                 return;
             }
-            Bounds bounds = new Bounds(_stageCenter.position + Vector3.up, new Vector3(_slotSpacing * Mathf.Max(1, _enemyCount) + 4f, 3f, _stageDistance + 4f));
+            Bounds bounds = new Bounds(_anchor.Player.position + Vector3.up, new Vector3(2f, 2f, 2f));
+            foreach (Transform slot in GetSlots())
+            {
+                bounds.Encapsulate(new Bounds(slot.position + Vector3.up, new Vector3(2f, 2f, 2f)));
+            }
             sceneView.Frame(bounds, false);
         }
 
         #endregion
 
-        #region 미리보기 무대
+        #region 씬 무대
+
+        private List<Transform> GetSlots()
+        {
+            List<Transform> slots = new List<Transform>();
+            if (_anchor != null && _anchor.MonsterSlots != null)
+            {
+                foreach (Transform slot in _anchor.MonsterSlots)
+                {
+                    if (slot != null && slot != _anchor.Player)
+                    {
+                        slots.Add(slot);
+                    }
+                }
+            }
+            return slots;
+        }
+
+        private string GetStageSignature()
+        {
+            if (_anchor == null || _anchor.Player == null)
+            {
+                return string.Empty;
+            }
+            System.Text.StringBuilder builder = new System.Text.StringBuilder();
+            builder.Append(_anchor.Player.GetInstanceID());
+            foreach (Transform slot in GetSlots())
+            {
+                builder.Append(',').Append(slot.GetInstanceID());
+            }
+            return builder.ToString();
+        }
+
+        /// <summary>플레이어·몬스터를 선택하면 미리보기를 잠시 멈추고 원래 자리로 돌려 배치를 고칠 수 있게 한다.</summary>
+        private bool IsStageActorSelected()
+        {
+            if (_anchor == null)
+            {
+                return false;
+            }
+            foreach (Transform selected in Selection.transforms)
+            {
+                if (_anchor.Player != null && selected.IsChildOf(_anchor.Player))
+                {
+                    return true;
+                }
+                foreach (Transform slot in GetSlots())
+                {
+                    if (selected.IsChildOf(slot))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
 
         private bool EnsureStage()
         {
@@ -1211,86 +1606,96 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             {
                 return false;
             }
-            if (_stageRoot == null || _caster == null)
+            if (_anchor == null)
             {
-                BuildStage();
+                _anchor = FindStageAnchor();
             }
-            return _stageRoot != null;
+            if (_anchor == null || _anchor.Player == null || IsStageActorSelected())
+            {
+                return false;
+            }
+            if (_stageRoot == null)
+            {
+                DestroyStaleStages();
+                _stageRoot = new GameObject(StageName) { hideFlags = HideFlags.DontSave };
+            }
+            return true;
         }
 
-        private void BuildStage()
+        /// <summary>
+        /// 아군 스킬: 플레이어가 시전, 슬롯 몬스터 전체가 대상(선택 슬롯이 주 대상).
+        /// 적 스킬: 선택 슬롯 몬스터가 시전, 플레이어가 대상.
+        /// </summary>
+        private void RebuildContext()
         {
-            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            ReleaseActors();
+            _contextSlot = ActiveSlot;
+            _contextForEnemySkill = IsEnemySkill;
+            _contextSignature = GetStageSignature();
+            if (_anchor == null || _anchor.Player == null)
             {
                 return;
             }
-            DestroyStage();
-            _stageRoot = new GameObject(StageName);
-            _stageRoot.transform.position = StageOrigin;
-
-            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            floor.name = "Floor";
-            DestroyImmediate(floor.GetComponent<Collider>());
-            floor.transform.SetParent(_stageRoot.transform, false);
-            floor.transform.localPosition = new Vector3(0f, 0f, _stageDistance * 0.5f);
-            floor.transform.localScale = new Vector3(Mathf.Max(3f, _slotSpacing * _enemyCount * 0.2f + 1f), 1f, Mathf.Max(2f, _stageDistance * 0.2f + 1f));
-
-            _stageCenter = new GameObject("StageCenter").transform;
-            _stageCenter.SetParent(_stageRoot.transform, false);
-            _stageCenter.localPosition = new Vector3(0f, 0f, _stageDistance * 0.5f);
-
-            _caster = _casterPrefab != null ? Instantiate(_casterPrefab) : CreateDummy();
-            _caster.name = "Caster";
-            _caster.transform.SetParent(_stageRoot.transform, false);
-            _caster.transform.localPosition = Vector3.zero;
-            _caster.transform.localRotation = Quaternion.identity;
-
-            int count = _useFormation ? _enemyCount : 1;
-            for (int i = 0; i < count; i++)
+            Transform player = _anchor.Player;
+            List<Transform> slots = GetSlots();
+            SavePoses(player);
+            foreach (Transform slot in slots)
             {
-                GameObject enemy = _enemyPrefab != null ? Instantiate(_enemyPrefab) : CreateDummy();
-                enemy.name = "Enemy_" + (i + 1);
-                enemy.transform.SetParent(_stageRoot.transform, false);
-                float x = (i - (count - 1) * 0.5f) * _slotSpacing;
-                enemy.transform.localPosition = new Vector3(x, 0f, _stageDistance);
-                enemy.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                enemy.transform.localScale *= _enemyScale;
-                _enemies.Add(enemy.transform);
+                SavePoses(slot);
             }
-            SetHideFlagsRecursive(_stageRoot);
-            // 씬에서 클릭하면 이펙트만 잡히도록 바닥·캐릭터·몬스터는 선택을 막는다.
-            SceneVisibilityManager.instance.DisablePicking(floor, true);
-            SceneVisibilityManager.instance.DisablePicking(_caster, true);
-            foreach (Transform enemy in _enemies)
+            if (IsEnemySkill && _contextSlot < slots.Count)
             {
-                SceneVisibilityManager.instance.DisablePicking(enemy.gameObject, true);
+                _contextTargets.Add(player);
+                _context = new SkillSequenceContext(slots[_contextSlot], _contextTargets, _anchor.transform, 0);
             }
-            RebuildContext();
+            else
+            {
+                _contextTargets.AddRange(slots);
+                _context = new SkillSequenceContext(player, _contextTargets, _anchor.transform, _contextSlot);
+            }
         }
 
-        private static GameObject CreateDummy()
-        {
-            GameObject root = new GameObject("Dummy");
-            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            body.name = "Body";
-            DestroyImmediate(body.GetComponent<Collider>());
-            body.transform.SetParent(root.transform, false);
-            body.transform.localPosition = Vector3.up;
-            return root;
-        }
-
-        private void RebuildContext()
+        /// <summary>미리보기를 멈추고 씬의 플레이어·몬스터를 원래 자리·포즈로 되돌린다.</summary>
+        private void ReleaseActors()
         {
             DisposeSampler();
             ClearPreviews();
-            if (_caster == null)
+            RestorePoses(true);
+            _context = null;
+            _contextTargets.Clear();
+            _contextSignature = null;
+            SkillCameraShake.Clear();
+        }
+
+        private void SavePoses(Transform root)
+        {
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
             {
-                _context = null;
-                return;
+                _savedPoses.Add(new TransformState
+                {
+                    Transform = child,
+                    LocalPosition = child.localPosition,
+                    LocalRotation = child.localRotation,
+                    LocalScale = child.localScale
+                });
             }
-            _caster.transform.localPosition = Vector3.zero;
-            _caster.transform.localRotation = Quaternion.identity;
-            _context = new SkillSequenceContext(_caster.transform, _enemies, _stageCenter, TargetIndex);
+        }
+
+        private void RestorePoses(bool clear)
+        {
+            foreach (TransformState state in _savedPoses)
+            {
+                if (state.Transform != null)
+                {
+                    state.Transform.localPosition = state.LocalPosition;
+                    state.Transform.localRotation = state.LocalRotation;
+                    state.Transform.localScale = state.LocalScale;
+                }
+            }
+            if (clear)
+            {
+                _savedPoses.Clear();
+            }
         }
 
         private void EnsureSampler()
@@ -1322,24 +1727,54 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
         private void DestroyStage()
         {
             ClearSelectionUnder(_stageRoot);
-            DisposeSampler();
-            ClearPreviews();
+            ReleaseActors();
             if (_stageRoot != null)
             {
                 DestroyImmediate(_stageRoot);
             }
             _stageRoot = null;
-            _caster = null;
-            _stageCenter = null;
-            _enemies.Clear();
-            _context = null;
+            _contextSlot = -1;
+            RepaintGameView();
+        }
+
+        // 씬을 저장할 때는 원래 포즈·설정(루트 모션 등)으로 되돌려 저장하고, 저장이 끝나면 다시 미리보기한다.
+        private void OnSceneSaving(UnityEngine.SceneManagement.Scene scene, string path)
+        {
+            DisposeSampler();
+            RestorePoses(false);
+        }
+
+        private void OnSceneSaved(UnityEngine.SceneManagement.Scene scene)
+        {
+            _needsRefresh = true;
+            EditorApplication.delayCall += () =>
+            {
+                if (this != null)
+                {
+                    RefreshPreview();
+                }
+            };
+        }
+
+        private void OnActiveSceneChanged(UnityEngine.SceneManagement.Scene previous, UnityEngine.SceneManagement.Scene next)
+        {
+            DestroyStage();
+            _anchor = null;
+            _needsRefresh = true;
+            Repaint();
+        }
+
+        private static SkillStudioStageAnchor FindStageAnchor()
+        {
+            return FindFirstObjectByType<SkillStudioStageAnchor>();
         }
 
         private static void DestroyStaleStages()
         {
             foreach (GameObject candidate in Resources.FindObjectsOfTypeAll<GameObject>())
             {
-                if (candidate != null && candidate.name == StageName && candidate.transform.parent == null && !EditorUtility.IsPersistent(candidate))
+                if (candidate != null && (candidate.name == StageName || candidate.name == LegacyStageName)
+                    && candidate.transform.parent == null && !EditorUtility.IsPersistent(candidate))
                 {
                     DestroyImmediate(candidate);
                 }
@@ -1373,9 +1808,15 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             _needsRefresh = false;
             if (!EnsureStage())
             {
+                // 무대 설정이 없거나 플레이어·몬스터를 옮기는 중이면 원래 자리로 두고 미리보기를 쉰다.
+                if (_context != null)
+                {
+                    ReleaseActors();
+                }
+                RepaintGameView();
                 return;
             }
-            if (_context != null && _context.SelectedTargetIndex != TargetIndex)
+            if (_context == null || _contextSlot != ActiveSlot || _contextForEnemySkill != IsEnemySkill || _contextSignature != GetStageSignature())
             {
                 RebuildContext();
             }
@@ -1443,6 +1884,69 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                         particle.Simulate(simulateTime, false, true, false);
                     }
                 }
+                EvaluateTimelineAndAnimators(preview, simulateTime);
+            }
+            UpdateGameViewShake();
+        }
+
+        /// <summary>
+        /// 이펙터가 Timeline(PlayableDirector)이나 Animator로 만든 이펙트를 해당 시간 모습으로 맞춘다.
+        /// Timeline의 Control 트랙이 파티클을 다루는 경우를 위해 파티클 시뮬레이션 뒤에 평가한다.
+        /// </summary>
+        private static void EvaluateTimelineAndAnimators(PreviewInstance preview, float time)
+        {
+            if (preview.Animators != null)
+            {
+                foreach (Animator animator in preview.Animators)
+                {
+                    if (animator == null || animator.runtimeAnimatorController == null || !animator.isActiveAndEnabled)
+                    {
+                        continue;
+                    }
+                    animator.Rebind();
+                    animator.Update(0f);
+                    animator.Update(time);
+                }
+            }
+            if (preview.Directors != null)
+            {
+                foreach (UnityEngine.Playables.PlayableDirector director in preview.Directors)
+                {
+                    if (director == null || director.playableAsset == null || !director.isActiveAndEnabled)
+                    {
+                        continue;
+                    }
+                    director.time = Mathf.Min(time, (float)director.playableAsset.duration);
+                    director.Evaluate();
+                }
+            }
+        }
+
+        /// <summary>게임 뷰(씬 메인 카메라)에 카메라 흔들림을 적용한다. 렌더링할 때만 더하므로 카메라 위치는 바뀌지 않는다.</summary>
+        private void UpdateGameViewShake()
+        {
+            Camera camera = Camera.main;
+            if (_sequence != null && camera != null && SkillCameraShake.Evaluate(_sequence.ShakeEvents, _time, out Vector3 shakePosition, out Vector3 shakeRotation))
+            {
+                SkillCameraShake.SetOffset(camera, shakePosition, shakeRotation);
+            }
+            else
+            {
+                SkillCameraShake.Clear();
+            }
+            RepaintGameView();
+        }
+
+        private static void RepaintGameView()
+        {
+            System.Type gameViewType = typeof(EditorWindow).Assembly.GetType("UnityEditor.GameView");
+            if (gameViewType == null)
+            {
+                return;
+            }
+            foreach (EditorWindow gameView in Resources.FindObjectsOfTypeAll(gameViewType))
+            {
+                gameView.Repaint();
             }
         }
 
@@ -1508,6 +2012,14 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                     particle.useAutoRandomSeed = false;
                     particle.randomSeed = (uint)(pair.Key * 7919 + pair.Value * 104729 + 1);
                 }
+                // 이펙트 안의 Timeline은 스튜디오가 시간을 직접 정하므로 자동 재생을 끈다.
+                UnityEngine.Playables.PlayableDirector[] directors = instance.GetComponentsInChildren<UnityEngine.Playables.PlayableDirector>(true);
+                foreach (UnityEngine.Playables.PlayableDirector director in directors)
+                {
+                    director.playOnAwake = false;
+                    director.timeUpdateMode = UnityEngine.Playables.DirectorUpdateMode.Manual;
+                }
+                Animator[] animators = instance.GetComponentsInChildren<Animator>(true);
                 instance.SetActive(false);
                 _previews.Add(new PreviewInstance
                 {
@@ -1515,7 +2027,9 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                     TargetIndex = pair.Value,
                     Prefab = prefab,
                     Instance = instance,
-                    Particles = particles
+                    Particles = particles,
+                    Directors = directors,
+                    Animators = animators
                 });
             }
         }
@@ -1600,6 +2114,7 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             _serialized = null;
             _selectedEvent = -1;
             _selectedHit = -1;
+            _selectedShake = -1;
             _isPlaying = false;
             _time = 0f;
             RebuildContext();
