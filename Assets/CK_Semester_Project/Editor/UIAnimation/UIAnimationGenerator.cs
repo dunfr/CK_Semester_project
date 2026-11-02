@@ -184,15 +184,33 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         // 컴포넌트가 지워졌거나 Controller가 바뀌었으면 설정대로 되돌린다.
         public static void Repair(Image image, UIAnimationPreset preset)
         {
+            if (Application.isPlaying) return;
+            bool legacyWipe = HasLegacyWipe(preset);
+            if (legacyWipe)
+            {
+                Rebuild(preset);
+                Save(preset);
+                SyncComponents(preset);
+            }
             Animator animator = image.GetComponent<Animator>();
             UIAnimationPointerEffects effects = image.GetComponent<UIAnimationPointerEffects>();
-            bool connected = animator != null
+            UIAnimationPlayer player = image.GetComponent<UIAnimationPlayer>();
+            bool connected = !legacyWipe && animator != null && player != null && player.Preset == preset
                 && animator.runtimeAnimatorController == ControllerOf(preset)
+                && (image.GetComponent<UIAnimationFx>() != null) == preset.UsesFx
+                && (image.type != Image.Type.Filled || preset.ImageType == Image.Type.Filled)
                 && (effects != null ? preset.HasPointerEffects || effects.HasTriggers : !preset.HasPointerEffects);
-            if (!connected && !Application.isPlaying)
+            if (!connected)
             {
                 Connect(image, preset);
             }
+        }
+
+        private static bool HasLegacyWipe(UIAnimationPreset preset)
+        {
+            return States.Select(state => ClipOf(preset, state)).Where(clip => clip != null)
+                .Any(clip => AnimationUtility.GetCurveBindings(clip).Any(binding => binding.type == typeof(Image)
+                    && binding.propertyName == "m_FillAmount"));
         }
 
         // 메뉴로 만들어야 프로젝트의 입력 방식에 맞는 모듈이 붙는다. 메뉴가 고른 오브젝트는 원래대로 되돌린다.
@@ -509,6 +527,14 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         private static void ApplyOptions(GameObject target, UIAnimationPreset preset)
         {
+            if (preset.UsesFx)
+            {
+                GetOrAdd<UIAnimationFx>(target).RefreshShape();
+            }
+            else if (target.TryGetComponent(out UIAnimationFx fx))
+            {
+                Undo.DestroyObjectImmediate(fx);
+            }
             if (preset.FadeChildren)
             {
                 GetOrAdd<CanvasGroup>(target);
@@ -525,7 +551,13 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
             if (target.TryGetComponent(out Image image))
             {
-                ApplyWipe(image, preset);
+                if (image.type == Image.Type.Filled && preset.ImageType != Image.Type.Filled && !HasLegacyWipe(preset))
+                {
+                    Undo.RecordObject(image, "와이프 이미지 복원");
+                    image.type = preset.ImageType;
+                    image.fillAmount = 1f;
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(image);
+                }
             }
         }
 
@@ -554,29 +586,6 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 selectable.transition = Selectable.Transition.None;
                 PrefabUtility.RecordPrefabInstancePropertyModifications(selectable);
             }
-        }
-
-        // 와이프는 Fill 방식 Image에서만 보이므로 쓸 때만 바꾸고, 끄면 원래 방식으로 되돌린다.
-        private static void ApplyWipe(Image image, UIAnimationPreset preset)
-        {
-            UIWipeDirection direction = preset.WipeDirection;
-            bool horizontal = direction == UIWipeDirection.LeftToRight || direction == UIWipeDirection.RightToLeft;
-            Image.Type type = preset.AnimatesWipe ? Image.Type.Filled : preset.ImageType;
-            Image.FillMethod method = horizontal ? Image.FillMethod.Horizontal : Image.FillMethod.Vertical;
-            int origin = direction == UIWipeDirection.RightToLeft || direction == UIWipeDirection.TopToBottom ? 1 : 0;
-            if (image.type == type && (!preset.AnimatesWipe || (image.fillMethod == method && image.fillOrigin == origin)))
-            {
-                return;
-            }
-
-            Undo.RecordObject(image, "와이프 설정");
-            image.type = type;
-            if (preset.AnimatesWipe)
-            {
-                image.fillMethod = method;
-                image.fillOrigin = origin;
-            }
-            PrefabUtility.RecordPrefabInstancePropertyModifications(image);
         }
 
         private static void SetDelays(UIAnimationPlayer player, float openDelay, float closeDelay)

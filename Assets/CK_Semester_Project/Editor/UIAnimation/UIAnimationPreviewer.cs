@@ -105,6 +105,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 AnimationMode.StopAnimationMode();
             }
+            foreach (GameObject target in _entries.Select(entry => entry.Target).Distinct())
+                if (target != null && target.TryGetComponent(out UIAnimationFx fx)) fx.ResetVisuals();
             DestroyTemporaryClips();
             foreach (GameObject target in _turnedOn)
             {

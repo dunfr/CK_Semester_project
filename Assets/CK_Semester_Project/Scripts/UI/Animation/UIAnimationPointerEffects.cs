@@ -61,7 +61,7 @@ namespace CK.SemesterProject.UIAnimation
         {
             _player = GetComponent<UIAnimationPlayer>();
             _image = GetComponent<Image>();
-            _imageBrightness = _image != null ? new UIImageBrightness(_image) : null;
+            _imageBrightness = _image != null ? UIImageBrightness.Acquire(_image) : null;
             _selectable = GetComponent<Selectable>();
         }
 

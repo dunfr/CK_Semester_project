@@ -59,6 +59,14 @@ namespace CK.SemesterProject.UIAnimation
         [SerializeField] private Image.Type _imageType = Image.Type.Simple;
         [SerializeField] private bool _fadeChildren;
         [SerializeField] private UIWipeDirection _wipeDirection;
+        [SerializeField] private float _wipeAngle;
+        [SerializeField, Range(0f, 1f)] private float _wipeSoftness;
+        [SerializeField, Min(1)] private int _glitchBands = 12;
+        [SerializeField, Min(1f)] private float _glitchFps = 12f;
+        [SerializeField, Min(1f)] private float _dissolveCellSize = 16f;
+        [SerializeField] private float _sheenAngle = 25f;
+        [SerializeField, Range(0.01f, 1f)] private float _sheenWidth = 0.2f;
+        [SerializeField, Min(0f)] private float _sheenIntensity = 1f;
         [SerializeField] private bool _reactToSelection = true;
         [SerializeField] private UIAnimationStateSettings _open = new UIAnimationStateSettings();
         [SerializeField] private UIAnimationStateSettings _stay = new UIAnimationStateSettings();
@@ -140,6 +148,22 @@ namespace CK.SemesterProject.UIAnimation
         public bool AnimatesRotation => _open.Rotation.Use || _stay.Rotation.Use || _close.Rotation.Use;
         public bool AnimatesColor => _open.Color.Use || _stay.Color.Use || _close.Color.Use;
         public bool AnimatesWipe => _open.Wipe.Use || _stay.Wipe.Use || _close.Wipe.Use;
+        public bool AnimatesSkew => _open.Skew.Use || _stay.Skew.Use || _close.Skew.Use;
+        public bool AnimatesSlice => _open.Slice.Use || _stay.Slice.Use || _close.Slice.Use;
+        public bool AnimatesSplit => _open.Split.Use || _stay.Split.Use || _close.Split.Use;
+        public bool AnimatesScan => _open.Scan.Use || _stay.Scan.Use || _close.Scan.Use;
+        public bool AnimatesDissolve => _open.Dissolve.Use || _stay.Dissolve.Use || _close.Dissolve.Use;
+        public bool AnimatesSheen => _open.Sheen.Use || _stay.Sheen.Use || _close.Sheen.Use;
+        public bool AnimatesFlash => _open.Flash.Use || _stay.Flash.Use || _close.Flash.Use;
+        public bool UsesFx => _open.UsesFx || _stay.UsesFx || _close.UsesFx;
+        public float WipeAngle { get => _wipeAngle; set => _wipeAngle = value; }
+        public float WipeSoftness { get => Mathf.Clamp01(_wipeSoftness); set => _wipeSoftness = value; }
+        public int GlitchBands { get => Mathf.Clamp(_glitchBands, 1, 48); set => _glitchBands = value; }
+        public float GlitchFps { get => Mathf.Clamp(_glitchFps, 1f, 120f); set => _glitchFps = value; }
+        public float DissolveCellSize { get => Mathf.Max(1f, _dissolveCellSize); set => _dissolveCellSize = value; }
+        public float SheenAngle { get => _sheenAngle; set => _sheenAngle = value; }
+        public float SheenWidth { get => Mathf.Clamp(_sheenWidth, 0.01f, 1f); set => _sheenWidth = value; }
+        public float SheenIntensity { get => Mathf.Max(0f, _sheenIntensity); set => _sheenIntensity = value; }
         public bool HasPointerEffects => _hover.Enabled || _exit.Enabled || _pressed.Enabled;
 
         // 값이 변하지 않는 Stay는 Animator를 세워 Canvas가 매 프레임 다시 그려지지 않게 한다.
@@ -152,7 +176,10 @@ namespace CK.SemesterProject.UIAnimation
                     && span.Scale.From == span.Scale.To
                     && Mathf.Approximately(span.Rotation.From, span.Rotation.To)
                     && span.Color.From == span.Color.To
-                    && Mathf.Approximately(span.Wipe.From, span.Wipe.To);
+                    && Mathf.Approximately(span.Wipe.From, span.Wipe.To)
+                    && Static(span.Skew) && Static(span.Slice) && Static(span.Split) && Static(span.Scan)
+                    && Static(span.Dissolve) && Static(span.Sheen) && Static(span.Flash)
+                    && !(_stay.Slice.Use && (span.Slice.From != 0f || span.Slice.To != 0f));
             }
         }
 
@@ -193,7 +220,20 @@ namespace CK.SemesterProject.UIAnimation
                 color = Next(settings.Color, color.To);
                 wipe = Next(settings.Wipe, wipe.To);
             }
-            return new UIAnimationSpan(offset, scale, rotation, color, wipe);
+            UIAnimationStateSettings current = Get(state);
+            return new UIAnimationSpan(offset, scale, rotation, color, wipe,
+                FxSpan(_open.Skew, current.Skew, state), FxSpan(_open.Slice, current.Slice, state),
+                FxSpan(_open.Split, current.Split, state), FxSpan(_open.Scan, current.Scan, state),
+                FxSpan(_open.Dissolve, current.Dissolve, state), FxSpan(_open.Sheen, current.Sheen, state),
+                FxSpan(_open.Flash, current.Flash, state));
+        }
+
+        private static bool Static(UIRange<float> span) => Mathf.Approximately(span.From, span.To);
+
+        private static UIRange<float> FxSpan(UIFloatTrack open, UIFloatTrack current, UIAnimationState state)
+        {
+            UIRange<float> span = First(open, 0f);
+            return state == UIAnimationState.Open ? span : Next(current, span.To);
         }
 
         // 지금 Image의 크기와 색을 기준으로 기본값을 채운다.
@@ -510,6 +550,13 @@ namespace CK.SemesterProject.UIAnimation
             Mirror(_open.Scale, _close.Scale);
             Mirror(_open.Rotation, _close.Rotation);
             Mirror(_open.Wipe, _close.Wipe);
+            Mirror(_open.Skew, _close.Skew);
+            Mirror(_open.Slice, _close.Slice);
+            Mirror(_open.Split, _close.Split);
+            Mirror(_open.Scan, _close.Scan);
+            Mirror(_open.Dissolve, _close.Dissolve);
+            Mirror(_open.Sheen, _close.Sheen);
+            Mirror(_open.Flash, _close.Flash);
             if (_open.Color.Use)
             {
                 _close.Color.Set(_open.Color.To, _open.Color.From, UIEasing.Mirror(_open.Color.Curve.Ease));

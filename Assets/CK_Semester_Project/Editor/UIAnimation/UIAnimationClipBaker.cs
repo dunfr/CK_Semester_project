@@ -30,6 +30,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     : UIAnimationCurveFitter.Fit(value, _duration, shape, roundTrip));
             }
 
+            public void AddConstant(Type type, string property, float value)
+            {
+                _bindings.Add(EditorCurveBinding.FloatCurve(string.Empty, type, property));
+                _curves.Add(UIAnimationCurveFitter.Fit(_ => value, _duration));
+            }
+
             // 모든 클립에 넣어 다른 항목을 다 꺼도 클립 길이가 Time과 같게 유지된다.
             public void AddEnabled(bool startsOn, bool staysOn)
             {
@@ -46,6 +52,23 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 clip.ClearCurves();
                 AnimationUtility.SetEditorCurves(clip, _bindings.ToArray(), _curves.ToArray());
+            }
+
+            public void AddSeed(bool active, float fps, float speed)
+            {
+                var keys = new List<Keyframe> { new Keyframe(0f, 0f) };
+                if (active)
+                    for (int frame = 1; frame * speed / fps < _duration; frame++)
+                        keys.Add(new Keyframe(frame * speed / fps, frame));
+                keys.Add(new Keyframe(_duration, active ? Mathf.Floor(_duration / speed * fps) : 0f));
+                var curve = new AnimationCurve(keys.ToArray());
+                for (int i = 0; i < curve.length; i++)
+                {
+                    AnimationUtility.SetKeyLeftTangentMode(curve, i, AnimationUtility.TangentMode.Constant);
+                    AnimationUtility.SetKeyRightTangentMode(curve, i, AnimationUtility.TangentMode.Constant);
+                }
+                _bindings.Add(EditorCurveBinding.FloatCurve(string.Empty, typeof(UIAnimationFx), "_seed"));
+                _curves.Add(curve);
             }
         }
 
@@ -159,15 +182,31 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 AddColor(curves, span.Color.From, span.Color.To, settings.Color.Curve, roundTrip, preset.FadeChildren);
             }
-            if (preset.AnimatesWipe)
-            {
-                UIFloatTrack wipe = settings.Wipe;
-                float from = span.Wipe.From;
-                float to = span.Wipe.To;
-                curves.Add(typeof(Image), "m_FillAmount", u => Mathf.Clamp01(Mathf.LerpUnclamped(from, to, Shape(wipe.Curve, u, roundTrip))), wipe.Curve, roundTrip);
-            }
+            AddFx(curves, preset.AnimatesWipe, "_wipe", settings.Wipe, span.Wipe, roundTrip);
+            AddFx(curves, preset.AnimatesSkew, "_skew", settings.Skew, span.Skew, roundTrip, -45f, 45f);
+            AddFx(curves, preset.AnimatesSlice, "_slice", settings.Slice, span.Slice, roundTrip);
+            AddFx(curves, preset.AnimatesSplit, "_split", settings.Split, span.Split, roundTrip);
+            AddFx(curves, preset.AnimatesScan, "_scan", settings.Scan, span.Scan, roundTrip);
+            AddFx(curves, preset.AnimatesDissolve, "_dissolve", settings.Dissolve, span.Dissolve, roundTrip);
+            AddFx(curves, preset.AnimatesSheen, "_sheen", settings.Sheen, span.Sheen, roundTrip);
+            AddFx(curves, preset.AnimatesFlash, "_flash", settings.Flash, span.Flash, roundTrip);
+            if (preset.AnimatesSlice) curves.AddSeed(settings.Slice.Use, preset.GlitchFps, settings.Speed);
             curves.AddEnabled(preset.ImageEnabled, roundTrip || settings.KeepEnabled);
             curves.WriteTo(clip);
+        }
+
+        private static void AddFx(CurveSet curves, bool used, string property, UIFloatTrack track,
+            UIRange<float> span, bool roundTrip, float min = 0f, float max = 1f)
+        {
+            if (!used) return;
+            if (span.From == span.To)
+            {
+                curves.AddConstant(typeof(UIAnimationFx), property, Mathf.Clamp(span.From, min, max));
+                return;
+            }
+            curves.Add(typeof(UIAnimationFx), property,
+                u => Mathf.Clamp(Mathf.LerpUnclamped(span.From, span.To, Shape(track.Curve, u, roundTrip)), min, max),
+                track.Curve, roundTrip);
         }
 
         private static void AddOffset(CurveSet curves, Vector2 from, Vector2 to, UIEaseCurve curve, UIEaseCurve curveY, bool roundTrip, RectTransform previewRect)

@@ -341,7 +341,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
                 { "m_Color.g", stay ? span.Color.From.g : span.Color.To.g },
                 { "m_Color.b", stay ? span.Color.From.b : span.Color.To.b },
                 { "m_Color.a", stay ? span.Color.From.a : span.Color.To.a },
-                { "m_FillAmount", stay ? span.Wipe.From : span.Wipe.To },
+                { "_wipe", stay ? span.Wipe.From : span.Wipe.To },
                 { "m_Enabled", state == UIAnimationState.Close ? 0f : 1f }
             };
             foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(clip))

@@ -517,7 +517,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [Test]
-        public void Wipe_SwitchesImageToFilled_AndRestoresWhenTurnedOff()
+        public void Wipe_PreservesSlicedImage_AndRemovesFxWhenTurnedOff()
         {
             Image image = MakeImage("Image");
             image.type = Image.Type.Sliced;
@@ -528,15 +528,16 @@ namespace CK.SemesterProject.UIAnimation.Tests
             UIAnimationGenerator.SyncComponents(preset);
             UIAnimationGenerator.Rebuild(preset);
 
-            Assert.That(image.type, Is.EqualTo(Image.Type.Filled));
-            Assert.That(image.fillMethod, Is.EqualTo(Image.FillMethod.Vertical));
-            Assert.That(image.fillOrigin, Is.EqualTo((int)Image.OriginVertical.Top));
-            Assert.That(Bindings(preset, UIAnimationState.Open).Any(b => b.propertyName == "m_FillAmount"), Is.True);
+            Assert.That(image.type, Is.EqualTo(Image.Type.Sliced));
+            Assert.That(image.GetComponent<UIAnimationFx>(), Is.Not.Null);
+            Assert.That(Bindings(preset, UIAnimationState.Open).Any(b => b.type == typeof(UIAnimationFx) && b.propertyName == "_wipe"), Is.True);
+            Assert.That(Bindings(preset, UIAnimationState.Open).Any(b => b.propertyName == "m_FillAmount"), Is.False);
 
             preset.Get(UIAnimationState.Open).Wipe.Off();
             UIAnimationGenerator.SyncComponents(preset);
 
             Assert.That(image.type, Is.EqualTo(Image.Type.Sliced));
+            Assert.That(image.GetComponent<UIAnimationFx>(), Is.Null);
         }
 
         [Test]

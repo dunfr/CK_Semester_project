@@ -93,6 +93,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         private UIAnimationState[] _previewStates;
         private bool _showSceneList;
         private bool _showTriggers;
+        private bool _showFx;
+        private bool _fxWasUsed;
+        private UIAnimationPreset _fxPreset;
+        private UIAnimationState _fxState;
         private float _staggerStep = 0.04f;
         private bool _staggerReverse;
         private double _saveAt = double.MaxValue;
@@ -408,6 +412,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             DrawFloatTrack(settings.FindPropertyRelative("_rotation"), values.Rotation.Curve, "회전  Rotation (도)", toLabel, isOpen, span.Rotation.From);
             DrawColorTrack(settings.FindPropertyRelative("_color"), values.Color.Curve, toLabel, isOpen, span.Color.From);
             DrawWipeTrack(settings.FindPropertyRelative("_wipe"), values.Wipe.Curve, toLabel, isOpen, span.Wipe.From);
+            DrawFx(settings, values, span, state, toLabel, isOpen);
 
             if (!isStay)
             {
@@ -844,7 +849,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
         }
 
-        private void DrawFloatTrack(SerializedProperty track, UIEaseCurve curve, string title, string toLabel, bool editableFrom, float? shownFrom)
+        private void DrawFloatTrack(SerializedProperty track, UIEaseCurve curve, string title, string toLabel, bool editableFrom, float? shownFrom,
+            float? min = null, float? max = null)
         {
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
@@ -854,7 +860,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 {
                     return;
                 }
-                DrawFloatRange(track, curve, toLabel, editableFrom, shownFrom);
+                DrawFloatRange(track, curve, toLabel, editableFrom, shownFrom, min, max);
             }
         }
 
@@ -874,15 +880,56 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 {
                     direction.enumValueIndex = picked;
                 }
-                DrawFloatRange(track, curve, toLabel, editableFrom, shownFrom);
+                EditorGUILayout.Slider(_presetObject.FindProperty("_wipeAngle"), -180f, 180f, new GUIContent("각도 (도)"));
+                EditorGUILayout.Slider(_presetObject.FindProperty("_wipeSoftness"), 0f, 1f, new GUIContent("경계 부드러움"));
+                DrawFloatRange(track, curve, toLabel, editableFrom, shownFrom, 0f, 1f);
             }
         }
 
-        private void DrawFloatRange(SerializedProperty track, UIEaseCurve curve, string toLabel, bool editableFrom, float? shownFrom)
+        private void DrawFx(SerializedProperty settings, UIAnimationStateSettings values, UIAnimationSpan span,
+            UIAnimationState state, string toLabel, bool isOpen)
+        {
+            bool used = values.UsesExtraFx;
+            if (_fxPreset != _preset || _fxState != state || _fxWasUsed != used)
+            {
+                _showFx = used;
+                _fxPreset = _preset;
+                _fxState = state;
+                _fxWasUsed = used;
+            }
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                _showFx = EditorGUILayout.Foldout(_showFx, "효과  FX", true, EditorStyles.foldoutHeader);
+                if (!_showFx) return;
+                DrawFloatTrack(settings.FindPropertyRelative("_skew"), values.Skew.Curve, "기울기  Skew (도)", toLabel, isOpen, span.Skew.From, -45f, 45f);
+                DrawFloatTrack(settings.FindPropertyRelative("_slice"), values.Slice.Curve, "글리치  Slice", toLabel, isOpen, span.Slice.From, 0f, 1f);
+                if (settings.FindPropertyRelative("_slice").FindPropertyRelative("_use").boolValue)
+                {
+                    EditorGUILayout.IntSlider(_presetObject.FindProperty("_glitchBands"), 1, 48, new GUIContent("글리치 띠 수"));
+                    EditorGUILayout.Slider(_presetObject.FindProperty("_glitchFps"), 1f, 120f, new GUIContent("글리치 갱신 fps"));
+                }
+                DrawFloatTrack(settings.FindPropertyRelative("_split"), values.Split.Curve, "색 분리  RGB Split", toLabel, isOpen, span.Split.From, 0f, 1f);
+                DrawFloatTrack(settings.FindPropertyRelative("_scan"), values.Scan.Curve, "스캔라인  Scan", toLabel, isOpen, span.Scan.From, 0f, 1f);
+                DrawFloatTrack(settings.FindPropertyRelative("_dissolve"), values.Dissolve.Curve, "디졸브  Dissolve", toLabel, isOpen, span.Dissolve.From, 0f, 1f);
+                if (settings.FindPropertyRelative("_dissolve").FindPropertyRelative("_use").boolValue)
+                    EditorGUILayout.PropertyField(_presetObject.FindProperty("_dissolveCellSize"), new GUIContent("디졸브 칸 크기 (px)"));
+                DrawFloatTrack(settings.FindPropertyRelative("_sheen"), values.Sheen.Curve, "빛 띠  Sheen", toLabel, isOpen, span.Sheen.From, 0f, 1f);
+                if (settings.FindPropertyRelative("_sheen").FindPropertyRelative("_use").boolValue)
+                {
+                    EditorGUILayout.Slider(_presetObject.FindProperty("_sheenAngle"), -180f, 180f, new GUIContent("빛 띠 각도 (도)"));
+                    EditorGUILayout.Slider(_presetObject.FindProperty("_sheenWidth"), 0.01f, 1f, new GUIContent("빛 띠 폭"));
+                    EditorGUILayout.PropertyField(_presetObject.FindProperty("_sheenIntensity"), new GUIContent("빛 띠 세기"));
+                }
+                DrawFloatTrack(settings.FindPropertyRelative("_flash"), values.Flash.Curve, "번쩍임  Flash", toLabel, isOpen, span.Flash.From, 0f, 1f);
+            }
+        }
+
+        private void DrawFloatRange(SerializedProperty track, UIEaseCurve curve, string toLabel, bool editableFrom, float? shownFrom,
+            float? min = null, float? max = null)
         {
             if (editableFrom)
             {
-                EditorGUILayout.PropertyField(track.FindPropertyRelative("_from"), new GUIContent("시작"));
+                DrawFloatValue(track.FindPropertyRelative("_from"), "시작", min, max);
             }
             else if (shownFrom.HasValue)
             {
@@ -891,8 +938,14 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     EditorGUILayout.FloatField(new GUIContent("시작 (자동)", "이전 상태가 끝난 값에서 이어집니다."), shownFrom.Value);
                 }
             }
-            EditorGUILayout.PropertyField(track.FindPropertyRelative("_to"), new GUIContent(toLabel));
+            DrawFloatValue(track.FindPropertyRelative("_to"), toLabel, min, max);
             DrawCurve(track.FindPropertyRelative("_curve"), curve);
+        }
+
+        private static void DrawFloatValue(SerializedProperty value, string label, float? min, float? max)
+        {
+            if (min.HasValue && max.HasValue) EditorGUILayout.Slider(value, min.Value, max.Value, new GUIContent(label));
+            else EditorGUILayout.PropertyField(value, new GUIContent(label));
         }
 
         private void DrawColorTrack(SerializedProperty track, UIEaseCurve curve, string toLabel, bool editableFrom, Color? shownFrom)
@@ -1184,7 +1237,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             UIAnimationClipBaker.BakeEffectPreview(_preset, effect, image, clip);
             var entry = new UIAnimationPreviewer.Entry(image.gameObject, clip, 0.0, _preset.Get(effect).Speed);
             _effectBrightnessCurve = UIAnimationClipBaker.EffectBrightness(_preset, effect);
-            _effectBrightness = _effectBrightnessCurve != null ? new UIImageBrightness(image) : null;
+            _effectBrightness = _effectBrightnessCurve != null ? UIImageBrightness.Acquire(image) : null;
             _previewer.Play(new[] { entry }, new[] { clip });
         }
 
@@ -1198,6 +1251,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         private void ClearEffectBrightness()
         {
+            _effectBrightness?.Clear();
             _effectBrightness?.Release();
             _effectBrightness = null;
         }

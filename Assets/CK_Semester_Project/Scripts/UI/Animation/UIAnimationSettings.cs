@@ -212,6 +212,13 @@ namespace CK.SemesterProject.UIAnimation
         [SerializeField] private UIFloatTrack _rotation = new UIFloatTrack(0f);
         [SerializeField] private UIColorTrack _color = new UIColorTrack();
         [SerializeField] private UIFloatTrack _wipe = new UIFloatTrack(1f);
+        [SerializeField] private UIFloatTrack _skew = new UIFloatTrack(0f);
+        [SerializeField] private UIFloatTrack _slice = new UIFloatTrack(0f);
+        [SerializeField] private UIFloatTrack _split = new UIFloatTrack(0f);
+        [SerializeField] private UIFloatTrack _scan = new UIFloatTrack(0f);
+        [SerializeField] private UIFloatTrack _dissolve = new UIFloatTrack(0f);
+        [SerializeField] private UIFloatTrack _sheen = new UIFloatTrack(0f);
+        [SerializeField] private UIFloatTrack _flash = new UIFloatTrack(0f);
         [SerializeField] private bool _keepEnabled = true;
         [SerializeField] private bool _autoClose;
         [SerializeField] private AudioClip _sound;
@@ -242,6 +249,15 @@ namespace CK.SemesterProject.UIAnimation
         public UIFloatTrack Rotation => _rotation;
         public UIColorTrack Color => _color;
         public UIFloatTrack Wipe => _wipe;
+        public UIFloatTrack Skew => _skew;
+        public UIFloatTrack Slice => _slice;
+        public UIFloatTrack Split => _split;
+        public UIFloatTrack Scan => _scan;
+        public UIFloatTrack Dissolve => _dissolve;
+        public UIFloatTrack Sheen => _sheen;
+        public UIFloatTrack Flash => _flash;
+        public bool UsesFx => _wipe.Use || UsesExtraFx;
+        public bool UsesExtraFx => _skew.Use || _slice.Use || _split.Use || _scan.Use || _dissolve.Use || _sheen.Use || _flash.Use;
         public AudioClip Sound => _sound;
 
         // Enable: 끄면 이 상태가 끝날 때 오브젝트가 꺼진다.
@@ -266,6 +282,13 @@ namespace CK.SemesterProject.UIAnimation
             _rotation.Off();
             _color.Off();
             _wipe.Off();
+            _skew.Off();
+            _slice.Off();
+            _split.Off();
+            _scan.Off();
+            _dissolve.Off();
+            _sheen.Off();
+            _flash.Off();
         }
     }
 
@@ -349,13 +372,22 @@ namespace CK.SemesterProject.UIAnimation
     // 한 상태가 시작하고 끝나는 실제 값이다.
     public readonly struct UIAnimationSpan
     {
-        public UIAnimationSpan(UIRange<Vector2> offset, UIRange<Vector2> scale, UIRange<float> rotation, UIRange<Color> color, UIRange<float> wipe)
+        public UIAnimationSpan(UIRange<Vector2> offset, UIRange<Vector2> scale, UIRange<float> rotation, UIRange<Color> color, UIRange<float> wipe,
+            UIRange<float> skew = default, UIRange<float> slice = default, UIRange<float> split = default,
+            UIRange<float> scan = default, UIRange<float> dissolve = default, UIRange<float> sheen = default, UIRange<float> flash = default)
         {
             Offset = offset;
             Scale = scale;
             Rotation = rotation;
             Color = color;
             Wipe = wipe;
+            Skew = skew;
+            Slice = slice;
+            Split = split;
+            Scan = scan;
+            Dissolve = dissolve;
+            Sheen = sheen;
+            Flash = flash;
         }
 
         public UIRange<Vector2> Offset { get; }
@@ -363,5 +395,12 @@ namespace CK.SemesterProject.UIAnimation
         public UIRange<float> Rotation { get; }
         public UIRange<Color> Color { get; }
         public UIRange<float> Wipe { get; }
+        public UIRange<float> Skew { get; }
+        public UIRange<float> Slice { get; }
+        public UIRange<float> Split { get; }
+        public UIRange<float> Scan { get; }
+        public UIRange<float> Dissolve { get; }
+        public UIRange<float> Sheen { get; }
+        public UIRange<float> Flash { get; }
     }
 }
