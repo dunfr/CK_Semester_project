@@ -2,6 +2,7 @@ using System.Collections;
 using Semester.Enemies;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Events;
 
 namespace CK.SemesterProject.LevelDesign
 {
@@ -26,6 +27,8 @@ namespace CK.SemesterProject.LevelDesign
         [SerializeField, Tooltip("낙하 지점으로 모일 적(C3~C6)")]
         private EnemyStateMachine[] _investigators;
         [SerializeField] private NoisePulse _pulse;
+        [SerializeField, Tooltip("붕괴 소리가 났을 때. 적 이동 프리셋의 React()를 연결하면 낙하 지점 확인 반응을 프리셋으로 정할 수 있습니다.")]
+        private UnityEvent _collapsed = new UnityEvent();
 
         private bool _hasCollapsed;
 
@@ -87,6 +90,7 @@ namespace CK.SemesterProject.LevelDesign
                     investigator.InvestigatePosition(floorPoint);
                 }
             }
+            _collapsed.Invoke();
             _progress.SetObjective("적을 피하거나 처치하고 출구로 이동");
         }
 

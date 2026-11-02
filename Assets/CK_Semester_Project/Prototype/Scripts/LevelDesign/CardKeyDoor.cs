@@ -9,6 +9,8 @@ namespace CK.SemesterProject.LevelDesign
         [SerializeField] private LevelDoor _door;
         [SerializeField, Tooltip("끄면 카드 키 없이 열리는 문(푸시 바 도어 등)")]
         private bool _requiresCardKey = true;
+        [SerializeField, Tooltip("지정하면 튜토리얼 카드 키 대신 이 디스펜서에서 받은 카드가 있어야 열립니다(05 구역 5-1).")]
+        private CardKeyDispenser _requiredCard;
         [SerializeField, Tooltip("카드 키가 없을 때 안내 문구")]
         private string _lockedMessage = "카드 키가 필요합니다.";
         [SerializeField, Tooltip("카드 키가 없을 때 카메라 위치(선택)")]
@@ -21,7 +23,9 @@ namespace CK.SemesterProject.LevelDesign
         private UnityEvent _opened;
 
         public override bool CanInteract => _door != null && !_door.IsOpen;
-        public override string Prompt => _requiresCardKey && !Progress.HasCardKey ? "카드 리더 확인" : base.Prompt;
+        public override string Prompt => _requiresCardKey && !HasRequiredCard ? "카드 리더 확인" : base.Prompt;
+
+        private bool HasRequiredCard => _requiredCard != null ? _requiredCard.HasCard : Progress.HasCardKey;
 
         protected override void Awake()
         {
@@ -35,7 +39,7 @@ namespace CK.SemesterProject.LevelDesign
 
         public override void Interact()
         {
-            if (_requiresCardKey && !Progress.HasCardKey)
+            if (_requiresCardKey && !HasRequiredCard)
             {
                 Progress.ShowMessage(_lockedMessage, 2.5f);
                 Progress.FocusCamera(_lockedFocusView, _lockedFocusTarget, _lockedFocusSeconds);

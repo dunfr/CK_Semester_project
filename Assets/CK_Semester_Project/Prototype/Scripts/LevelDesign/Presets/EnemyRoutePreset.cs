@@ -174,6 +174,21 @@ namespace CK.SemesterProject.LevelDesign
             }
         }
 
+        /// <summary>
+        /// 트리거 영역 없이 다른 이벤트(소리, 붕괴 등)로 반응을 시작한다. 인스펙터의 이벤트 칸에 연결해 쓴다.
+        /// 발동 조건(한 번만, 쉬는 시간, 추적 중 무시)은 트리거 영역으로 발동할 때와 같다.
+        /// </summary>
+        public void React()
+        {
+            Transform player = _trigger != null ? _trigger.Player : null;
+            if (player == null)
+            {
+                GameObject playerObject = GameObject.FindWithTag("Player");
+                player = playerObject != null ? playerObject.transform : null;
+            }
+            OnPlayerEntered(player);
+        }
+
         private void CollectWaypoints()
         {
             _waypoints.Clear();
