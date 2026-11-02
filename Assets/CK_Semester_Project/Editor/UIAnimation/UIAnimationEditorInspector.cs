@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace CK.SemesterProject.UIAnimation.EditorTools
@@ -21,6 +22,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         }
 
         private const double SaveDelaySeconds = 0.6;
+        private const float SaveButtonHeight = 28f;
         private const float CurveRowHeight = 42f;
         private const float EventToggleWidth = 76f;
         private const float TimelineRowHeight = 14f;
@@ -58,19 +60,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         private static readonly Color TimelineClose = new Color(0.92f, 0.55f, 0.3f);
 
         private static readonly (UIAnimationStyle Style, string Label)[] Styles =
-        {
-            (UIAnimationStyle.PersonaDrift, "페르소나풍/수중 패널 (옆에서 부드럽게)"),
-            (UIAnimationStyle.PersonaSlash, "페르소나풍/사선 카드 (기울며 튀어나옴)"),
-            (UIAnimationStyle.StarRailSlide, "스타레일풍/정보 슬라이드 (목록에 적합)"),
-            (UIAnimationStyle.StarRailWipe, "스타레일풍/배너 와이프"),
-            (UIAnimationStyle.ZenlessTv, "젠레스풍/TV 켜기"),
-            (UIAnimationStyle.ZenlessSnap, "젠레스풍/스냅 팝 (끊어 재생)"),
-            (UIAnimationStyle.Pop, "기본/팝업"),
-            (UIAnimationStyle.Fade, "기본/페이드"),
-            (UIAnimationStyle.BouncePop, "기본/바운스 팝업"),
-            (UIAnimationStyle.ExpandHorizontal, "기본/가로로 펼치기"),
-            (UIAnimationStyle.ExpandVertical, "기본/세로로 펼치기")
-        };
+            Enum.GetValues(typeof(UIAnimationStyle)).Cast<UIAnimationStyle>()
+                .Select(style => (style, UIAnimationPresetCatalog.Name(style))).ToArray();
 
         private static readonly (UIStayStyle Style, string Label)[] StayStyles =
         {
@@ -445,6 +436,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             EditorGUILayout.LabelField(AssetDatabase.GetAssetPath(_preset), EditorStyles.miniLabel);
             DrawConnectionWarning(image);
             EditorGUILayout.Space(4f);
+            DrawSaveBar();
+            EditorGUILayout.Space(4f);
             Select(ref _page, (Page)GUILayout.Toolbar((int)_page, PageNames, GUILayout.Height(24f)));
             EditorGUILayout.Space(4f);
             switch (_page)
@@ -460,9 +453,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     break;
             }
 
-            _playerObject.ApplyModifiedProperties();
-            if (_presetObject.ApplyModifiedProperties())
+            bool playerChanged = _playerObject.ApplyModifiedProperties();
+            bool presetChanged = _presetObject.hasModifiedProperties;
+            if (presetChanged || playerChanged)
             {
+                MarkManualChange();
+                _presetObject.ApplyModifiedProperties();
                 ApplyChanges();
             }
         }
@@ -475,15 +471,19 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 EditorGUILayout.LabelField(StateGuides[(int)_state], EditorStyles.wordWrappedMiniLabel);
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("스타일 넣기 ▾"))
+                    if (GUILayout.Button("프리셋 넣기 ▾"))
                     {
                         ShowStyleMenu();
                     }
                     if (_state != UIAnimationState.Stay && GUILayout.Button("Close를 Open 반대로"))
                     {
-                        ChangePreset("Close 자동 생성", preset => preset.MirrorOpenToClose());
+                        ChangePreset("Close 자동 생성", preset => { preset.MirrorOpenToClose(); preset.MarkStatePresetEdited(); });
                     }
                 }
+                bool stay = _state == UIAnimationState.Stay;
+                EditorGUILayout.LabelField(stay ? _preset.StayPresetLabel : _preset.StatePresetLabel, EditorStyles.wordWrappedMiniLabel);
+                if (!stay && !string.IsNullOrEmpty(_preset.StatePresetDescription))
+                    EditorGUILayout.LabelField(_preset.StatePresetDescription, EditorStyles.wordWrappedMiniLabel);
             }
             DrawState(_state);
             DrawPreviewControls();
@@ -496,14 +496,16 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 foreach ((UIStayStyle style, string label) in StayStyles)
                 {
-                    menu.AddItem(new GUIContent(label), false, () => ChangePreset("Stay 스타일", preset => preset.ApplyStayStyle(style)));
+                    menu.AddItem(new GUIContent(label), _preset.StayPresetName == UIAnimationPresetCatalog.Name(style),
+                        () => ChangePreset("Stay 프리셋", preset => preset.ApplyStayStyle(style)));
                 }
             }
             else
             {
                 foreach ((UIAnimationStyle style, string label) in Styles)
                 {
-                    menu.AddItem(new GUIContent(label), false, () => ChangePreset("UI 애니메이션 스타일", preset => preset.ApplyStyle(style)));
+                    menu.AddItem(new GUIContent(label), _preset.StatePresetName == label,
+                        () => ChangePreset("UI 애니메이션 프리셋", preset => preset.ApplyStyle(style)));
                 }
             }
             menu.ShowAsContext();
@@ -617,6 +619,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     }
                 }
             }
+            DrawPointerPresetButton();
             if (available.Count == 0)
             {
                 return;
@@ -632,10 +635,6 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 int selected = EditorGUILayout.Popup("이벤트 선택", Mathf.Max(0, available.IndexOf(_effect)), names);
                 Select(ref _effect, available[selected]);
                 EditorGUILayout.LabelField(MouseEvents[(int)_effect].Guide, EditorStyles.wordWrappedMiniLabel);
-                if (GUILayout.Button("반응 스타일 넣기 ▾"))
-                {
-                    ShowPointerStyleMenu();
-                }
             }
             DrawEffect(image, _effect);
             DrawEffectButtons(image);
@@ -647,9 +646,16 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             var menu = new GenericMenu();
             foreach ((UIPointerStyle style, string label) in PointerStyles)
             {
-                menu.AddItem(new GUIContent(label), false, () => ChangePreset("입력 반응 스타일", preset => preset.ApplyPointerStyle(style)));
+                menu.AddItem(new GUIContent(label), _preset.PointerPresetName == UIAnimationPresetCatalog.Name(style),
+                    () => ChangePreset("입력 반응 프리셋", preset => preset.ApplyPointerStyle(style)));
             }
             menu.ShowAsContext();
+        }
+
+        private void DrawPointerPresetButton()
+        {
+            if (GUILayout.Button("반응 프리셋 넣기 ▾")) ShowPointerStyleMenu();
+            EditorGUILayout.LabelField(_preset.PointerPresetLabel, EditorStyles.wordWrappedMiniLabel);
         }
 
         private void DrawEffect(Image image, UIPointerEffect effect)
@@ -744,7 +750,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
             _pointerObject.Update();
             DrawTriggers(_pointerObject, (TriggerField(_effect), $"{MouseEvents[(int)_effect].Name} 때 실행"));
-            _pointerObject.ApplyModifiedProperties();
+            if (_pointerObject.ApplyModifiedProperties()) MarkManualChange();
         }
 
         private void DrawDirectingPage(Image image)
@@ -910,7 +916,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             var menu = new GenericMenu();
             foreach (UIAnimationPreset saved in UIAnimationGenerator.SavedPresets())
             {
-                menu.AddItem(new GUIContent(saved.name), false, () => ChangePreset("프리셋 불러오기", preset => preset.CopyMotionFrom(saved)));
+                menu.AddItem(new GUIContent(saved.name), _preset.StatePresetName == saved.name,
+                    () => ChangePreset("프리셋 불러오기", preset => preset.CopyMotionFrom(saved)));
             }
             if (menu.GetItemCount() == 0)
             {
@@ -960,7 +967,15 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     }
                 }
                 EditorGUILayout.PropertyField(track.FindPropertyRelative("_to"), new GUIContent(toLabel));
-                DrawCurve(track.FindPropertyRelative("_curve"), curve);
+                SerializedProperty split = track.FindPropertyRelative("_splitY");
+                // 곡선을 나눈 프리셋에서만 보인다. 끄면 X 곡선 하나로 합쳐진다.
+                if (split.boolValue)
+                {
+                    SetIfChanged(split, EditorGUILayout.ToggleLeft("X / Y 곡선 분리", true));
+                }
+                DrawCurve(track.FindPropertyRelative("_curve"), curve, split.boolValue ? "Curve X" : "Curve");
+                if (split.boolValue)
+                    DrawCurve(track.FindPropertyRelative("_curveY"), null, "Curve Y");
             }
         }
 
@@ -1059,12 +1074,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
         }
 
-        private void DrawCurve(SerializedProperty curveProperty, UIEaseCurve curve)
+        private void DrawCurve(SerializedProperty curveProperty, UIEaseCurve curve, string title = "Curve")
         {
             SerializedProperty ease = curveProperty.FindPropertyRelative("_ease");
             var value = (UIEase)ease.enumValueIndex;
             Rect row = EditorGUILayout.GetControlRect(true, CurveRowHeight);
-            Rect field = EditorGUI.PrefixLabel(row, new GUIContent("Curve", "클릭해서 곡선을 고르세요."));
+            Rect field = EditorGUI.PrefixLabel(row, new GUIContent(title));
             if (GUI.Button(field, GUIContent.none))
             {
                 string path = curveProperty.propertyPath;
@@ -1073,7 +1088,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             if (Event.current.type == EventType.Repaint)
             {
                 var graph = new Rect(field.x + 6f, field.y + 6f, 48f, field.height - 12f);
-                UIEaseGraph.Draw(graph, curve.Evaluate);
+                AnimationCurve custom = curveProperty.FindPropertyRelative("_custom").animationCurveValue;
+                UIEaseGraph.Draw(graph, t => value == UIEase.Custom ? custom.Evaluate(t) : UIEasing.Evaluate(value, t));
                 var label = new Rect(graph.xMax + 8f, field.y, field.width - graph.width - 16f, field.height);
                 GUI.Label(label, UIEaseGraph.Label(value));
             }
@@ -1091,9 +1107,18 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
             _presetObject.Update();
             _presetObject.FindProperty(curvePath).FindPropertyRelative("_ease").enumValueIndex = (int)ease;
+            MarkManualChange();
             _presetObject.ApplyModifiedProperties();
             ApplyChanges();
             Repaint();
+        }
+
+        private void MarkManualChange()
+        {
+            if (_page == Page.States)
+                _presetObject.FindProperty("_statePresetEdited").stringValue = "세부 조정함";
+            else if (_page == Page.Input)
+                _presetObject.FindProperty("_pointerPresetEdited").stringValue = "세부 조정함";
         }
 
         private void DrawPreviewControls()
@@ -1404,6 +1429,33 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
         }
 
+        // 값은 자동으로 파일에 저장되지만 버튼 연결 같은 씬 값은 씬을 저장해야 남는다. 이 버튼 하나로 둘 다 저장한다.
+        private void DrawSaveBar()
+        {
+            Scene scene = _player.gameObject.scene;
+            using (new EditorGUI.DisabledScope(Application.isPlaying))
+            {
+                if (GUILayout.Button("저장", GUILayout.Height(SaveButtonHeight)))
+                {
+                    GUI.FocusControl(null);
+                    _previewer.Stop();
+                    _saveAt = double.MaxValue;
+                    UIAnimationGenerator.SaveAll(_preset, scene);
+                    GUIUtility.ExitGUI();
+                }
+            }
+            EditorGUILayout.LabelField(SaveStatus(scene), EditorStyles.miniLabel);
+        }
+
+        private string SaveStatus(Scene scene)
+        {
+            if (Application.isPlaying)
+            {
+                return "플레이를 멈춘 뒤 저장하세요.";
+            }
+            return _saveAt != double.MaxValue || scene.isDirty ? "저장하지 않은 변경이 있습니다." : "저장됨";
+        }
+
         private void ApplyChanges()
         {
             UIAnimationGenerator.RecordUndo(_preset);
@@ -1447,6 +1499,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             if (EditorApplication.timeSinceStartup >= _saveAt && !_previewer.IsPlaying)
             {
                 SavePending();
+                Repaint();
             }
         }
 

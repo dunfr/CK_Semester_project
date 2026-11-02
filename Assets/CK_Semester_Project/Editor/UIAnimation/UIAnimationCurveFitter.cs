@@ -41,6 +41,77 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             return new AnimationCurve(keys);
         }
 
+        // 커스텀 곡선은 키 경계부터 나눈다. 짧은 점멸이나 정착점을 적응 피팅이 건너뛰지 않게 한다.
+        public static AnimationCurve Fit(Func<float, float> value, float duration, UIEaseCurve source, bool roundTrip)
+        {
+            if (source == null || source.Ease != UIEase.Custom) return Fit(value, duration);
+            Keyframe[] shape = ShapeKeys(source.Custom, roundTrip);
+            var boundaries = new SortedSet<float> { 0f, 1f };
+            foreach (Keyframe key in shape) if (key.time > 0f && key.time < 1f) boundaries.Add(key.time);
+            var seeds = new List<float>(boundaries);
+            var points = new List<float> { 0f };
+            for (int i = 1; i < seeds.Count; i++)
+            {
+                if (Holds(shape, (seeds[i - 1] + seeds[i]) * 0.5f)) points.Add(seeds[i]);
+                else Split(value, seeds[i - 1], seeds[i], 0, points);
+            }
+            var keys = new Keyframe[points.Count];
+            for (int i = 0; i < points.Count; i++)
+            {
+                float u = points[i];
+                float left = i == 0 ? 0f : Mathf.Min(SlopeStep, (u - points[i - 1]) * 0.1f);
+                float right = i == points.Count - 1 ? 0f : Mathf.Min(SlopeStep, (points[i + 1] - u) * 0.1f);
+                float incoming = left == 0f ? 0f : (value(u) - value(u - left)) / (left * duration);
+                float outgoing = right == 0f ? 0f : (value(u + right) - value(u)) / (right * duration);
+                if (i > 0 && Holds(shape, (points[i - 1] + u) * 0.5f)) incoming = float.PositiveInfinity;
+                if (i + 1 < points.Count && Holds(shape, (points[i + 1] + u) * 0.5f)) outgoing = float.PositiveInfinity;
+                keys[i] = new Keyframe(u * duration, value(u), incoming, outgoing);
+            }
+            return new AnimationCurve(keys);
+        }
+
+        public static AnimationCurve Stepped(Func<float, float> value, float duration, int stepsPerSecond, UIEaseCurve source, bool roundTrip)
+        {
+            if (source == null || source.Ease != UIEase.Custom) return Stepped(value, duration, stepsPerSecond);
+            int count = Mathf.Max(1, Mathf.CeilToInt(duration * stepsPerSecond));
+            var times = new SortedSet<float>();
+            for (int i = 0; i <= count; i++) times.Add(i / (float)count);
+            Keyframe[] shape = ShapeKeys(source.Custom, roundTrip);
+            foreach (Keyframe key in shape)
+            {
+                bool cut = float.IsInfinity(key.inTangent) || float.IsInfinity(key.outTangent);
+                bool turn = key.inTangent * key.outTangent < 0f;
+                bool edge = Mathf.Approximately(key.inTangent, 0f) != Mathf.Approximately(key.outTangent, 0f);
+                if (key.time > 0f && key.time < 1f && (cut || turn || edge)) times.Add(key.time);
+            }
+            var keys = new List<Keyframe>();
+            foreach (float u in times) keys.Add(new Keyframe(u * duration, value(u), float.PositiveInfinity, float.PositiveInfinity));
+            return new AnimationCurve(keys.ToArray());
+        }
+
+        private static Keyframe[] ShapeKeys(AnimationCurve curve, bool roundTrip)
+        {
+            if (!roundTrip) return curve.keys;
+            var keys = new List<Keyframe>();
+            foreach (Keyframe original in curve.keys)
+                keys.Add(new Keyframe(original.time * 0.5f, original.value, original.inTangent * 2f, original.outTangent * 2f));
+            foreach (Keyframe reversed in UIMotionCurves.Reverse(curve).keys)
+            {
+                if (reversed.time <= 0f) continue;
+                keys.Add(new Keyframe(0.5f + reversed.time * 0.5f, 1f - reversed.value,
+                    -reversed.inTangent * 2f, -reversed.outTangent * 2f));
+            }
+            return keys.ToArray();
+        }
+
+        private static bool Holds(Keyframe[] shape, float time)
+        {
+            for (int i = 0; i + 1 < shape.Length; i++)
+                if (time >= shape[i].time && time < shape[i + 1].time)
+                    return float.IsInfinity(shape[i].outTangent) || float.IsInfinity(shape[i + 1].inTangent);
+            return false;
+        }
+
         private static void Split(Func<float, float> value, float start, float end, int depth, List<float> points)
         {
             if (depth >= MaxDepth || Fits(value, start, end))

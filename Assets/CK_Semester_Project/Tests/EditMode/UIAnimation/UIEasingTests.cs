@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using CK.SemesterProject.UIAnimation.EditorTools;
 using NUnit.Framework;
 using UnityEngine;
@@ -115,6 +116,45 @@ namespace CK.SemesterProject.UIAnimation.Tests
 
             Assert.That(curve.length, Is.EqualTo(2));
             Assert.That(curve.Evaluate(0.5f), Is.EqualTo(0.5f).Within(Precision));
+        }
+
+        [Test]
+        public void CustomFit_PreservesWindowAnticipationAndSettle()
+        {
+            foreach (AnimationCurve motion in new[]
+            {
+                UIMotionCurves.Window(UIEase.EaseOutCubic, 0.17f, 0.43f),
+                UIMotionCurves.Settle(1.07f, 0.73f, UIEase.EaseOutCubic, UIEase.EaseInOutSine),
+                UIMotionCurves.Anticipate(0.08f, 0.14f, UIEase.EaseOutQuart)
+            })
+            {
+                var source = new UIEaseCurve();
+                source.SetCustom(motion);
+                AnimationCurve baked = UIAnimationCurveFitter.Fit(source.Evaluate, 0.37f, source, false);
+                for (int i = 0; i <= 1000; i++)
+                    Assert.That(baked.Evaluate(i / 1000f * 0.37f), Is.EqualTo(source.Evaluate(i / 1000f)).Within(0.002f));
+                AnimationCurve stepped = UIAnimationCurveFitter.Stepped(source.Evaluate, 0.37f, 12, source, false);
+                foreach (Keyframe key in motion.keys)
+                    if (key.inTangent * key.outTangent < 0f)
+                        Assert.That(stepped.Evaluate(key.time * 0.37f), Is.EqualTo(key.value).Within(0.0001f));
+            }
+        }
+
+        [Test]
+        public void CustomFitAndStepped_KeepShortHardCutsAtTheirExactTimes()
+        {
+            var source = new UIEaseCurve();
+            source.SetCustom(UIMotionCurves.Steps((0f, 0f), (0.013f, 1f), (0.017f, 0.2f), (0.023f, 1f), (1f, 1f)));
+            foreach (AnimationCurve baked in new[]
+            {
+                UIAnimationCurveFitter.Fit(source.Evaluate, 0.4f, source, false),
+                UIAnimationCurveFitter.Stepped(source.Evaluate, 0.4f, 8, source, false)
+            })
+            {
+                foreach (float t in new[] { 0f, 0.012f, 0.014f, 0.016f, 0.018f, 0.022f, 0.024f, 0.5f, 1f })
+                    Assert.That(baked.Evaluate(t * 0.4f), Is.EqualTo(source.Evaluate(t)).Within(Precision));
+                Assert.That(baked.keys.Take(baked.length - 1).All(key => float.IsInfinity(key.outTangent)), Is.True);
+            }
         }
     }
 }

@@ -261,11 +261,11 @@ MonoBehaviour:
           m_PostInfinity: 2
           m_RotationOrder: 4
     _scale:
-      _use: 0
-      _from: {x: 0.80999994, y: 0.80999994}
-      _to: {x: 0.9, y: 0.9}
+      _use: 1
+      _from: {x: 0, y: 0}
+      _to: {x: 1, y: 1}
       _curve:
-        _ease: 23
+        _ease: 14
         _custom:
           serializedVersion: 2
           m_Curve:
@@ -321,7 +321,7 @@ MonoBehaviour:
           m_PostInfinity: 2
           m_RotationOrder: 4
     _color:
-      _use: 1
+      _use: 0
       _from: {r: 1, g: 1, b: 1, a: 0}
       _to: {r: 1, g: 1, b: 1, a: 1}
       _curve:

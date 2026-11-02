@@ -5,7 +5,9 @@ using CK.SemesterProject.UIAnimation.EditorTools;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.Animations;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace CK.SemesterProject.UIAnimation.Tests
@@ -38,6 +40,43 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Assert.That(File.Exists($"{Folder}/OptionPanel_Stay.anim"));
             Assert.That(File.Exists($"{Folder}/OptionPanel_Close.anim"));
             Assert.That(Directory.GetFiles(Folder).Where(path => !path.EndsWith(".meta")).Count(), Is.EqualTo(4));
+        }
+
+        [Test]
+        public void SaveAll_SavesAnimationFilesAndScene()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            try
+            {
+                var go = new GameObject("Image", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                UIAnimationPreset preset = UIAnimationGenerator.Create(go.GetComponent<Image>(), Folder, "OptionPanel", UIPointerEffectMask.None);
+                Assert.That(EditorSceneManager.SaveScene(scene, $"{Folder}/SaveAll.unity"));
+                preset.Get(UIAnimationState.Open).Time = 0.5f;
+                UIAnimationGenerator.Rebuild(preset);
+                EditorSceneManager.MarkSceneDirty(scene);
+
+                Assert.That(UIAnimationGenerator.SaveAll(preset, scene));
+
+                Assert.That(scene.isDirty, Is.False);
+                Assert.That(EditorUtility.IsDirty(UIAnimationGenerator.ControllerOf(preset)), Is.False);
+                Assert.That(EditorUtility.IsDirty(UIAnimationGenerator.ClipOf(preset, UIAnimationState.Open)), Is.False);
+            }
+            finally
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            }
+        }
+
+        [Test]
+        public void SaveAll_WithoutScene_SavesFilesOnly()
+        {
+            UIAnimationPreset preset = UIAnimationGenerator.Create(MakeImage("Image"), Folder, "OptionPanel", UIPointerEffectMask.None);
+            preset.Get(UIAnimationState.Open).Time = 0.5f;
+            UIAnimationGenerator.Rebuild(preset);
+
+            Assert.That(UIAnimationGenerator.SaveAll(preset, default));
+
+            Assert.That(EditorUtility.IsDirty(UIAnimationGenerator.ControllerOf(preset)), Is.False);
         }
 
         [Test]
@@ -478,7 +517,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [Test]
-        public void EveryStyle_BakesAndKeepsStayStatic()
+        public void EveryStyle_BakesAndKeepsStayContinuous()
         {
             UIAnimationPreset preset = UIAnimationGenerator.Create(MakeImage("Image"), Folder, "Panel", UIPointerEffectMask.None);
             foreach (UIAnimationStyle style in System.Enum.GetValues(typeof(UIAnimationStyle)))
@@ -488,7 +527,15 @@ namespace CK.SemesterProject.UIAnimation.Tests
 
                 UIAnimationStateSettings open = preset.Get(UIAnimationState.Open);
                 Assert.That(UIAnimationGenerator.ClipOf(preset, UIAnimationState.Open).length, Is.EqualTo(open.Time).Within(0.001f), style.ToString());
-                Assert.That(preset.IsStayStatic, Is.True, style.ToString());
+                bool moves = style == UIAnimationStyle.PersonaDrift || style == UIAnimationStyle.StarRailHologram
+                    || style == UIAnimationStyle.JrpgSummon || style == UIAnimationStyle.JrpgItem;
+                Assert.That(preset.IsStayStatic, Is.EqualTo(!moves), style.ToString());
+                AnimationClip stay = UIAnimationGenerator.ClipOf(preset, UIAnimationState.Stay);
+                foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(stay))
+                {
+                    AnimationCurve curve = AnimationUtility.GetEditorCurve(stay, binding);
+                    Assert.That(curve.Evaluate(stay.length), Is.EqualTo(curve.Evaluate(0f)).Within(0.001f), style + " " + binding.propertyName);
+                }
             }
         }
 
@@ -523,6 +570,28 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Assert.That(close.Offset.To, Is.EqualTo(new Vector2(100f, 0f)));
             Assert.That(close.Offset.Curve.Ease, Is.EqualTo(UIEase.EaseInBack));
             Assert.That(close.Rotation.Use, Is.False);
+        }
+
+        [Test]
+        public void Inspector_ChoosingAnotherEaseAfterPresetMarksOnlyItsPage()
+        {
+            Image image = MakeImage("Image");
+            UIAnimationPreset preset = UIAnimationGenerator.Create(image, Folder, "Panel", UIPointerEffectMask.All);
+            UIAnimationEditor component = image.gameObject.AddComponent<UIAnimationEditor>();
+            var editor = (UIAnimationEditorInspector)UnityEditor.Editor.CreateEditor(component);
+            _created.Add(editor);
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            System.Type type = typeof(UIAnimationEditorInspector);
+            type.GetMethod("Bind", flags).Invoke(editor, new object[] { image });
+            type.GetMethod("SetEase", flags).Invoke(editor, new object[] { "_open._scale._curve", UIEase.Linear });
+            Assert.That(preset.Get(UIAnimationState.Open).Scale.Curve.Ease, Is.EqualTo(UIEase.Linear));
+            Assert.That(preset.StatePresetEdited, Is.True);
+            Assert.That(preset.PointerPresetEdited, Is.False);
+            System.Type page = type.GetNestedType("Page", System.Reflection.BindingFlags.NonPublic);
+            type.GetField("_page", flags).SetValue(editor, System.Enum.ToObject(page, 1));
+            type.GetMethod("SetEase", flags).Invoke(editor, new object[] { "_hover._scale._curve", UIEase.EaseOutSine });
+            Assert.That(preset.Get(UIPointerEffect.Hover).Scale.Curve.Ease, Is.EqualTo(UIEase.EaseOutSine));
+            Assert.That(preset.PointerPresetEdited, Is.True);
         }
 
         [Test]

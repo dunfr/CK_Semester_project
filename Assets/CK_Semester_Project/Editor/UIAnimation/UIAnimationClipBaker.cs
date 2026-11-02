@@ -22,12 +22,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 _stepsPerSecond = stepsPerSecond;
             }
 
-            public void Add(Type type, string property, Func<float, float> value)
+            public void Add(Type type, string property, Func<float, float> value, UIEaseCurve shape = null, bool roundTrip = false)
             {
                 _bindings.Add(EditorCurveBinding.FloatCurve(string.Empty, type, property));
                 _curves.Add(_stepsPerSecond > 0
-                    ? UIAnimationCurveFitter.Stepped(value, _duration, _stepsPerSecond)
-                    : UIAnimationCurveFitter.Fit(value, _duration));
+                    ? UIAnimationCurveFitter.Stepped(value, _duration, _stepsPerSecond, shape, roundTrip)
+                    : UIAnimationCurveFitter.Fit(value, _duration, shape, roundTrip));
             }
 
             // 모든 클립에 넣어 다른 항목을 다 꺼도 클립 길이가 Time과 같게 유지된다.
@@ -77,12 +77,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 Vector2 from = before != null && before.Offset.Use ? before.Offset.To : Vector2.zero;
                 Vector2 to = settings.Offset.Use ? settings.Offset.To : Vector2.zero;
-                AddOffset(curves, from, to, settings.Offset.Curve, false, rect);
+                AddOffset(curves, from, to, settings.Offset.Curve, settings.Offset.CurveY, false, rect);
             }
             if (settings.Scale.Use)
             {
                 Vector2 from = before != null && before.Scale.Use ? Vector2.Scale(scale, before.Scale.To) : (Vector2)scale;
-                AddScale(curves, from, Vector2.Scale(scale, settings.Scale.To), scale.z, settings.Scale.Curve, false);
+                AddScale(curves, from, Vector2.Scale(scale, settings.Scale.To), scale.z, settings.Scale.Curve, settings.Scale.CurveY, false);
             }
             if (settings.Rotation.Use || before != null && before.Rotation.Use)
             {
@@ -145,11 +145,11 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
             if (preset.AnimatesOffset)
             {
-                AddOffset(curves, span.Offset.From, span.Offset.To, settings.Offset.Curve, roundTrip, previewRect);
+                AddOffset(curves, span.Offset.From, span.Offset.To, settings.Offset.Curve, settings.Offset.CurveY, roundTrip, previewRect);
             }
             if (preset.AnimatesScale)
             {
-                AddScale(curves, span.Scale.From, span.Scale.To, preset.BaseScale.z, settings.Scale.Curve, roundTrip);
+                AddScale(curves, span.Scale.From, span.Scale.To, preset.BaseScale.z, settings.Scale.Curve, settings.Scale.CurveY, roundTrip);
             }
             if (preset.AnimatesRotation)
             {
@@ -164,25 +164,25 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 UIFloatTrack wipe = settings.Wipe;
                 float from = span.Wipe.From;
                 float to = span.Wipe.To;
-                curves.Add(typeof(Image), "m_FillAmount", u => Mathf.Clamp01(Mathf.LerpUnclamped(from, to, Shape(wipe.Curve, u, roundTrip))));
+                curves.Add(typeof(Image), "m_FillAmount", u => Mathf.Clamp01(Mathf.LerpUnclamped(from, to, Shape(wipe.Curve, u, roundTrip))), wipe.Curve, roundTrip);
             }
             curves.AddEnabled(preset.ImageEnabled, roundTrip || settings.KeepEnabled);
             curves.WriteTo(clip);
         }
 
-        private static void AddOffset(CurveSet curves, Vector2 from, Vector2 to, UIEaseCurve curve, bool roundTrip, RectTransform previewRect)
+        private static void AddOffset(CurveSet curves, Vector2 from, Vector2 to, UIEaseCurve curve, UIEaseCurve curveY, bool roundTrip, RectTransform previewRect)
         {
             Vector2 origin = previewRect != null ? previewRect.anchoredPosition : Vector2.zero;
             Type type = previewRect != null ? typeof(RectTransform) : typeof(UIAnimationPlayer);
             string property = previewRect != null ? "m_AnchoredPosition" : UIAnimationPreset.OffsetField;
-            curves.Add(type, property + ".x", u => origin.x + Mathf.LerpUnclamped(from.x, to.x, Shape(curve, u, roundTrip)));
-            curves.Add(type, property + ".y", u => origin.y + Mathf.LerpUnclamped(from.y, to.y, Shape(curve, u, roundTrip)));
+            curves.Add(type, property + ".x", u => origin.x + Mathf.LerpUnclamped(from.x, to.x, Shape(curve, u, roundTrip)), curve, roundTrip);
+            curves.Add(type, property + ".y", u => origin.y + Mathf.LerpUnclamped(from.y, to.y, Shape(curveY, u, roundTrip)), curveY, roundTrip);
         }
 
-        private static void AddScale(CurveSet curves, Vector2 from, Vector2 to, float z, UIEaseCurve curve, bool roundTrip)
+        private static void AddScale(CurveSet curves, Vector2 from, Vector2 to, float z, UIEaseCurve curve, UIEaseCurve curveY, bool roundTrip)
         {
-            curves.Add(typeof(RectTransform), "m_LocalScale.x", u => Mathf.LerpUnclamped(from.x, to.x, Shape(curve, u, roundTrip)));
-            curves.Add(typeof(RectTransform), "m_LocalScale.y", u => Mathf.LerpUnclamped(from.y, to.y, Shape(curve, u, roundTrip)));
+            curves.Add(typeof(RectTransform), "m_LocalScale.x", u => Mathf.LerpUnclamped(from.x, to.x, Shape(curve, u, roundTrip)), curve, roundTrip);
+            curves.Add(typeof(RectTransform), "m_LocalScale.y", u => Mathf.LerpUnclamped(from.y, to.y, Shape(curveY, u, roundTrip)), curveY, roundTrip);
             curves.Add(typeof(RectTransform), "m_LocalScale.z", u => z);
         }
 
@@ -190,14 +190,14 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         {
             if (previewRect == null)
             {
-                curves.Add(typeof(UIAnimationPlayer), UIAnimationPreset.RotationField, u => Mathf.LerpUnclamped(from, to, Shape(curve, u, roundTrip)));
+                curves.Add(typeof(UIAnimationPlayer), UIAnimationPreset.RotationField, u => Mathf.LerpUnclamped(from, to, Shape(curve, u, roundTrip)), curve, roundTrip);
                 return;
             }
 
             Vector3 origin = previewRect.localEulerAngles;
             curves.Add(typeof(RectTransform), "localEulerAnglesRaw.x", u => origin.x);
             curves.Add(typeof(RectTransform), "localEulerAnglesRaw.y", u => origin.y);
-            curves.Add(typeof(RectTransform), "localEulerAnglesRaw.z", u => origin.z + Mathf.LerpUnclamped(from, to, Shape(curve, u, roundTrip)));
+            curves.Add(typeof(RectTransform), "localEulerAnglesRaw.z", u => origin.z + Mathf.LerpUnclamped(from, to, Shape(curve, u, roundTrip)), curve, roundTrip);
         }
 
         // 색은 0~1을 넘으면 의미가 없어 Back·Elastic이어도 잘라 낸다.
@@ -205,16 +205,16 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         {
             Func<float, float, float, float> channel =
                 (a, b, u) => Mathf.Clamp01(Mathf.LerpUnclamped(a, b, Shape(curve, u, roundTrip)));
-            curves.Add(typeof(Image), "m_Color.r", u => channel(from.r, to.r, u));
-            curves.Add(typeof(Image), "m_Color.g", u => channel(from.g, to.g, u));
-            curves.Add(typeof(Image), "m_Color.b", u => channel(from.b, to.b, u));
+            curves.Add(typeof(Image), "m_Color.r", u => channel(from.r, to.r, u), curve, roundTrip);
+            curves.Add(typeof(Image), "m_Color.g", u => channel(from.g, to.g, u), curve, roundTrip);
+            curves.Add(typeof(Image), "m_Color.b", u => channel(from.b, to.b, u), curve, roundTrip);
             if (alphaOnCanvasGroup)
             {
-                curves.Add(typeof(CanvasGroup), "m_Alpha", u => channel(from.a, to.a, u));
+                curves.Add(typeof(CanvasGroup), "m_Alpha", u => channel(from.a, to.a, u), curve, roundTrip);
             }
             else
             {
-                curves.Add(typeof(Image), "m_Color.a", u => channel(from.a, to.a, u));
+                curves.Add(typeof(Image), "m_Color.a", u => channel(from.a, to.a, u), curve, roundTrip);
             }
         }
 

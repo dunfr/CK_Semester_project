@@ -15,7 +15,19 @@ namespace CK.SemesterProject.UIAnimation
         StarRailSlide,
         StarRailWipe,
         ZenlessTv,
-        ZenlessSnap
+        ZenlessSnap,
+        PersonaCutIn,
+        PersonaList,
+        StarRailHologram,
+        StarRailWindow,
+        ZenlessGlitch,
+        ZenlessSticker,
+        JrpgCommand,
+        JrpgScroll,
+        JrpgSummon,
+        JrpgVictory,
+        JrpgDialogue,
+        JrpgItem
     }
 
     public enum UIStayStyle
@@ -54,6 +66,45 @@ namespace CK.SemesterProject.UIAnimation
         [SerializeField] private UIPointerEffectSettings _hover = new UIPointerEffectSettings();
         [SerializeField] private UIPointerEffectSettings _exit = new UIPointerEffectSettings();
         [SerializeField] private UIPointerEffectSettings _pressed = new UIPointerEffectSettings();
+        [SerializeField] private string _statePresetName = string.Empty;
+        [SerializeField] private string _statePresetDescription = string.Empty;
+        [SerializeField] private string _statePresetEdited = string.Empty;
+        [SerializeField] private string _stayPresetName = string.Empty;
+        [SerializeField] private string _pointerPresetName = string.Empty;
+        [SerializeField] private string _pointerPresetEdited = string.Empty;
+
+        public string StatePresetName => _statePresetName;
+        public string StatePresetDescription => _statePresetDescription;
+        public string PointerPresetName => _pointerPresetName;
+        public bool StatePresetEdited => !string.IsNullOrEmpty(_statePresetEdited);
+        public bool PointerPresetEdited => !string.IsNullOrEmpty(_pointerPresetEdited);
+        public string StatePresetLabel => PresetLabel(_statePresetName, StatePresetEdited);
+        public string PointerPresetLabel => PresetLabel(_pointerPresetName, PointerPresetEdited);
+
+        // Stay만 따로 고르면 이 이름을 보여 주고 전체 프리셋 이름은 그대로 둔다.
+        public string StayPresetName => _stayPresetName;
+        public string StayPresetLabel => PresetLabel(string.IsNullOrEmpty(_stayPresetName) ? _statePresetName : _stayPresetName, StatePresetEdited);
+
+        public void SetStatePreset(string name, string description = "")
+        {
+            _statePresetName = name;
+            _statePresetDescription = description;
+            _statePresetEdited = string.Empty;
+        }
+
+        public void SetPointerPreset(string name)
+        {
+            _pointerPresetName = name;
+            _pointerPresetEdited = string.Empty;
+        }
+
+        public void MarkStatePresetEdited() => _statePresetEdited = "세부 조정함";
+        public void MarkPointerPresetEdited() => _pointerPresetEdited = "세부 조정함";
+
+        private static string PresetLabel(string name, bool edited)
+        {
+            return "적용한 프리셋: " + (string.IsNullOrEmpty(name) ? "없음" : name + (edited ? " (세부 조정함)" : ""));
+        }
 
         public Vector3 BaseScale => _baseScale;
         public Color BaseColor => _baseColor;
@@ -176,99 +227,229 @@ namespace CK.SemesterProject.UIAnimation
 
         public void ApplyStyle(UIAnimationStyle style)
         {
-            Vector2 full = _baseScale;
-            Color shown = _baseColor;
-            Color hidden = shown;
-            hidden.a = 0f;
-
             _open.ClearMotion();
+            _stay.ClearMotion();
             _close.ClearMotion();
-            _open.Color.Set(hidden, shown, UIEase.EaseOutCubic);
-            _close.Color.Set(shown, hidden, UIEase.EaseInCubic);
+            _open.Speed = _stay.Speed = _close.Speed = 1f;
+            SetStayPeriod(3.6f);
+            _stayPresetName = string.Empty;
+            _wipeDirection = UIWipeDirection.LeftToRight;
+
             switch (style)
             {
                 case UIAnimationStyle.Pop:
-                    SetTimes(0.25f, 0.2f);
-                    SetScale(full * 0.9f, full, UIEase.EaseOutBack, UIEase.EaseInCubic);
+                    Entrance(0.25f, Vector2.zero, new Vector2(0.88f, 0.88f), 0f, 0.04f);
                     break;
                 case UIAnimationStyle.Fade:
-                    SetTimes(0.25f, 0.2f);
+                    Entrance(0.24f, Vector2.zero, Vector2.one, 0f);
                     break;
                 case UIAnimationStyle.BouncePop:
-                    SetTimes(0.6f, 0.2f);
-                    SetScale(full * 0.5f, full, UIEase.EaseOutElastic, UIEase.EaseInBack);
+                    Entrance(0.46f, new Vector2(0f, -32f), new Vector2(0.76f, 0.76f), 0f, 0.06f);
+                    _open.Offset.Curve.SetCustom(UIMotionCurves.Anticipate(0.06f, 0.12f, UIEase.EaseOutCubic));
+                    SetScaleSettle(new Vector2(0.76f, 0.76f), 0.06f, 0.74f);
                     break;
                 case UIAnimationStyle.ExpandHorizontal:
-                    SetTimes(0.3f, 0.2f);
-                    SetScale(new Vector2(0f, full.y), full, UIEase.EaseOutCubic, UIEase.EaseInCubic);
+                    Entrance(0.34f, Vector2.zero, new Vector2(0.04f, 0.92f), 0f, 0.03f);
+                    SplitScaleWindows(0f, 0.76f, 0.22f, 1f);
                     break;
                 case UIAnimationStyle.ExpandVertical:
-                    SetTimes(0.3f, 0.2f);
-                    SetScale(new Vector2(full.x, 0f), full, UIEase.EaseOutCubic, UIEase.EaseInCubic);
+                    Entrance(0.34f, Vector2.zero, new Vector2(0.92f, 0.04f), 0f, 0.03f);
+                    SplitScaleWindows(0.22f, 1f, 0f, 0.76f);
                     break;
                 case UIAnimationStyle.PersonaDrift:
-                    SetTimes(0.28f, 0.18f);
-                    _open.Offset.Set(new Vector2(-80f, 20f), Vector2.zero, UIEase.EaseOutCubic);
-                    _close.Offset.Set(Vector2.zero, new Vector2(-40f, 10f), UIEase.EaseInCubic);
+                    Entrance(0.38f, new Vector2(-64f, -24f), new Vector2(0.94f, 0.96f), -2.5f, 0.03f);
+                    _open.Offset.SetYCurve(UIMotionCurves.Window(UIEase.EaseOutCubic, 0.12f, 1f));
+                    SetFloatStay(4.4f, 4f);
                     break;
                 case UIAnimationStyle.PersonaSlash:
-                    SetTimes(0.24f, 0.16f);
-                    _open.Color.Set(hidden, shown, UIEase.EaseOutQuad);
-                    _open.Offset.Set(new Vector2(120f, 0f), Vector2.zero, UIEase.EaseOutBack);
-                    _open.Rotation.Set(-8f, 0f, UIEase.EaseOutBack);
-                    _close.Offset.Set(Vector2.zero, new Vector2(-120f, 0f), UIEase.EaseInCubic);
-                    _close.Rotation.Set(0f, 4f, UIEase.EaseInCubic);
+                    Entrance(0.28f, new Vector2(120f, 0f), new Vector2(0.86f, 0.92f), -8f, 0.06f);
+                    _open.Rotation.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutQuart, 0.12f, 1f));
+                    break;
+                case UIAnimationStyle.PersonaCutIn:
+                    Entrance(0.20f, new Vector2(-132f, -32f), new Vector2(0.88f, 0.96f), -10f, 0.04f);
+                    SetWipe(UIWipeDirection.LeftToRight, 0.02f, 0.38f);
+                    _open.Offset.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutQuint, 0.06f, 0.9f));
+                    break;
+                case UIAnimationStyle.PersonaList:
+                    Entrance(0.32f, new Vector2(-112f, 24f), new Vector2(0.96f, 1f), 7f);
+                    _open.Rotation.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutQuart, 0.16f, 1f));
                     break;
                 case UIAnimationStyle.StarRailSlide:
-                    SetTimes(0.18f, 0.12f);
-                    _open.Offset.Set(new Vector2(0f, -20f), Vector2.zero, UIEase.EaseOutCubic);
-                    _close.Offset.Set(Vector2.zero, new Vector2(0f, -10f), UIEase.EaseInCubic);
+                    Entrance(0.30f, new Vector2(48f, 0f), Vector2.one, 0f);
+                    _open.Offset.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutCubic, 0.02f, 1f));
                     break;
                 case UIAnimationStyle.StarRailWipe:
-                    SetTimes(0.26f, 0.18f);
+                    Entrance(0.36f, new Vector2(24f, 0f), Vector2.one, 0f);
+                    SetWipe(UIWipeDirection.LeftToRight, 0f, 0.82f);
                     _open.Color.Off();
                     _close.Color.Off();
-                    _open.Wipe.Set(0f, 1f, UIEase.EaseInOutCubic);
-                    _close.Wipe.Set(1f, 0f, UIEase.EaseInOutCubic);
+                    break;
+                case UIAnimationStyle.StarRailHologram:
+                    Entrance(0.44f, new Vector2(0f, -28f), new Vector2(0.97f, 0.08f), 0f);
+                    SplitScaleWindows(0.2f, 1f, 0f, 0.8f);
+                    SetWipe(UIWipeDirection.BottomToTop, 0f, 0.64f);
+                    SetPulseStay(4.8f, 0.95f);
+                    break;
+                case UIAnimationStyle.StarRailWindow:
+                    Entrance(0.38f, new Vector2(0f, -24f), new Vector2(0.95f, 0.95f), 0f);
+                    _open.Scale.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutSine, 0.08f, 1f));
                     break;
                 case UIAnimationStyle.ZenlessTv:
-                    SetTimes(0.14f, 0.09f);
-                    _open.Color.Off();
-                    _close.Color.Off();
-                    SetScale(new Vector2(full.x, full.y * 0.02f), full, UIEase.EaseOutExpo, UIEase.EaseInExpo);
+                    Entrance(0.24f, Vector2.zero, new Vector2(0.02f, 0.015f), 0f);
+                    SplitScaleWindows(0f, 0.36f, 0.32f, 0.92f);
+                    _open.StepsPerSecond = _close.StepsPerSecond = 24;
+                    _close.Scale.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseInCubic, 0.64f, 1f));
+                    _close.Scale.SetYCurve(UIMotionCurves.Window(UIEase.EaseInCubic, 0f, 0.66f));
                     break;
                 case UIAnimationStyle.ZenlessSnap:
-                    SetTimes(0.18f, 0.12f);
-                    _open.StepsPerSecond = 24;
-                    _close.StepsPerSecond = 24;
-                    _open.Color.Set(hidden, shown, UIEase.EaseOutExpo);
-                    _open.Scale.Set(full * 1.18f, full, UIEase.EaseOutBack);
-                    _close.Scale.Set(full, full * 0.92f, UIEase.EaseInQuad);
-                    _open.Rotation.Set(2.5f, 0f, UIEase.EaseOutBack);
+                    Entrance(0.24f, new Vector2(0f, -56f), new Vector2(0.88f, 0.78f), -2f, 0.05f);
+                    _open.StepsPerSecond = _close.StepsPerSecond = 24;
                     break;
+                case UIAnimationStyle.ZenlessGlitch:
+                    Entrance(0.26f, new Vector2(72f, 0f), new Vector2(0.92f, 0.88f), 3f, 0.04f);
+                    _open.StepsPerSecond = _close.StepsPerSecond = 24;
+                    _open.Color.Curve.SetCustom(UIMotionCurves.Steps((0f, 0f), (0.08f, 1f), (0.14f, 0.25f),
+                        (0.21f, 1f), (0.27f, 0.6f), (0.34f, 1f), (1f, 1f)));
+                    break;
+                case UIAnimationStyle.ZenlessSticker:
+                    Entrance(0.28f, new Vector2(24f, 64f), new Vector2(1.18f, 1.18f), -9f, -0.04f);
+                    _open.StepsPerSecond = _close.StepsPerSecond = 24;
+                    _open.Offset.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseInCubic, 0f, 0.66f));
+                    break;
+                case UIAnimationStyle.JrpgCommand:
+                    Entrance(0.24f, Vector2.zero, new Vector2(0.92f, 0.08f), 0f);
+                    SplitScaleWindows(0f, 0.5f, 0.12f, 1f);
+                    _open.StepsPerSecond = _close.StepsPerSecond = 16;
+                    break;
+                case UIAnimationStyle.JrpgScroll:
+                    Entrance(0.56f, Vector2.zero, new Vector2(0.06f, 0.04f), 0f);
+                    SplitScaleWindows(0f, 0.35f, 0.24f, 1f);
+                    _close.Scale.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseInCubic, 0.65f, 1f));
+                    _close.Scale.SetYCurve(UIMotionCurves.Window(UIEase.EaseInCubic, 0f, 0.72f));
+                    break;
+                case UIAnimationStyle.JrpgSummon:
+                    Entrance(0.60f, new Vector2(-40f, -96f), new Vector2(0.86f, 0.90f), -10f, 0.03f);
+                    _open.Offset.SetYCurve(UIMotionCurves.Window(UIEase.EaseOutCubic, 0f, 0.82f));
+                    _open.Rotation.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseInOutSine, 0.16f, 1f));
+                    SetFloatStay(5f, 3f);
+                    break;
+                case UIAnimationStyle.JrpgVictory:
+                    Entrance(0.42f, new Vector2(-140f, 0f), new Vector2(1.14f, 0.86f), 4f, 0.05f);
+                    _open.Offset.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutQuint, 0.06f, 0.78f));
+                    break;
+                case UIAnimationStyle.JrpgDialogue:
+                    Entrance(0.36f, new Vector2(0f, -28f), new Vector2(1f, 0.94f), 0f);
+                    _open.Offset.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutSine, 0f, 1f));
+                    break;
+                case UIAnimationStyle.JrpgItem:
+                    Entrance(0.48f, new Vector2(0f, -64f), new Vector2(0.82f, 0.82f), 5f, 0.04f);
+                    _open.Offset.Curve.SetCustom(UIMotionCurves.Anticipate(0.06f, 0.1f, UIEase.EaseOutCubic));
+                    SetPulseStay(4.2f, 0.94f);
+                    break;
+                default:
+                    throw new System.ArgumentOutOfRangeException(nameof(style));
             }
+            SetStatePreset(UIAnimationPresetCatalog.Name(style), UIAnimationPresetCatalog.Description(style));
+        }
+
+        private void Entrance(float time, Vector2 offset, Vector2 factors, float tilt, float settle = 0f)
+        {
+            Vector2 full = _baseScale;
+            Color hidden = _baseColor;
+            hidden.a = 0f;
+            SetTimes(time, time * 0.65f);
+            _open.Color.Set(hidden, _baseColor, UIEase.Linear);
+            _open.Color.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutQuad, 0f, 0.30f));
+            _close.Color.Set(_baseColor, hidden, UIEase.Linear);
+            _close.Color.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseInCubic, 0.5f, 1f));
+            if (offset != Vector2.zero)
+            {
+                _open.Offset.Set(offset, Vector2.zero, UIEase.Linear);
+                _open.Offset.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutQuart, 0f, 1f));
+                _close.Offset.Set(Vector2.zero, offset.normalized * Mathf.Max(24f, offset.magnitude * 0.65f), UIEase.EaseInCubic);
+            }
+            if (factors != Vector2.one)
+            {
+                _open.Scale.Set(Vector2.Scale(full, factors), full, UIEase.Linear);
+                _open.Scale.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutCubic, 0.04f, 1f));
+                _close.Scale.Set(full, Vector2.Scale(full, Vector2.Lerp(Vector2.one, factors, 0.6f)), UIEase.EaseInCubic);
+                if (settle != 0f) SetScaleSettle(factors, settle, 0.76f);
+            }
+            if (tilt != 0f)
+            {
+                _open.Rotation.Set(tilt, 0f, UIEase.Linear);
+                _open.Rotation.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutCubic, 0.08f, 1f));
+                _close.Rotation.Set(0f, tilt * 0.5f, UIEase.EaseInCubic);
+            }
+        }
+
+        private void SetScaleSettle(Vector2 factors, float amount, float peakTime)
+        {
+            float Peak(float start) => Mathf.Approximately(start, 1f) ? 1f : (1f + amount - start) / (1f - start);
+            _open.Scale.Curve.SetCustom(UIMotionCurves.Settle(Peak(factors.x), peakTime, UIEase.EaseOutCubic, UIEase.EaseInOutSine));
+            _open.Scale.SetYCurve(UIMotionCurves.Settle(Peak(factors.y), peakTime, UIEase.EaseOutCubic, UIEase.EaseInOutSine));
+        }
+
+        private void SplitScaleWindows(float xStart, float xEnd, float yStart, float yEnd)
+        {
+            _open.Scale.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutCubic, xStart, xEnd));
+            _open.Scale.SetYCurve(UIMotionCurves.Window(UIEase.EaseOutCubic, yStart, yEnd));
+        }
+
+        private void SetWipe(UIWipeDirection direction, float start, float end)
+        {
+            _wipeDirection = direction;
+            _open.Wipe.Set(0f, 1f, UIEase.Linear);
+            _open.Wipe.Curve.SetCustom(UIMotionCurves.Window(UIEase.EaseOutCubic, start, end));
+            _close.Wipe.Set(1f, 0f, UIEase.EaseInCubic);
+        }
+
+        // 자동 Close를 켜면 Time이 유지 시간이므로 프리셋이 덮어쓰지 않는다.
+        private void SetStayPeriod(float period)
+        {
+            if (!_stay.AutoClose)
+            {
+                _stay.Time = period;
+            }
+        }
+
+        private void SetFloatStay(float period, float height)
+        {
+            SetStayPeriod(period);
+            _stay.Offset.Set(Vector2.zero, new Vector2(0f, height), UIEase.EaseInOutSine);
+        }
+
+        private void SetPulseStay(float period, float alpha)
+        {
+            Color dim = _baseColor;
+            dim.a *= alpha;
+            SetStayPeriod(period);
+            _stay.Color.Set(_baseColor, dim, UIEase.EaseInOutSine);
         }
 
         // Stay에서 계속 움직이는 대기 동작이다. 값이 있으면 Animator가 멈추지 않는다.
         public void ApplyStayStyle(UIStayStyle style)
         {
             _stay.ClearMotion();
+            _stay.Speed = 1f;
             switch (style)
             {
                 case UIStayStyle.Float:
-                    _stay.Time = 3.6f;
+                    SetStayPeriod(3.6f);
                     _stay.Offset.Set(Vector2.zero, new Vector2(0f, 6f), UIEase.EaseInOutSine);
                     break;
                 case UIStayStyle.Pulse:
-                    Color dim = GetSpan(UIAnimationState.Open).Color.To;
-                    dim.a *= 0.75f;
-                    _stay.Time = 3.6f;
-                    _stay.Color.Set(dim, dim, UIEase.EaseInOutSine);
+                    Color shown = GetSpan(UIAnimationState.Open).Color.To;
+                    Color dim = shown;
+                    dim.a *= 0.9f;
+                    SetStayPeriod(3.6f);
+                    _stay.Color.Set(shown, dim, UIEase.EaseInOutSine);
                     break;
                 default:
-                    _stay.Time = 1f;
+                    SetStayPeriod(3.6f);
                     break;
             }
+            _stayPresetName = UIAnimationPresetCatalog.Name(style);
         }
 
         public void ApplyPointerStyle(UIPointerStyle style)
@@ -316,6 +497,7 @@ namespace CK.SemesterProject.UIAnimation
                     _pressed.Brightness = 1.1f;
                     break;
             }
+            SetPointerPreset(UIAnimationPresetCatalog.Name(style));
         }
 
         // Open을 거꾸로 돌린 Close를 만든다. 곡선도 In과 Out을 맞바꿔 대칭으로 보이게 한다.
@@ -331,6 +513,7 @@ namespace CK.SemesterProject.UIAnimation
             if (_open.Color.Use)
             {
                 _close.Color.Set(_open.Color.To, _open.Color.From, UIEasing.Mirror(_open.Color.Curve.Ease));
+                _close.Color.Curve.CopyFrom(_open.Color.Curve, true);
             }
             else
             {
@@ -357,6 +540,8 @@ namespace CK.SemesterProject.UIAnimation
             _open.Scale.Rescale(ratio);
             _stay.Scale.Rescale(ratio);
             _close.Scale.Rescale(ratio);
+            SetStatePreset(source.name);
+            SetPointerPreset(source.name);
         }
 
         private void SetTimes(float open, float close)
@@ -365,17 +550,17 @@ namespace CK.SemesterProject.UIAnimation
             _close.Time = close;
         }
 
-        private void SetScale(Vector2 hidden, Vector2 full, UIEase openEase, UIEase closeEase)
-        {
-            _open.Scale.Set(hidden, full, openEase);
-            _close.Scale.Set(full, hidden, closeEase);
-        }
-
         private static void Mirror(UIVector2Track open, UIVector2Track close)
         {
             if (open.Use)
             {
                 close.Set(open.To, open.From, UIEasing.Mirror(open.Curve.Ease));
+                close.Curve.CopyFrom(open.Curve, true);
+                if (open.SplitY)
+                {
+                    close.SetYCurve(AnimationCurve.Linear(0f, 0f, 1f, 1f));
+                    close.CurveY.CopyFrom(open.CurveY, true);
+                }
             }
             else
             {
@@ -388,6 +573,7 @@ namespace CK.SemesterProject.UIAnimation
             if (open.Use)
             {
                 close.Set(open.To, open.From, UIEasing.Mirror(open.Curve.Ease));
+                close.Curve.CopyFrom(open.Curve, true);
             }
             else
             {

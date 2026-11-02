@@ -4,8 +4,10 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEditor.Events;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace CK.SemesterProject.UIAnimation.EditorTools
@@ -365,6 +367,13 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     AssetDatabase.SaveAssetIfDirty(clip);
                 }
             }
+        }
+
+        // 저장 버튼 하나로 파일과 씬을 함께 저장한다. 프리팹 파일과 프리팹 모드는 씬으로 저장할 수 없어 파일만 저장한다.
+        public static bool SaveAll(UIAnimationPreset preset, Scene scene)
+        {
+            Save(preset);
+            return !scene.IsValid() || EditorSceneManager.IsPreviewScene(scene) || EditorSceneManager.SaveScene(scene);
         }
 
         private static void BuildGraph(AnimatorController controller, string folder, string name)

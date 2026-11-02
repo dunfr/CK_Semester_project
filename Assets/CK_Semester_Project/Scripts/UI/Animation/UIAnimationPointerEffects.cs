@@ -311,8 +311,8 @@ namespace CK.SemesterProject.UIAnimation
                 UIVector2Track offset = _effect.Offset;
                 UIFloatTrack rotation = _effect.Rotation;
                 UIColorTrack color = _effect.Color;
-                _scale = Vector2.LerpUnclamped(_scaleFrom, scale.Use ? scale.To : Vector2.one, scale.Curve.Evaluate(t));
-                _offset = Vector2.LerpUnclamped(_offsetFrom, offset.Use ? offset.To : Vector2.zero, offset.Curve.Evaluate(t));
+                _scale = scale.Evaluate(_scaleFrom, scale.Use ? scale.To : Vector2.one, t);
+                _offset = offset.Evaluate(_offsetFrom, offset.Use ? offset.To : Vector2.zero, t);
                 _rotation = Mathf.LerpUnclamped(_rotationFrom, rotation.Use ? rotation.To : 0f, rotation.Curve.Evaluate(t));
                 _tint = Color.LerpUnclamped(_tintFrom, color.Use ? color.To : Color.white, color.Curve.Evaluate(t));
                 float brightness = color.Use ? _effect.Brightness : 1f;

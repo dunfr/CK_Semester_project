@@ -48,6 +48,23 @@ namespace CK.SemesterProject.UIAnimation
             set => _ease = value;
         }
 
+        public AnimationCurve Custom => _custom;
+
+        public void SetCustom(AnimationCurve curve)
+        {
+            if (curve == null) throw new ArgumentNullException(nameof(curve));
+            _custom = new AnimationCurve(curve.keys) { preWrapMode = curve.preWrapMode, postWrapMode = curve.postWrapMode };
+            _ease = UIEase.Custom;
+        }
+
+        public void CopyFrom(UIEaseCurve source, bool mirror = false)
+        {
+            if (source.Ease == UIEase.Custom)
+                SetCustom(mirror ? UIMotionCurves.Reverse(source.Custom) : source.Custom);
+            else
+                _ease = mirror ? UIEasing.Mirror(source.Ease) : source.Ease;
+        }
+
         public float Evaluate(float t)
         {
             return _ease == UIEase.Custom ? _custom.Evaluate(Mathf.Clamp01(t)) : UIEasing.Evaluate(_ease, t);
@@ -62,6 +79,8 @@ namespace CK.SemesterProject.UIAnimation
         [SerializeField] private Vector2 _from;
         [SerializeField] private Vector2 _to;
         [SerializeField] private UIEaseCurve _curve = new UIEaseCurve();
+        [SerializeField] private bool _splitY;
+        [SerializeField] private UIEaseCurve _curveY = new UIEaseCurve();
 
         public UIVector2Track()
         {
@@ -77,6 +96,20 @@ namespace CK.SemesterProject.UIAnimation
         public Vector2 From => _from;
         public Vector2 To => _to;
         public UIEaseCurve Curve => _curve;
+        public bool SplitY => _splitY;
+        public UIEaseCurve CurveY => _splitY ? _curveY : _curve;
+
+        public void SetYCurve(AnimationCurve curve)
+        {
+            _curveY.SetCustom(curve);
+            _splitY = true;
+        }
+
+        public Vector2 Evaluate(Vector2 from, Vector2 to, float t)
+        {
+            return new Vector2(Mathf.LerpUnclamped(from.x, to.x, _curve.Evaluate(t)),
+                Mathf.LerpUnclamped(from.y, to.y, CurveY.Evaluate(t)));
+        }
 
         public void Set(Vector2 from, Vector2 to, UIEase ease)
         {
@@ -84,11 +117,14 @@ namespace CK.SemesterProject.UIAnimation
             _from = from;
             _to = to;
             _curve.Ease = ease;
+            _splitY = false;
         }
 
         public void Off()
         {
             _use = false;
+            _splitY = false;
+            _curveY = new UIEaseCurve();
         }
 
         public void Rescale(Vector2 ratio)

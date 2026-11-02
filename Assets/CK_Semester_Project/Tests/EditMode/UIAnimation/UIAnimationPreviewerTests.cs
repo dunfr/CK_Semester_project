@@ -132,12 +132,12 @@ namespace CK.SemesterProject.UIAnimation.Tests
             AnimationClip clip = UIAnimationGenerator.ClipOf(_preset, UIAnimationState.Open);
             _previewer.Play(new[] { Entry(clip) });
 
-            _previewer.Seek(clip.length * 0.5);
+            _previewer.Seek(clip.length * 0.15);
             yield return null;
             yield return null;
 
             Assert.That(_previewer.Paused, Is.True);
-            Assert.That(_previewer.Position, Is.EqualTo(clip.length * 0.5).Within(0.0001));
+            Assert.That(_previewer.Position, Is.EqualTo(clip.length * 0.15).Within(0.0001));
             Assert.That(_image.color.a, Is.GreaterThan(0f).And.LessThan(1f));
         }
 
