@@ -198,7 +198,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [Test]
-        public void Inspector_ManualEditsAndStartPresetUseTheCorrectLabels()
+        public void Inspector_ManualEditsUseTheCorrectLabels()
         {
             UIAnimationPreset preset = MakePreset();
             var component = ((GameObject)_created[0]).AddComponent<UIAnimationEditor>();
@@ -216,20 +216,6 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Call(editor, "MarkManualChange");
             data.ApplyModifiedPropertiesWithoutUndo();
             Assert.That(preset.PointerPresetEdited, Is.True);
-            editor.serializedObject.FindProperty("_startStyle").enumValueIndex = (int)UIAnimationStyle.JrpgDialogue;
-            editor.serializedObject.ApplyModifiedPropertiesWithoutUndo();
-            var setup = (Action<UIAnimationPreset>)Call(editor, "StartSetup", UIPointerEffectMask.None);
-            setup(preset);
-            Assert.That(preset.StatePresetName, Is.EqualTo("JRPG풍/대화창"));
-            Assert.That(preset.StatePresetEdited, Is.False);
-            UIAnimationPreset saved = MakePreset();
-            saved.name = "내 시작 프리셋";
-            editor.serializedObject.FindProperty("_startPreset").objectReferenceValue = saved;
-            editor.serializedObject.ApplyModifiedPropertiesWithoutUndo();
-            setup = (Action<UIAnimationPreset>)Call(editor, "StartSetup", UIPointerEffectMask.None);
-            setup(preset);
-            Assert.That(preset.StatePresetName, Is.EqualTo(saved.name));
-            Assert.That(preset.PointerPresetName, Is.EqualTo(saved.name));
         }
 
         [Test]

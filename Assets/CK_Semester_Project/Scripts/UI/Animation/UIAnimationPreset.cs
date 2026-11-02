@@ -521,8 +521,16 @@ namespace CK.SemesterProject.UIAnimation
             }
         }
 
-        // 저장한 프리셋을 불러온다. 크기는 이 Image의 기준 크기에 맞춰 환산한다.
+        // 저장한 프리셋을 불러온다.
         public void CopyMotionFrom(UIAnimationPreset source)
+        {
+            CopyValuesFrom(source);
+            SetStatePreset(source.name);
+            SetPointerPreset(source.name);
+        }
+
+        // 적용한 프리셋 표시까지 그대로 옮긴다. 크기는 이 Image의 기준 크기에 맞춰 환산한다.
+        public void CopyValuesFrom(UIAnimationPreset source)
         {
             Vector3 baseScale = _baseScale;
             Color baseColor = _baseColor;
@@ -540,8 +548,6 @@ namespace CK.SemesterProject.UIAnimation
             _open.Scale.Rescale(ratio);
             _stay.Scale.Rescale(ratio);
             _close.Scale.Rescale(ratio);
-            SetStatePreset(source.name);
-            SetPointerPreset(source.name);
         }
 
         private void SetTimes(float open, float close)

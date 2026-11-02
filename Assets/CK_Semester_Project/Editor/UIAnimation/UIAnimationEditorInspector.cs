@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -79,11 +78,6 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         };
 
         private SerializedProperty _image;
-        private SerializedProperty _assetName;
-        private SerializedProperty _folder;
-        private SerializedProperty _mouseEvents;
-        private SerializedProperty _startStyle;
-        private SerializedProperty _startPreset;
         private SerializedObject _presetObject;
         private SerializedObject _playerObject;
         private SerializedObject _pointerObject;
@@ -106,11 +100,6 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         private void OnEnable()
         {
             _image = serializedObject.FindProperty("_image");
-            _assetName = serializedObject.FindProperty("_assetName");
-            _folder = serializedObject.FindProperty("_folder");
-            _mouseEvents = serializedObject.FindProperty("_mouseEvents");
-            _startStyle = serializedObject.FindProperty("_startStyle");
-            _startPreset = serializedObject.FindProperty("_startPreset");
             _previewer = new UIAnimationPreviewer();
             _previewer.Stopped += ClearEffectBrightness;
             _previewer.Stopped += Repaint;
@@ -136,7 +125,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             EditorGUILayout.PropertyField(_image, new GUIContent("대상 Image", "애니메이션을 넣을 UI Image"));
             if (EditorGUI.EndChangeCheck())
             {
-                OnImageChanged(_image.objectReferenceValue as Image);
+                OnImageChanged();
             }
 
             var image = _image.objectReferenceValue as Image;
@@ -158,12 +147,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             DrawSceneList(image);
         }
 
-        private void OnImageChanged(Image image)
+        private void OnImageChanged()
         {
             _previewer.Stop();
             GUI.FocusControl(null);
-            _assetName.stringValue = image != null ? UIAnimationGenerator.SuggestName(image) : string.Empty;
-            _mouseEvents.intValue = image != null ? (int)UIAnimationGenerator.SuggestEffects(image) : 0;
             _page = Page.States;
             _state = UIAnimationState.Open;
             _effect = UIPointerEffect.Hover;
@@ -184,6 +171,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             _player = preset != null ? player : null;
             _presetObject = preset != null ? new SerializedObject(preset) : null;
             _playerObject = preset != null ? new SerializedObject(player) : null;
+            if (preset != null)
+            {
+                UIAnimationGenerator.Repair(image, preset);
+            }
         }
 
         private static EditorGUILayout.VerticalScope Group(string title)
@@ -224,52 +215,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         private void DrawCreatePage(Image image)
         {
-            string folder;
-            string name;
-            bool validFolder;
-            using (Group("파일"))
-            {
-                EditorGUILayout.PropertyField(_assetName, new GUIContent("이름", "기본값은 Image 오브젝트 이름입니다."));
-                DrawFolderField();
-                folder = _folder.stringValue.TrimEnd('/');
-                name = UIAnimationGenerator.CleanName(_assetName.stringValue);
-                validFolder = UIAnimationGenerator.IsProjectFolder(folder);
-                if (!validFolder)
-                {
-                    EditorGUILayout.HelpBox("폴더는 Assets 아래여야 합니다.", MessageType.Error);
-                }
-                else if (name.Length > 0)
-                {
-                    folder = UIAnimationGenerator.FolderFor(image, folder);
-                    foreach (string path in UIAnimationGenerator.AssetPaths(folder, name))
-                    {
-                        EditorGUILayout.LabelField(path, EditorStyles.miniLabel);
-                    }
-                }
-            }
-
-            using (Group("시작 프리셋"))
-            {
-                EditorGUILayout.LabelField("생성할 때 넣을 움직임입니다. 만든 뒤에도 바꿀 수 있습니다.", EditorStyles.wordWrappedMiniLabel);
-                if (GUILayout.Button(StartPresetLabel() + " ▾"))
-                {
-                    ShowStartPresetMenu();
-                }
-            }
-
-            using (Group("입력 반응 (선택)"))
-            {
-                EditorGUILayout.LabelField(InputGuide, EditorStyles.wordWrappedMiniLabel);
-                foreach ((UIPointerEffect effect, string label, string guide) in MouseEvents)
-                {
-                    int bit = 1 << (int)effect;
-                    bool on = (_mouseEvents.intValue & bit) != 0;
-                    if (DrawEventToggle(label, guide, on) != on)
-                    {
-                        _mouseEvents.intValue ^= bit;
-                    }
-                }
-            }
+            string folder = UIAnimationGenerator.FilesFor(image, UIAnimationEditor.DefaultFolder).Folder;
+            EditorGUILayout.LabelField($"저장 위치: {folder}", EditorStyles.miniLabel);
 
             bool inScene = !EditorUtility.IsPersistent(image);
             if (!inScene)
@@ -280,89 +227,20 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 EditorGUILayout.HelpBox("플레이를 멈춘 뒤 생성하세요.", MessageType.Info);
             }
-            using (new EditorGUI.DisabledScope(Application.isPlaying || !inScene || !validFolder || name.Length == 0))
+            using (new EditorGUI.DisabledScope(Application.isPlaying || !inScene))
             {
                 if (GUILayout.Button("생성", GUILayout.Height(32f)))
                 {
                     GUI.FocusControl(null);
                     serializedObject.ApplyModifiedProperties();
-                    var pointerEffects = (UIPointerEffectMask)_mouseEvents.intValue;
-                    Create(image, folder, name, pointerEffects, StartSetup(pointerEffects));
+                    Create(image, UIAnimationEditor.DefaultFolder);
                     GUIUtility.ExitGUI();
                 }
             }
             DrawConnectExisting(image);
         }
 
-        private string StartPresetLabel()
-        {
-            if (_startPreset.objectReferenceValue != null)
-            {
-                return "저장한 프리셋/" + _startPreset.objectReferenceValue.name;
-            }
-            var style = (UIAnimationStyle)_startStyle.enumValueIndex;
-            return Styles.First(entry => entry.Style == style).Label;
-        }
-
-        private void ShowStartPresetMenu()
-        {
-            var picked = _startPreset.objectReferenceValue as UIAnimationPreset;
-            var menu = new GenericMenu();
-            foreach ((UIAnimationStyle style, string label) in Styles)
-            {
-                bool on = picked == null && style == (UIAnimationStyle)_startStyle.enumValueIndex;
-                menu.AddItem(new GUIContent(label), on, () => PickStartPreset(style, null));
-            }
-            foreach (UIAnimationPreset saved in UIAnimationGenerator.SavedPresets())
-            {
-                menu.AddItem(new GUIContent("저장한 프리셋/" + saved.name), saved == picked, () => PickStartPreset(default, saved));
-            }
-            menu.ShowAsContext();
-        }
-
-        private void PickStartPreset(UIAnimationStyle style, UIAnimationPreset saved)
-        {
-            serializedObject.Update();
-            _startStyle.enumValueIndex = (int)style;
-            _startPreset.objectReferenceValue = saved;
-            serializedObject.ApplyModifiedProperties();
-        }
-
-        private Action<UIAnimationPreset> StartSetup(UIPointerEffectMask pointerEffects)
-        {
-            var style = (UIAnimationStyle)_startStyle.enumValueIndex;
-            var saved = _startPreset.objectReferenceValue as UIAnimationPreset;
-            if (saved == null)
-            {
-                return preset => preset.ApplyStyle(style);
-            }
-            return preset =>
-            {
-                preset.CopyMotionFrom(saved);
-                preset.SetPointerEffects(pointerEffects);
-            };
-        }
-
-        private void DrawFolderField()
-        {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.PropertyField(_folder, new GUIContent("저장 폴더"));
-                if (GUILayout.Button("찾기", GUILayout.Width(44f)))
-                {
-                    string picked = EditorUtility.OpenFolderPanel("저장 폴더", _folder.stringValue, string.Empty);
-                    if (picked.StartsWith(Application.dataPath, StringComparison.Ordinal))
-                    {
-                        _folder.stringValue = "Assets" + picked.Substring(Application.dataPath.Length);
-                    }
-                    serializedObject.ApplyModifiedProperties();
-                    GUIUtility.ExitGUI();
-                }
-            }
-        }
-
-        private static void Create(
-            Image image, string folder, string name, UIPointerEffectMask pointerEffects, Action<UIAnimationPreset> setup)
+        private static void Create(Image image, string root)
         {
             Animator animator = image.GetComponent<Animator>();
             if (animator != null && animator.runtimeAnimatorController != null
@@ -374,35 +252,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 return;
             }
 
-            if (!UIAnimationGenerator.IsNameFree(folder, name))
-            {
-                UIAnimationPreset existing = UIAnimationGenerator.FindPreset(folder, name);
-                string unique = UIAnimationGenerator.UniqueName(folder, name);
-                if (existing != null)
-                {
-                    int choice = EditorUtility.DisplayDialogComplex(
-                        "이미 있는 이름",
-                        $"'{name}' 애니메이션이 이미 있습니다. 함께 쓰면 값을 고칠 때 같이 바뀝니다.",
-                        "함께 쓰기", "취소", $"새로 만들기 ({unique})");
-                    if (choice == 0)
-                    {
-                        UIAnimationGenerator.Connect(image, existing);
-                    }
-                    if (choice != 2)
-                    {
-                        return;
-                    }
-                }
-                else if (!EditorUtility.DisplayDialog(
-                    "이미 있는 파일",
-                    $"같은 이름의 파일이 있어 덮어쓰지 않습니다. '{unique}' 이름으로 새로 만들까요?",
-                    "새로 만들기", "취소"))
-                {
-                    return;
-                }
-                name = unique;
-            }
-            UIAnimationGenerator.Create(image, folder, name, pointerEffects, setup);
+            UIAnimationPreset preset = UIAnimationGenerator.CreateFor(image, root, UIAnimationGenerator.SuggestEffects(image));
+            UIAnimationGenerator.EnsureEventSystem(preset);
         }
 
         private static void DrawConnectExisting(Image image)
@@ -435,7 +286,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             _playerObject.Update();
 
             EditorGUILayout.LabelField(AssetDatabase.GetAssetPath(_preset), EditorStyles.miniLabel);
-            DrawConnectionWarning(image);
+            DrawSharedNotice(image);
             EditorGUILayout.Space(4f);
             DrawSaveBar();
             EditorGUILayout.Space(4f);
@@ -533,9 +384,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 if (!isStay)
                 {
-                    EditorGUILayout.PropertyField(
-                        _playerObject.FindProperty(isOpen ? "_openDelay" : "_closeDelay"),
-                        new GUIContent("Delay (시작 지연, 초)", "이 Image만 늦게 시작합니다. 같은 애니메이션을 함께 써도 Image마다 따로 정합니다."));
+                    using (new EditorGUI.DisabledScope(Application.isPlaying))
+                    {
+                        EditorGUILayout.PropertyField(
+                            _playerObject.FindProperty(isOpen ? "_openDelay" : "_closeDelay"),
+                            new GUIContent("Delay (시작 지연, 초)", "이 Image만 늦게 시작합니다. 같은 애니메이션을 함께 써도 Image마다 따로 정합니다."));
+                    }
                 }
                 DrawTiming(settings, DescribeLength(state, values));
                 DrawSteps(settings.FindPropertyRelative("_stepsPerSecond"));
@@ -583,9 +437,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     return;
                 }
                 EditorGUILayout.LabelField(TriggerGuide, EditorStyles.wordWrappedMiniLabel);
-                foreach ((string field, string label) in events)
+                using (new EditorGUI.DisabledScope(Application.isPlaying))
                 {
-                    EditorGUILayout.PropertyField(target.FindProperty(field), new GUIContent(label));
+                    foreach ((string field, string label) in events)
+                    {
+                        EditorGUILayout.PropertyField(target.FindProperty(field), new GUIContent(label));
+                    }
                 }
             }
         }
@@ -626,7 +483,6 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 return;
             }
 
-            DrawPointerWarnings(image);
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.PropertyField(
@@ -756,9 +612,17 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         private void DrawDirectingPage(Image image)
         {
-            DrawStaggerGroup();
-            DrawButtonGroup();
-            DrawPivotGroup(image.rectTransform);
+            // 순차 등장, 버튼 연결, 기준점은 씬 값이라 플레이 중에 바꾸면 멈출 때 사라진다.
+            if (Application.isPlaying)
+            {
+                EditorGUILayout.HelpBox("순차 등장, 버튼 연결, 기준점은 플레이를 멈춘 뒤 바꿀 수 있습니다.", MessageType.Info);
+            }
+            using (new EditorGUI.DisabledScope(Application.isPlaying))
+            {
+                DrawStaggerGroup();
+                DrawButtonGroup();
+                DrawPivotGroup(image.rectTransform);
+            }
             DrawPresetGroup();
         }
 
@@ -1338,63 +1202,22 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             _effectBrightness = null;
         }
 
-        private void DrawConnectionWarning(Image image)
+        // 같은 파일을 쓰는 UI가 있으면 값이 같이 바뀌므로 알려 주고, 눌러서 떼어 낼 수 있게 한다.
+        private void DrawSharedNotice(Image image)
         {
-            Animator animator = image.GetComponent<Animator>();
-            UIAnimationPointerEffects effects = image.GetComponent<UIAnimationPointerEffects>();
-            bool connected = animator != null
-                && animator.runtimeAnimatorController == UIAnimationGenerator.ControllerOf(_preset)
-                && (effects != null ? _preset.HasPointerEffects || effects.HasTriggers : !_preset.HasPointerEffects);
-            if (!connected)
-            {
-                Warn("이 Image의 컴포넌트가 설정과 다릅니다.", "다시 연결", () => UIAnimationGenerator.Connect(image, _preset));
-            }
-        }
-
-        private void DrawPointerWarnings(Image image)
-        {
-            if (!image.raycastTarget)
-            {
-                Warn("Raycast Target이 꺼져 있어 마우스 이벤트가 오지 않습니다.", "켜기", () =>
-                {
-                    Undo.RecordObject(image, "Raycast Target 켜기");
-                    image.raycastTarget = true;
-                });
-            }
-            Canvas canvas = image.canvas;
-            if (canvas != null && canvas.rootCanvas.GetComponent<GraphicRaycaster>() == null)
-            {
-                Warn("Canvas에 Graphic Raycaster가 없어 마우스 이벤트가 오지 않습니다.", "추가",
-                    () => Undo.AddComponent<GraphicRaycaster>(canvas.rootCanvas.gameObject));
-            }
-            if (FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include) == null)
-            {
-                Warn("씬에 EventSystem이 없습니다. GameObject > UI (Canvas) > Event System으로 추가하세요.", null, null);
-            }
-            Selectable selectable = image.GetComponent<Selectable>();
-            if (selectable == null || selectable.targetGraphic != image)
+            int others = UIAnimationGenerator.Users(_preset).Count - 1;
+            if (others <= 0)
             {
                 return;
             }
-            bool colorOverlaps = selectable.transition == Selectable.Transition.ColorTint;
-            bool spriteOverlaps = selectable.transition == Selectable.Transition.SpriteSwap;
-            if (colorOverlaps || spriteOverlaps)
+            EditorGUILayout.HelpBox($"다른 UI {others}개와 함께 씁니다. 값을 바꾸면 같이 바뀝니다.", MessageType.Info);
+            using (new EditorGUI.DisabledScope(Application.isPlaying))
             {
-                string target = colorOverlaps ? "Color Tint가 같은 Image 색을" : "Sprite Swap이 같은 Image 그림을";
-                Warn($"Button의 {target} 바꿔 입력 반응과 겹칩니다.", "Transition 끄기", () =>
+                if (GUILayout.Button("이 UI만 따로 쓰기"))
                 {
-                    Undo.RecordObject(selectable, "Transition 끄기");
-                    selectable.transition = Selectable.Transition.None;
-                });
-            }
-        }
-
-        private static void Warn(string message, string button, Action fix)
-        {
-            EditorGUILayout.HelpBox(message, MessageType.Warning);
-            if (button != null && GUILayout.Button(button))
-            {
-                fix();
+                    UIAnimationGenerator.Separate(image, _preset, UIAnimationEditor.DefaultFolder);
+                    GUIUtility.ExitGUI();
+                }
             }
         }
 
@@ -1423,7 +1246,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     if (GUILayout.Button($"{player.name}  ·  {controller}{mouse}", EditorStyles.miniButton))
                     {
                         _image.objectReferenceValue = image;
-                        OnImageChanged(image);
+                        OnImageChanged();
                         serializedObject.ApplyModifiedProperties();
                     }
                 }
@@ -1462,6 +1285,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             UIAnimationGenerator.RecordUndo(_preset);
             UIAnimationGenerator.Rebuild(_preset);
             UIAnimationGenerator.SyncComponents(_preset);
+            UIAnimationGenerator.EnsureEventSystem(_preset);
             _saveAt = EditorApplication.timeSinceStartup + SaveDelaySeconds;
             if (_previewer.IsPlaying && _previewStates != null)
             {

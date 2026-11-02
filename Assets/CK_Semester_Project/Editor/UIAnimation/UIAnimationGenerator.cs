@@ -7,6 +7,7 @@ using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -19,6 +20,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         private const float BlendSeconds = 0.1f;
         private const string DefaultWord = "Default";
+        private const string FallbackName = "UI";
+        private const string EventSystemMenu = "GameObject/UI (Canvas)/Event System";
 
         private static readonly UIAnimationState[] States =
         {
@@ -50,24 +53,32 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         public static string SuggestName(Image image)
         {
-            return CleanName(image.gameObject.name);
+            string name = CleanName(image.gameObject.name);
+            return name.Length > 0 ? name : FallbackName;
         }
 
         // 대상 이름의 폴더에 모은다. 부모에 애니메이션이 있으면 가장 위 부모의 폴더에 함께 넣는다.
         public static string FolderFor(Image image, string root)
         {
-            string folder = $"{root}/{SuggestName(image)}";
-            for (Transform parent = image.transform.parent; parent != null; parent = parent.parent)
+            return ParentFolder(image) ?? $"{root}/{SuggestName(image)}";
+        }
+
+        // 오브젝트 이름이 같아도 애니메이션이 섞이지 않게 번호를 붙인다. 부모 폴더 안에서는 파일만, 그 밖에서는 폴더까지 나눈다.
+        public static (string Folder, string Name) FilesFor(Image image, string root)
+        {
+            string name = SuggestName(image);
+            string parent = ParentFolder(image);
+            if (parent != null)
             {
-                string path = parent.TryGetComponent(out UIAnimationPlayer player) && player.Preset != null
-                    ? AssetDatabase.GetAssetPath(player.Preset)
-                    : string.Empty;
-                if (path.Length > 0)
-                {
-                    folder = Path.GetDirectoryName(path)?.Replace('\\', '/');
-                }
+                return (parent, UniqueName(parent, name));
             }
-            return folder;
+
+            string unique = name;
+            for (int number = 2; !IsNameFree($"{root}/{unique}", unique); number++)
+            {
+                unique = $"{name}_{number}";
+            }
+            return ($"{root}/{unique}", unique);
         }
 
         // 버튼처럼 조작하는 Image만 마우스 반응이 기본으로 켜진다.
@@ -88,11 +99,6 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         {
             char[] invalid = Path.GetInvalidFileNameChars();
             return new string((name ?? string.Empty).Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
-        }
-
-        public static bool IsProjectFolder(string folder)
-        {
-            return folder == "Assets" || folder.StartsWith("Assets/", System.StringComparison.Ordinal);
         }
 
         public static bool IsNameFree(string folder, string name)
@@ -159,6 +165,49 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             return preset;
         }
 
+        // 파일 이름과 폴더는 대상에서 정하고, 먼저 만든 자식 파일도 이 폴더로 모은다.
+        public static UIAnimationPreset CreateFor(
+            Image image, string root, UIPointerEffectMask pointerEffects, System.Action<UIAnimationPreset> setup = null)
+        {
+            (string folder, string name) = FilesFor(image, root);
+            UIAnimationPreset preset = Create(image, folder, name, pointerEffects, setup);
+            GatherChildren(image, folder);
+            return preset;
+        }
+
+        // 함께 쓰던 값을 그대로 복사해 이 Image만의 파일을 만든다.
+        public static UIAnimationPreset Separate(Image image, UIAnimationPreset shared, string root)
+        {
+            return CreateFor(image, root, UIPointerEffectMask.None, copy => copy.CopyValuesFrom(shared));
+        }
+
+        // 컴포넌트가 지워졌거나 Controller가 바뀌었으면 설정대로 되돌린다.
+        public static void Repair(Image image, UIAnimationPreset preset)
+        {
+            Animator animator = image.GetComponent<Animator>();
+            UIAnimationPointerEffects effects = image.GetComponent<UIAnimationPointerEffects>();
+            bool connected = animator != null
+                && animator.runtimeAnimatorController == ControllerOf(preset)
+                && (effects != null ? preset.HasPointerEffects || effects.HasTriggers : !preset.HasPointerEffects);
+            if (!connected && !Application.isPlaying)
+            {
+                Connect(image, preset);
+            }
+        }
+
+        // 메뉴로 만들어야 프로젝트의 입력 방식에 맞는 모듈이 붙는다. 메뉴가 고른 오브젝트는 원래대로 되돌린다.
+        public static void EnsureEventSystem(UIAnimationPreset preset)
+        {
+            if (!preset.HasPointerEffects || Object.FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include) != null)
+            {
+                return;
+            }
+            Object selected = Selection.activeObject;
+            Selection.activeObject = null;
+            EditorApplication.ExecuteMenuItem(EventSystemMenu);
+            Selection.activeObject = selected;
+        }
+
         public static void Connect(Image image, UIAnimationPreset preset)
         {
             GameObject target = image.gameObject;
@@ -191,6 +240,13 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             return AssetDatabase.FindAssets("t:UIAnimationPreset")
                 .Select(guid => AssetDatabase.LoadAssetAtPath<UIAnimationPreset>(AssetDatabase.GUIDToAssetPath(guid)))
                 .Where(preset => preset != null)
+                .ToList();
+        }
+
+        public static List<UIAnimationPlayer> Users(UIAnimationPreset preset)
+        {
+            return Object.FindObjectsByType<UIAnimationPlayer>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .Where(player => player.Preset == preset)
                 .ToList();
         }
 
@@ -295,12 +351,9 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         // 프리셋을 함께 쓰는 Image까지 옵션에 맞는 컴포넌트를 붙이거나 뗀다.
         public static void SyncComponents(UIAnimationPreset preset)
         {
-            foreach (UIAnimationPlayer player in Object.FindObjectsByType<UIAnimationPlayer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (UIAnimationPlayer player in Users(preset))
             {
-                if (player.Preset == preset)
-                {
-                    ApplyOptions(player.gameObject, preset);
-                }
+                ApplyOptions(player.gameObject, preset);
             }
         }
 
@@ -463,6 +516,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             if (preset.HasPointerEffects)
             {
                 GetOrAdd<UIAnimationPointerEffects>(target);
+                PrepareInput(target);
             }
             else if (target.TryGetComponent(out UIAnimationPointerEffects effects) && !effects.HasTriggers)
             {
@@ -472,6 +526,33 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             if (target.TryGetComponent(out Image image))
             {
                 ApplyWipe(image, preset);
+            }
+        }
+
+        // 마우스 반응이 동작하도록 맞춘다. Button의 Transition은 같은 Image를 바꿔 반응과 겹치므로 끈다.
+        private static void PrepareInput(GameObject target)
+        {
+            if (!target.TryGetComponent(out Image image))
+            {
+                return;
+            }
+            if (!image.raycastTarget)
+            {
+                Undo.RecordObject(image, "Raycast Target 켜기");
+                image.raycastTarget = true;
+                PrefabUtility.RecordPrefabInstancePropertyModifications(image);
+            }
+            Canvas canvas = image.canvas;
+            if (canvas != null && !canvas.rootCanvas.TryGetComponent(out GraphicRaycaster _))
+            {
+                Undo.AddComponent<GraphicRaycaster>(canvas.rootCanvas.gameObject);
+            }
+            if (target.TryGetComponent(out Selectable selectable) && selectable.targetGraphic == image
+                && (selectable.transition == Selectable.Transition.ColorTint || selectable.transition == Selectable.Transition.SpriteSwap))
+            {
+                Undo.RecordObject(selectable, "Transition 끄기");
+                selectable.transition = Selectable.Transition.None;
+                PrefabUtility.RecordPrefabInstancePropertyModifications(selectable);
             }
         }
 
@@ -528,6 +609,52 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 }
             }
             return -1;
+        }
+
+        private static string ParentFolder(Image image)
+        {
+            string folder = null;
+            for (Transform parent = image.transform.parent; parent != null; parent = parent.parent)
+            {
+                string path = parent.TryGetComponent(out UIAnimationPlayer player) && player.Preset != null
+                    ? AssetDatabase.GetAssetPath(player.Preset)
+                    : string.Empty;
+                if (path.Length > 0)
+                {
+                    folder = Path.GetDirectoryName(path)?.Replace('\\', '/');
+                }
+            }
+            return folder;
+        }
+
+        // 옮겨도 GUID가 그대로라 연결은 끊기지 않는다. 다른 곳에서 함께 쓰는 파일은 그 자리에 둔다.
+        private static void GatherChildren(Image image, string folder)
+        {
+            List<UIAnimationPreset> presets = image.GetComponentsInChildren<UIAnimationPlayer>(true)
+                .Select(player => player.Preset)
+                .Where(preset => preset != null)
+                .Distinct()
+                .ToList();
+            foreach (UIAnimationPreset preset in presets)
+            {
+                string path = AssetDatabase.GetAssetPath(preset);
+                string from = Path.GetDirectoryName(path)?.Replace('\\', '/');
+                string name = Path.GetFileNameWithoutExtension(path);
+                if (from == folder || !IsNameFree(folder, name)
+                    || !Users(preset).All(player => player.transform.IsChildOf(image.transform)))
+                {
+                    continue;
+                }
+
+                foreach (string asset in AssetPaths(from, name))
+                {
+                    AssetDatabase.MoveAsset(asset, $"{folder}/{Path.GetFileName(asset)}");
+                }
+                if (!Directory.EnumerateFileSystemEntries(from).Any())
+                {
+                    AssetDatabase.DeleteAsset(from);
+                }
+            }
         }
 
         private static bool HasChildGraphics(Image image)

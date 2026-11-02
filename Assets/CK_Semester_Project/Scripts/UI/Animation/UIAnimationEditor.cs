@@ -11,15 +11,7 @@ namespace CK.SemesterProject.UIAnimation
         public const string DefaultFolder = "Assets/UI/Animation";
 
         [SerializeField] private Image _image;
-        [SerializeField] private string _assetName = string.Empty;
-        [SerializeField] private string _folder = DefaultFolder;
-        [SerializeField] private UIPointerEffectMask _mouseEvents;
-        [SerializeField] private UIAnimationStyle _startStyle;
-        [SerializeField] private UIAnimationPreset _startPreset;
 
         public Image Image => _image;
-        public string AssetName => _assetName;
-        public string Folder => _folder;
-        public UIPointerEffectMask MouseEvents => _mouseEvents;
     }
 }

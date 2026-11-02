@@ -7,6 +7,7 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -595,6 +596,28 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [Test]
+        public void Inspector_CreateConnectsDefaultPreset_SoEditPagesOpen()
+        {
+            Image panel = MakeImage("Panel");
+            Image button = MakeImage("Button");
+            button.gameObject.AddComponent<Button>();
+            System.Reflection.MethodInfo create = typeof(UIAnimationEditorInspector).GetMethod(
+                "Create", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+            create.Invoke(null, new object[] { panel, Root });
+            create.Invoke(null, new object[] { button, Root });
+
+            UIAnimationPreset preset = panel.GetComponent<UIAnimationPlayer>().Preset;
+            Assert.That(preset, Is.Not.Null);
+            Assert.That(preset.StatePresetName, Is.EqualTo("기본/팝업"));
+            Assert.That(preset.HasPointerEffects, Is.False);
+            Assert.That(button.GetComponent<UIAnimationPlayer>().Preset.HasPointerEffects, Is.True);
+            EventSystem added = Object.FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include);
+            Assert.That(added, Is.Not.Null, "버튼을 만들면 마우스 입력에 필요한 EventSystem도 있어야 한다");
+            _created.Add(added.gameObject);
+        }
+
+        [Test]
         public void Inspector_ChoosingAnotherEaseAfterPresetMarksOnlyItsPage()
         {
             Image image = MakeImage("Image");
@@ -725,12 +748,163 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [Test]
-        public void IsProjectFolder_RejectsPathsOutsideAssets()
+        public void CreateFor_KeepsPanelsWithTheSameNameApart()
         {
-            Assert.That(UIAnimationGenerator.IsProjectFolder("Assets/UI/Animation"), Is.True);
-            Assert.That(UIAnimationGenerator.IsProjectFolder("Assets"), Is.True);
-            Assert.That(UIAnimationGenerator.IsProjectFolder("Packages/UI"), Is.False);
-            Assert.That(UIAnimationGenerator.IsProjectFolder("AssetsOther/UI"), Is.False);
+            UIAnimationPreset first = UIAnimationGenerator.CreateFor(MakeImage("Panel"), Root, UIPointerEffectMask.None);
+            UIAnimationPreset second = UIAnimationGenerator.CreateFor(MakeImage("Panel"), Root, UIPointerEffectMask.None);
+
+            Assert.That(AssetDatabase.GetAssetPath(first), Is.EqualTo(Root + "/Panel/Panel.controller"));
+            Assert.That(AssetDatabase.GetAssetPath(second), Is.EqualTo(Root + "/Panel_2/Panel_2.controller"));
+        }
+
+        [Test]
+        public void CreateFor_NumbersChildrenWithTheSameNameInsideTheParentFolder()
+        {
+            Image panel = MakeImage("SkillPanel");
+            Image first = MakeImage("Image");
+            Image second = MakeImage("Image");
+            first.transform.SetParent(panel.transform);
+            second.transform.SetParent(panel.transform);
+
+            UIAnimationGenerator.CreateFor(panel, Root, UIPointerEffectMask.None);
+            UIAnimationPreset firstPreset = UIAnimationGenerator.CreateFor(first, Root, UIPointerEffectMask.None);
+            UIAnimationPreset secondPreset = UIAnimationGenerator.CreateFor(second, Root, UIPointerEffectMask.None);
+
+            Assert.That(AssetDatabase.GetAssetPath(firstPreset), Is.EqualTo(Root + "/SkillPanel/Image.controller"));
+            Assert.That(AssetDatabase.GetAssetPath(secondPreset), Is.EqualTo(Root + "/SkillPanel/Image_2.controller"));
+        }
+
+        [Test]
+        public void CreateFor_WorksWhenTheObjectHasNoUsableName()
+        {
+            UIAnimationPreset preset = UIAnimationGenerator.CreateFor(MakeImage("   "), Root, UIPointerEffectMask.None);
+
+            Assert.That(AssetDatabase.GetAssetPath(preset), Is.EqualTo(Root + "/UI/UI.controller"));
+        }
+
+        [Test]
+        public void CreateFor_GathersChildFilesMadeBeforeTheParent()
+        {
+            Image panel = MakeImage("SkillPanel");
+            Image button = MakeImage("SkillButton");
+            button.transform.SetParent(panel.transform);
+            UIAnimationPreset child = UIAnimationGenerator.CreateFor(button, Root, UIPointerEffectMask.None);
+
+            UIAnimationGenerator.CreateFor(panel, Root, UIPointerEffectMask.None);
+
+            Assert.That(AssetDatabase.GetAssetPath(child), Is.EqualTo(Root + "/SkillPanel/SkillButton.controller"));
+            Assert.That(File.Exists(Root + "/SkillPanel/SkillButton_Open.anim"));
+            Assert.That(AssetDatabase.IsValidFolder(Root + "/SkillButton"), Is.False);
+            Assert.That(button.GetComponent<Animator>().runtimeAnimatorController, Is.EqualTo(UIAnimationGenerator.ControllerOf(child)));
+        }
+
+        [Test]
+        public void CreateFor_LeavesFilesUsedOutsideThePanelInPlace()
+        {
+            Image panel = MakeImage("SkillPanel");
+            Image button = MakeImage("SkillButton");
+            button.transform.SetParent(panel.transform);
+            UIAnimationPreset shared = UIAnimationGenerator.CreateFor(MakeImage("Other"), Root, UIPointerEffectMask.None);
+            UIAnimationGenerator.Connect(button, shared);
+
+            UIAnimationGenerator.CreateFor(panel, Root, UIPointerEffectMask.None);
+
+            Assert.That(AssetDatabase.GetAssetPath(shared), Is.EqualTo(Root + "/Other/Other.controller"));
+        }
+
+        [Test]
+        public void PointerEffects_PrepareTheImageAndCanvasForInput()
+        {
+            var canvas = new GameObject("Canvas", typeof(Canvas));
+            _created.Add(canvas);
+            Image image = MakeImage("Button");
+            image.transform.SetParent(canvas.transform);
+            image.raycastTarget = false;
+            Button button = image.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.transition = Selectable.Transition.SpriteSwap;
+
+            UIAnimationGenerator.Create(image, Folder, "Button", UIPointerEffectMask.All);
+
+            Assert.That(image.raycastTarget, Is.True);
+            Assert.That(canvas.GetComponent<GraphicRaycaster>(), Is.Not.Null);
+            Assert.That(button.transition, Is.EqualTo(Selectable.Transition.None));
+        }
+
+        [Test]
+        public void NoPointerEffects_LeaveTheButtonAlone()
+        {
+            Image image = MakeImage("Button");
+            image.raycastTarget = false;
+            Button button = image.gameObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            button.transition = Selectable.Transition.ColorTint;
+
+            UIAnimationGenerator.Create(image, Folder, "Button", UIPointerEffectMask.None);
+
+            Assert.That(image.raycastTarget, Is.False);
+            Assert.That(button.transition, Is.EqualTo(Selectable.Transition.ColorTint));
+        }
+
+        [Test]
+        public void Separate_CopiesTheValues_AndStopsSharing()
+        {
+            Image first = MakeImage("First");
+            Image second = MakeImage("Second");
+            UIAnimationPreset shared = UIAnimationGenerator.Create(first, Folder, "Shared", UIPointerEffectMask.All);
+            UIAnimationGenerator.Connect(second, shared);
+            shared.ApplyStyle(UIAnimationStyle.PersonaSlash);
+            shared.ApplyPointerStyle(UIPointerStyle.Nudge);
+            shared.Get(UIAnimationState.Open).Time = 0.73f;
+
+            UIAnimationPreset own = UIAnimationGenerator.Separate(second, shared, Root);
+
+            Assert.That(AssetDatabase.GetAssetPath(own), Is.EqualTo(Root + "/Second/Second.controller"));
+            Assert.That(own.Get(UIAnimationState.Open).Time, Is.EqualTo(0.73f));
+            Assert.That(own.HasPointerEffects, Is.True);
+            Assert.That(own.StatePresetLabel, Is.EqualTo(shared.StatePresetLabel));
+            Assert.That(own.PointerPresetLabel, Is.EqualTo(shared.PointerPresetLabel));
+            Assert.That(second.GetComponent<UIAnimationPlayer>().Preset, Is.EqualTo(own));
+            Assert.That(second.GetComponent<Animator>().runtimeAnimatorController, Is.EqualTo(UIAnimationGenerator.ControllerOf(own)));
+            Assert.That(UIAnimationGenerator.Users(shared).Single().gameObject, Is.EqualTo(first.gameObject));
+
+            own.Get(UIAnimationState.Open).Time = 0.2f;
+
+            Assert.That(shared.Get(UIAnimationState.Open).Time, Is.EqualTo(0.73f));
+        }
+
+        [Test]
+        public void Repair_RestoresTheControllerAndMissingEffects()
+        {
+            Image image = MakeImage("Button");
+            UIAnimationPreset preset = UIAnimationGenerator.Create(image, Folder, "Button", UIPointerEffectMask.All);
+            image.GetComponent<Animator>().runtimeAnimatorController = null;
+            Object.DestroyImmediate(image.GetComponent<UIAnimationPointerEffects>());
+
+            UIAnimationGenerator.Repair(image, preset);
+
+            Assert.That(image.GetComponent<Animator>().runtimeAnimatorController, Is.EqualTo(UIAnimationGenerator.ControllerOf(preset)));
+            Assert.That(image.GetComponent<UIAnimationPointerEffects>(), Is.Not.Null);
+        }
+
+        [Test]
+        public void EnsureEventSystem_AddsOneForPointerEffects_AndKeepsTheSelection()
+        {
+            UIAnimationPreset panel = UIAnimationGenerator.Create(MakeImage("Panel"), Folder, "Panel", UIPointerEffectMask.None);
+            UIAnimationPreset button = UIAnimationGenerator.Create(MakeImage("Button"), Folder, "Button", UIPointerEffectMask.All);
+            GameObject selected = MakeImage("Selected").gameObject;
+            Selection.activeObject = selected;
+
+            UIAnimationGenerator.EnsureEventSystem(panel);
+
+            Assert.That(Object.FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include), Is.Null);
+
+            UIAnimationGenerator.EnsureEventSystem(button);
+
+            EventSystem added = Object.FindAnyObjectByType<EventSystem>(FindObjectsInactive.Include);
+            Assert.That(added, Is.Not.Null);
+            _created.Add(added.gameObject);
+            Assert.That(Selection.activeObject, Is.EqualTo(selected));
         }
 
         private Image MakeImage(string name)
