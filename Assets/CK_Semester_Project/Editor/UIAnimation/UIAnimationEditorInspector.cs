@@ -229,7 +229,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             bool validFolder;
             using (Group("파일"))
             {
-                EditorGUILayout.PropertyField(_assetName, new GUIContent("이름", "기본값은 Image의 스프라이트 이름입니다."));
+                EditorGUILayout.PropertyField(_assetName, new GUIContent("이름", "기본값은 Image 오브젝트 이름입니다."));
                 DrawFolderField();
                 folder = _folder.stringValue.TrimEnd('/');
                 name = UIAnimationGenerator.CleanName(_assetName.stringValue);
@@ -240,6 +240,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 }
                 else if (name.Length > 0)
                 {
+                    folder = UIAnimationGenerator.FolderFor(image, folder);
                     foreach (string path in UIAnimationGenerator.AssetPaths(folder, name))
                     {
                         EditorGUILayout.LabelField(path, EditorStyles.miniLabel);

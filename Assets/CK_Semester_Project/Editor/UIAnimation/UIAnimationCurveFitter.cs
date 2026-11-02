@@ -41,13 +41,13 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             return new AnimationCurve(keys);
         }
 
-        // 커스텀 곡선은 키 경계부터 나눈다. 짧은 점멸이나 정착점을 적응 피팅이 건너뛰지 않게 한다.
+        // 커스텀 곡선은 꺾이는 키부터 나눈다. 짧은 점멸이나 정착점을 적응 피팅이 건너뛰지 않게 하고, 나머지는 오차로 줄인다.
         public static AnimationCurve Fit(Func<float, float> value, float duration, UIEaseCurve source, bool roundTrip)
         {
             if (source == null || source.Ease != UIEase.Custom) return Fit(value, duration);
             Keyframe[] shape = ShapeKeys(source.Custom, roundTrip);
             var boundaries = new SortedSet<float> { 0f, 1f };
-            foreach (Keyframe key in shape) if (key.time > 0f && key.time < 1f) boundaries.Add(key.time);
+            foreach (Keyframe key in shape) if (key.time > 0f && key.time < 1f && IsCorner(key)) boundaries.Add(key.time);
             var seeds = new List<float>(boundaries);
             var points = new List<float> { 0f };
             for (int i = 1; i < seeds.Count; i++)
@@ -77,16 +77,19 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             var times = new SortedSet<float>();
             for (int i = 0; i <= count; i++) times.Add(i / (float)count);
             Keyframe[] shape = ShapeKeys(source.Custom, roundTrip);
-            foreach (Keyframe key in shape)
-            {
-                bool cut = float.IsInfinity(key.inTangent) || float.IsInfinity(key.outTangent);
-                bool turn = key.inTangent * key.outTangent < 0f;
-                bool edge = Mathf.Approximately(key.inTangent, 0f) != Mathf.Approximately(key.outTangent, 0f);
-                if (key.time > 0f && key.time < 1f && (cut || turn || edge)) times.Add(key.time);
-            }
+            foreach (Keyframe key in shape) if (key.time > 0f && key.time < 1f && IsCorner(key)) times.Add(key.time);
             var keys = new List<Keyframe>();
             foreach (float u in times) keys.Add(new Keyframe(u * duration, value(u), float.PositiveInfinity, float.PositiveInfinity));
             return new AnimationCurve(keys.ToArray());
+        }
+
+        // 끊긴 키, 방향이 바뀌는 키, 멈춤과 움직임의 경계만 모양을 정한다.
+        private static bool IsCorner(Keyframe key)
+        {
+            bool cut = float.IsInfinity(key.inTangent) || float.IsInfinity(key.outTangent);
+            bool turn = key.inTangent * key.outTangent < 0f;
+            bool edge = Mathf.Approximately(key.inTangent, 0f) != Mathf.Approximately(key.outTangent, 0f);
+            return cut || turn || edge;
         }
 
         private static Keyframe[] ShapeKeys(AnimationCurve curve, bool roundTrip)

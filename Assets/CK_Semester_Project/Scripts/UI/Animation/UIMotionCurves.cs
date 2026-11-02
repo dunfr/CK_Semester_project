@@ -7,7 +7,7 @@ namespace CK.SemesterProject.UIAnimation
     // 구간 경계와 정착점을 키로 남겨 베이크와 인스펙터에서 같은 모양을 쓴다.
     public static class UIMotionCurves
     {
-        private const int Samples = 48;
+        private const int Samples = 24;
 
         public static AnimationCurve Window(UIEase ease, float start, float end)
         {

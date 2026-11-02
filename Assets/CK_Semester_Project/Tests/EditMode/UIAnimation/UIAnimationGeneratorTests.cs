@@ -309,16 +309,38 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [Test]
-        public void SuggestName_PrefersSpriteName()
+        public void SuggestName_UsesObjectNameNotSprite()
         {
-            Image image = MakeImage("Image");
-            Assert.That(UIAnimationGenerator.SuggestName(image), Is.EqualTo("Image"));
+            Image image = MakeImage("SkillPanel");
+            Assert.That(UIAnimationGenerator.SuggestName(image), Is.EqualTo("SkillPanel"));
 
             image.sprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0f, 0f, 4f, 4f), Vector2.zero);
-            image.sprite.name = "OptionPanel";
+            image.sprite.name = "Turn_Panel_Default";
             _created.Add(image.sprite);
 
-            Assert.That(UIAnimationGenerator.SuggestName(image), Is.EqualTo("OptionPanel"));
+            Assert.That(UIAnimationGenerator.SuggestName(image), Is.EqualTo("SkillPanel"));
+        }
+
+        [Test]
+        public void FolderFor_UsesTargetName_AndGathersChildrenInTopAnimatedParent()
+        {
+            Image panel = MakeImage("SkillPanel");
+            Image row = MakeImage("Row");
+            Image button = MakeImage("SkillButton");
+            row.transform.SetParent(panel.transform);
+            button.transform.SetParent(row.transform);
+
+            Assert.That(UIAnimationGenerator.FolderFor(panel, Root), Is.EqualTo(Root + "/SkillPanel"));
+            Assert.That(UIAnimationGenerator.FolderFor(button, Root), Is.EqualTo(Root + "/SkillButton"));
+
+            UIAnimationGenerator.Create(panel, UIAnimationGenerator.FolderFor(panel, Root), "SkillPanel", UIPointerEffectMask.None);
+            string folder = UIAnimationGenerator.FolderFor(button, Root);
+            UIAnimationPreset child = UIAnimationGenerator.Create(button, folder, "SkillButton", UIPointerEffectMask.None);
+
+            Assert.That(folder, Is.EqualTo(Root + "/SkillPanel"));
+            Assert.That(AssetDatabase.GetAssetPath(child), Is.EqualTo(Root + "/SkillPanel/SkillButton.controller"));
+            Assert.That(File.Exists(Root + "/SkillPanel/SkillPanel_Open.anim"));
+            Assert.That(File.Exists(Root + "/SkillPanel/SkillButton_Open.anim"));
         }
 
         [Test]

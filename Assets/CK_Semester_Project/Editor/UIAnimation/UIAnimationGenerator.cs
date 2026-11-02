@@ -50,7 +50,24 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         public static string SuggestName(Image image)
         {
-            return CleanName(image.sprite != null ? image.sprite.name : image.gameObject.name);
+            return CleanName(image.gameObject.name);
+        }
+
+        // 대상 이름의 폴더에 모은다. 부모에 애니메이션이 있으면 가장 위 부모의 폴더에 함께 넣는다.
+        public static string FolderFor(Image image, string root)
+        {
+            string folder = $"{root}/{SuggestName(image)}";
+            for (Transform parent = image.transform.parent; parent != null; parent = parent.parent)
+            {
+                string path = parent.TryGetComponent(out UIAnimationPlayer player) && player.Preset != null
+                    ? AssetDatabase.GetAssetPath(player.Preset)
+                    : string.Empty;
+                if (path.Length > 0)
+                {
+                    folder = Path.GetDirectoryName(path)?.Replace('\\', '/');
+                }
+            }
+            return folder;
         }
 
         // 버튼처럼 조작하는 Image만 마우스 반응이 기본으로 켜진다.
