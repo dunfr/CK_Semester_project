@@ -31,6 +31,7 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private FloorTravelButtons _floorTravel;
         [SerializeField] private GameObject _playerTurn;
         [SerializeField] private TMP_Text _fieldName;
+        // 위치 문구는 LevelProgress가 맡는다. 기존 에디터 도구 호환용으로만 남긴다.
         [SerializeField] private TMP_Text _fieldLocation;
         [SerializeField] private TMP_Text _floorBanner;
         [SerializeField] private TMP_Text _fieldMemory;
@@ -445,7 +446,6 @@ namespace CK.SemesterProject.Tutorial
             _fieldName.text = _battle.PlayerData == null ? state.CharacterId : _battle.PlayerData.DisplayName;
             _fieldMemory.text = "HP " + state.Hp + "/" + state.MaxHp + "   메모리 " + state.Memory + "/" + state.MaxMemory;
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
-            _fieldLocation.text = floor + "층 · 더미 맵";
             _floorBanner.text = "0" + floor + "F";
         }
 

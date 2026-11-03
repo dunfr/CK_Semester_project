@@ -16,6 +16,16 @@ namespace CK.SemesterProject.LevelDesign
         private float _messageSeconds = 3f;
         [SerializeField, Tooltip("진입 시 바꿀 현재 목표. 비우면 유지합니다.")]
         private string _objective;
+        [SerializeField, Tooltip("진입 시 한글 위치. 비우면 유지합니다.")]
+        private string _areaName;
+        [SerializeField, Tooltip("진입 시 영문 위치. 비우면 유지합니다.")]
+        private string _areaNameEnglish;
+        [SerializeField, Tooltip("진입 시 스토리 번호. 비우면 유지합니다.")]
+        private string _storyNumber;
+        [SerializeField, Tooltip("진입 시 한글 스토리 제목. 비우면 유지합니다.")]
+        private string _storyTitle;
+        [SerializeField, Tooltip("진입 시 영문 스토리 제목. 비우면 유지합니다.")]
+        private string _storyTitleEnglish;
         [SerializeField, Tooltip("전투 패배 시 이 위치(진입 시점의 플레이어 위치)에서 다시 시작합니다.")]
         private bool _isCheckpoint;
         [SerializeField] private UnityEvent _entered;
@@ -40,6 +50,15 @@ namespace CK.SemesterProject.LevelDesign
             }
             _hasFired = true;
             _progress.ShowMessage(_message, _messageSeconds);
+            if (!string.IsNullOrEmpty(_areaName) || !string.IsNullOrEmpty(_areaNameEnglish))
+            {
+                _progress.SetArea(_areaName, _areaNameEnglish);
+            }
+            if (!string.IsNullOrEmpty(_storyNumber) || !string.IsNullOrEmpty(_storyTitle)
+                || !string.IsNullOrEmpty(_storyTitleEnglish))
+            {
+                _progress.SetStory(_storyNumber, _storyTitle, _storyTitleEnglish);
+            }
             if (!string.IsNullOrEmpty(_objective))
             {
                 _progress.SetObjective(_objective);

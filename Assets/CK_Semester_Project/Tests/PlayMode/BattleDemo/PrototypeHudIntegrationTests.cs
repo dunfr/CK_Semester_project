@@ -71,7 +71,13 @@ namespace CK.SemesterProject.Battle.Tests
             yield return null;
             Assert.That(Vector3.ProjectOnPlane(movement.transform.position - destination, Vector3.up).magnitude,
                 Is.LessThan(.01f));
-            Assert.That(Text("Runtime Location"), Does.Contain("더미 맵"));
+            Component progress = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+                .Single(item => item.GetType().Name == "LevelProgress");
+            Assert.That(Text("Runtime Location"), Is.Not.Null.And.Not.Empty);
+            Assert.That(Text("Runtime Location"), Is.EqualTo(progress.GetType().GetProperty("AreaName").GetValue(progress)));
+            Assert.That(Text("Runtime Location EN"), Is.Not.Null.And.Not.Empty);
+            Assert.That(Text("Runtime Location EN"), Is.EqualTo(progress.GetType().GetProperty("AreaNameEnglish").GetValue(progress)));
+            Assert.That(Text("Story Objective"), Is.EqualTo(progress.GetType().GetProperty("Objective").GetValue(progress)));
             Assert.That(GameObject.Find("Tutorial Level Content"), Is.Null);
         }
 

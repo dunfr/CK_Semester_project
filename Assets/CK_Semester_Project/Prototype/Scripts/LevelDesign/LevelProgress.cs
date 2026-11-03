@@ -32,6 +32,30 @@ namespace CK.SemesterProject.LevelDesign
         private GameObject _objectivePanel;
         [SerializeField] private TMP_Text _objectiveText;
 
+        [Header("Field HUD")]
+        [SerializeField, Tooltip("한글 위치 문구. 비워도 동작합니다.")]
+        private TMP_Text _areaNameText;
+        [SerializeField, Tooltip("영문 위치 문구. 비워도 동작합니다.")]
+        private TMP_Text _areaNameEnglishText;
+        [SerializeField, Tooltip("스토리 번호. 비워도 동작합니다.")]
+        private TMP_Text _storyNumberText;
+        [SerializeField, Tooltip("한글 스토리 제목. 비워도 동작합니다.")]
+        private TMP_Text _storyTitleText;
+        [SerializeField, Tooltip("영문 스토리 제목. 비워도 동작합니다.")]
+        private TMP_Text _storyTitleEnglishText;
+        [SerializeField, Tooltip("스토리 패널의 현재 목표. 비워도 동작합니다.")]
+        private TMP_Text _storyObjectiveText;
+        [SerializeField, Tooltip("시작 시 한글 위치. 비우면 유지합니다.")]
+        private string _startAreaName;
+        [SerializeField, Tooltip("시작 시 영문 위치. 입력한 대소문자를 유지합니다.")]
+        private string _startAreaNameEnglish;
+        [SerializeField, Tooltip("시작 시 스토리 번호. 비우면 유지합니다.")]
+        private string _startStoryNumber = "#01";
+        [SerializeField, Tooltip("시작 시 한글 스토리 제목. 비우면 유지합니다.")]
+        private string _startStoryTitle;
+        [SerializeField, Tooltip("시작 시 영문 스토리 제목. 입력한 대소문자를 유지합니다.")]
+        private string _startStoryTitleEnglish;
+
         private const string InteractKeyLabel = "F";
 
         private readonly List<LevelInteractable> _candidates = new List<LevelInteractable>();
@@ -39,7 +63,13 @@ namespace CK.SemesterProject.LevelDesign
         private float _feedbackUntil;
         private Coroutine _focusRoutine;
         private bool _isReady;
+        private string _storyNumber = string.Empty;
+        private string _storyTitleEnglish = string.Empty;
 
+        public string AreaName { get; private set; } = string.Empty;
+        public string AreaNameEnglish { get; private set; } = string.Empty;
+        public string StoryTitle { get; private set; } = string.Empty;
+        public string Objective { get; private set; } = string.Empty;
         public bool HasCardKey { get; private set; }
         public bool IsControlLocked => _lockOwners.Count > 0;
         public bool IsInBattle => _battle != null && _battle.IsInBattle;
@@ -48,6 +78,8 @@ namespace CK.SemesterProject.LevelDesign
 
         private void Awake()
         {
+            SetArea(_startAreaName, _startAreaNameEnglish);
+            SetStory(_startStoryNumber, _startStoryTitle, _startStoryTitleEnglish);
             if (_movement == null || _battle == null || _focusCamera == null || _feedbackPanel == null || _feedbackText == null
                 || _hintPanel == null || _hintText == null)
             {
@@ -118,14 +150,66 @@ namespace CK.SemesterProject.LevelDesign
             _feedbackUntil = Time.unscaledTime + Mathf.Max(0.1f, seconds);
         }
 
+        public void SetArea(string name, string englishName)
+        {
+            if (!string.IsNullOrEmpty(name))
+            {
+                AreaName = name;
+            }
+            if (!string.IsNullOrEmpty(englishName))
+            {
+                AreaNameEnglish = englishName;
+            }
+            if (_areaNameText != null)
+            {
+                _areaNameText.text = AreaName;
+            }
+            if (_areaNameEnglishText != null)
+            {
+                _areaNameEnglishText.text = AreaNameEnglish;
+            }
+        }
+
+        public void SetStory(string number, string title, string englishTitle)
+        {
+            if (!string.IsNullOrEmpty(number))
+            {
+                _storyNumber = number;
+            }
+            if (!string.IsNullOrEmpty(title))
+            {
+                StoryTitle = title;
+            }
+            if (!string.IsNullOrEmpty(englishTitle))
+            {
+                _storyTitleEnglish = englishTitle;
+            }
+            if (_storyNumberText != null)
+            {
+                _storyNumberText.text = _storyNumber;
+            }
+            if (_storyTitleText != null)
+            {
+                _storyTitleText.text = StoryTitle;
+            }
+            if (_storyTitleEnglishText != null)
+            {
+                _storyTitleEnglishText.text = _storyTitleEnglish;
+            }
+        }
+
         public void SetObjective(string objective)
         {
-            if (_objectivePanel == null || _objectiveText == null)
+            Objective = objective ?? string.Empty;
+            if (_storyObjectiveText != null)
             {
-                return;
+                _storyObjectiveText.text = Objective;
             }
-            _objectiveText.text = objective;
-            _objectivePanel.SetActive(!string.IsNullOrEmpty(objective));
+            if (_objectivePanel != null && _objectiveText != null)
+            {
+                _objectiveText.text = Objective;
+                _objectivePanel.SetActive(!string.IsNullOrEmpty(Objective));
+            }
         }
 
         /// <summary>viewPoint 위치에서 lookTarget을 seconds 동안 비춘 뒤 플레이어 카메라로 돌아간다.</summary>
