@@ -52,6 +52,15 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private TMP_Text _skillType;
         [SerializeField] private TMP_Text _skillDescription;
         [SerializeField] private GameObject _skillDetailsPanel;
+        [SerializeField] private GameObject _commandPanel;
+        [SerializeField] private GameObject _skillPanel;
+        [SerializeField] private GameObject _backHint;
+        [SerializeField] private TMP_Text _skillNavigationHint;
+        [SerializeField] private Button[] _commands = Array.Empty<Button>();
+        [SerializeField] private Image[] _commandImages = Array.Empty<Image>();
+        [SerializeField] private TMP_Text[] _commandLabels = Array.Empty<TMP_Text>();
+        [SerializeField] private Sprite _normalCommand;
+        [SerializeField] private Sprite _selectedCommandSprite;
         [SerializeField] private TMP_Text _skillPower;
         [SerializeField] private TMP_Text _skillAccuracy;
         [SerializeField] private TMP_Text _skillElement;
@@ -86,7 +95,12 @@ namespace CK.SemesterProject.Tutorial
 
         private UnityAction[] _selectActions;
         private UnityAction[] _targetActions;
+        private UnityAction[] _commandActions;
+        private int _selectedCommand;
+        private bool _isCommandPhase = true;
+        private int _skillPhaseEnteredFrame = -1;
         private BattleSnapshot _previousSnapshot;
+        private CombatantData _previousPlayerData;
         private int _selectedSkill;
         private bool _hasSkillSelection;
         private int _previousStage = -1;
@@ -100,6 +114,14 @@ namespace CK.SemesterProject.Tutorial
 
         public int SelectedSkill => _selectedSkill;
         public bool HasSkillSelection => _hasSkillSelection;
+        public bool IsCommandPhase => HasCommandMenu && _isCommandPhase;
+
+        // 연결하지 않은 기존 씬은 스킬 메뉴를 그대로 사용한다.
+        private bool HasCommandMenu => _commandPanel != null && _skillPanel != null && _backHint != null
+            && _skillNavigationHint != null && _normalCommand != null && _selectedCommandSprite != null
+            && _commands != null && _commands.Length == 4 && _commands.All(button => button != null)
+            && _commandImages != null && _commandImages.Length == 4 && _commandImages.All(image => image != null)
+            && _commandLabels != null && _commandLabels.Length == 4 && _commandLabels.All(label => label != null);
 
         private void Awake()
         {
@@ -120,6 +142,16 @@ namespace CK.SemesterProject.Tutorial
                 int targetIndex = index;
                 _targetActions[index] = () => _battle.SelectTarget(targetIndex);
                 _targets[index].onClick.AddListener(_targetActions[index]);
+            }
+            _commandActions = new UnityAction[_commands == null ? 0 : _commands.Length];
+            for (int index = 0; index < _commandActions.Length; index++)
+            {
+                int commandIndex = index;
+                _commandActions[index] = () => ExecuteCommand(commandIndex);
+                if (_commands[index] != null)
+                {
+                    _commands[index].onClick.AddListener(_commandActions[index]);
+                }
             }
             _bannerStartedAt = Time.unscaledTime;
             _areaBanner.alpha = 1f;
@@ -155,6 +187,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void Update()
         {
+            RefreshBattleIfChanged();
             Keyboard keyboard = Keyboard.current;
             if (!_battle.HasSelectedBattleTarget || !_battle.CanChooseAction || !Application.isFocused || keyboard == null)
             {
@@ -172,6 +205,29 @@ namespace CK.SemesterProject.Tutorial
                 {
                     events.SetSelectedGameObject(null);
                 }
+            }
+            if (IsCommandPhase)
+            {
+                if (up != down)
+                {
+                    _selectedCommand = (_selectedCommand + (up ? -1 : 1) + _commands.Length) % _commands.Length;
+                    RefreshBattle();
+                }
+                if (confirm)
+                {
+                    ExecuteCommand(_selectedCommand);
+                }
+                return;
+            }
+            // 마우스로 커맨드를 연 프레임도 스킬 입력을 넘겨받지 않는다.
+            if (_skillPhaseEnteredFrame == Time.frameCount)
+            {
+                return;
+            }
+            if (HasCommandMenu && (keyboard.backspaceKey.wasPressedThisFrame || keyboard.escapeKey.wasPressedThisFrame))
+            {
+                ReturnToCommands();
+                return;
             }
             if (up != down)
             {
@@ -212,12 +268,22 @@ namespace CK.SemesterProject.Tutorial
                 _previousFloor = floor;
                 RefreshField();
             }
+            RefreshBattleIfChanged();
+        }
+
+        private void RefreshBattleIfChanged()
+        {
             BattleSnapshot state = _battle.Snapshot;
             if (state == null)
             {
                 _previousSnapshot = null;
+                _previousPlayerData = null;
                 _hasSkillSelection = false;
                 _selectedSkill = 0;
+                _isCommandPhase = true;
+                _selectedCommand = 0;
+                _couldChoose = false;
+                _previousTargetSelected = false;
                 _skillDetailsPanel.SetActive(false);
                 return;
             }
@@ -243,6 +309,13 @@ namespace CK.SemesterProject.Tutorial
             for (int index = 0; index < _targets.Length; index++)
             {
                 _targets[index].onClick.RemoveListener(_targetActions[index]);
+            }
+            for (int index = 0; index < _commandActions.Length; index++)
+            {
+                if (_commands[index] != null)
+                {
+                    _commands[index].onClick.RemoveListener(_commandActions[index]);
+                }
             }
             _sprint.onClick.RemoveListener(_movement.ToggleSprint);
             _fieldAttack.onClick.RemoveListener(InitiateFieldBattle);
@@ -272,9 +345,9 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            _selectedSkill = index;
-            _hasSkillSelection = true;
             RefreshBattle();
+            _selectedSkill = index;
+            EnterSkillPhase(true);
         }
 
         public void MoveSkillSelection(int direction)
@@ -291,8 +364,74 @@ namespace CK.SemesterProject.Tutorial
         {
             if (_battle.HasSelectedBattleTarget && _battle.CanChooseAction)
             {
+                RefreshBattle();
+                if (IsCommandPhase)
+                {
+                    EnterSkillPhase(_hasSkillSelection);
+                }
                 _battle.UseSkill(_selectedSkill);
             }
+        }
+
+        public void ExecuteCommand(int index)
+        {
+            RefreshBattle();
+            if (!IsCommandPhase || !_battle.HasSelectedBattleTarget || !_battle.CanChooseAction
+                || index < 0 || index >= _commands.Length || !_commands[index].interactable)
+            {
+                return;
+            }
+            _selectedCommand = index;
+            switch (index)
+            {
+                case 0:
+                    EnterSkillPhase(false);
+                    break;
+                case 1:
+                    _battle.Defend();
+                    break;
+                case 2:
+                    CombatantState[] enemies = _battle.Snapshot.Combatants
+                        .Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
+                    int current = Array.FindIndex(enemies, unit => unit.InstanceId == _battle.TargetId);
+                    for (int offset = 1; offset <= enemies.Length; offset++)
+                    {
+                        int next = (current + offset) % enemies.Length;
+                        if (!enemies[next].IsDead)
+                        {
+                            _battle.SelectTarget(next);
+                            break;
+                        }
+                    }
+                    break;
+                case 3:
+                    EnterSkillPhase(true);
+                    break;
+            }
+            RefreshBattle();
+        }
+
+        public void ReturnToCommands()
+        {
+            RefreshBattle();
+            if (!HasCommandMenu)
+            {
+                return;
+            }
+            _isCommandPhase = true;
+            _hasSkillSelection = false;
+            RefreshBattle();
+        }
+
+        private void EnterSkillPhase(bool showDetails)
+        {
+            if (IsCommandPhase)
+            {
+                _skillPhaseEnteredFrame = Time.frameCount;
+            }
+            _isCommandPhase = false;
+            _hasSkillSelection = showDetails;
+            RefreshBattle();
         }
 
         private void RefreshField()
@@ -317,7 +456,17 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
+            // 전투 시작 때 재생성되는 데이터로 같은 프레임의 재시작도 구분한다.
+            if (HasCommandMenu && (!_battle.CanChooseAction || !_battle.HasSelectedBattleTarget || !_couldChoose
+                || !_previousTargetSelected || _previousSnapshot == null || state.TurnId != _previousSnapshot.TurnId
+                || !ReferenceEquals(_previousPlayerData, _battle.PlayerData)))
+            {
+                _isCommandPhase = true;
+                _selectedCommand = 0;
+                _hasSkillSelection = false;
+            }
             _previousSnapshot = state;
+            _previousPlayerData = _battle.PlayerData;
             _previousStage = _battle.InvestmentStage;
             _previousTarget = _battle.TargetId;
             _previousTargetSelected = _battle.HasSelectedBattleTarget;
@@ -326,7 +475,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 _hasSkillSelection = false;
             }
-            _skillDetailsPanel.SetActive(_hasSkillSelection && _couldChoose && _battle.HasSelectedBattleTarget);
+            _skillDetailsPanel.SetActive(!IsCommandPhase && _hasSkillSelection && _couldChoose && _battle.HasSelectedBattleTarget);
             CombatantState player = state.Combatants.First(unit => unit.InstanceId == "player");
             CombatantState[] enemies = state.Combatants.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
             CombatantState target = enemies.FirstOrDefault(unit => unit.InstanceId == _battle.TargetId) ?? enemies[0];
@@ -370,6 +519,7 @@ namespace CK.SemesterProject.Tutorial
             _execute.interactable = _couldChoose && _hasSkillSelection && selected.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
             _defend.interactable = _couldChoose && _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
             _investment.interactable = _couldChoose;
+            RefreshCommandMenu();
             RefreshSkillDetails(selected);
             for (int index = 0; index < _targets.Length; index++)
             {
@@ -396,6 +546,35 @@ namespace CK.SemesterProject.Tutorial
                     SetBar(_turnSlots[index].Hp, unit.Hp, unit.Data.MaxHp);
                     _turnSlots[index].Highlight.SetActive(unit.InstanceId == state.CurrentActorId);
                 }
+            }
+        }
+
+        private void RefreshCommandMenu()
+        {
+            bool hasMenu = HasCommandMenu;
+            if (_commandPanel != null)
+            {
+                _commandPanel.SetActive(IsCommandPhase);
+            }
+            if (_skillPanel != null)
+            {
+                _skillPanel.SetActive(!IsCommandPhase);
+            }
+            _defend.gameObject.SetActive(!hasMenu);
+            if (!hasMenu)
+            {
+                return;
+            }
+            _backHint.SetActive(!IsCommandPhase);
+            _skillNavigationHint.text = IsCommandPhase
+                ? "↑ ↓ 커맨드 선택   ·   Enter 결정"
+                : "↑ ↓ 스킬 선택   ·   Enter 사용   ·   F 투자   ·   Backspace 뒤로";
+            for (int index = 0; index < _commands.Length; index++)
+            {
+                _commands[index].interactable = _couldChoose && _battle.HasSelectedBattleTarget
+                    && (index != 1 || _defend.interactable);
+                _commandImages[index].sprite = index == _selectedCommand ? _selectedCommandSprite : _normalCommand;
+                _commandLabels[index].color = index == _selectedCommand ? new Color(.04f, .12f, .2f) : Color.white;
             }
         }
 

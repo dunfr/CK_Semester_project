@@ -132,6 +132,7 @@ namespace CK.SemesterProject.Battle.Tests
             BattleSnapshot before = Snapshot();
             MethodInfo move = _hud.GetType().GetMethod("MoveSkillSelection");
             move.Invoke(_hud, new object[] { 1 });
+            Assert.That(_hud.GetType().GetProperty("IsCommandPhase").GetValue(_hud), Is.False);
             Assert.That(_hud.GetType().GetProperty("SelectedSkill").GetValue(_hud), Is.EqualTo(1));
             Assert.That(details.gameObject.activeSelf, Is.True);
             Assert.That(Text("SkillNameText"), Is.EqualTo("테스트_각인"));
@@ -148,6 +149,7 @@ namespace CK.SemesterProject.Battle.Tests
             _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
             yield return null;
             Assert.That(details.gameObject.activeSelf, Is.False, "다음 전투에는 설명을 닫아야 합니다.");
+            Assert.That(_hud.GetType().GetProperty("IsCommandPhase").GetValue(_hud), Is.True);
         }
 
         [UnityTest, Category("BattleSkillMenu")]
@@ -175,6 +177,7 @@ namespace CK.SemesterProject.Battle.Tests
             yield return null;
             Assert.That((bool)_battle.GetType().GetProperty("CanChooseAction").GetValue(_battle), Is.True);
             BattleSnapshot before = Snapshot();
+            Click("Command_SkillSelect");
             Click("SkillButton_QuickSlash");
             Assert.That(Snapshot().TurnId, Is.EqualTo(before.TurnId), "선택만으로 행동하면 안 됩니다.");
             Assert.That(_hud.GetType().GetProperty("SelectedSkill").GetValue(_hud), Is.EqualTo(1));
@@ -206,16 +209,21 @@ namespace CK.SemesterProject.Battle.Tests
             yield return new WaitForSeconds(1.1f);
             _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
             yield return null;
+            _hud.GetType().GetMethod("ExecuteCommand").Invoke(_hud, new object[] { 0 });
             Click("SkillButton_NormalAttack");
             _battle.GetType().GetMethod("SetInvestmentStage").Invoke(_battle, new object[] { 5 });
             yield return null;
             Component execute = GameObject.Find("Use Selected Skill").GetComponent("Button");
-            Component defend = GameObject.Find("HUD Defend").GetComponent("Button");
             Assert.That(execute.GetType().GetProperty("interactable").GetValue(execute), Is.False);
-            Assert.That(defend.GetType().GetProperty("interactable").GetValue(defend), Is.False);
             Transform investment = GameObject.Find("MemoryThrowPanel").transform;
             Assert.That(investment.Find("MemorySlot_05/Lock").gameObject.activeSelf, Is.True);
             Assert.That(Text("Runtime Investment"), Does.Contain("비용 100"));
+            _hud.GetType().GetMethod("ReturnToCommands").Invoke(_hud, null);
+            Component defend = GameObject.Find("Command_Defend").GetComponent("Button");
+            Assert.That(defend.GetType().GetProperty("interactable").GetValue(defend), Is.False);
+            BattleSnapshot before = Snapshot();
+            _hud.GetType().GetMethod("ExecuteCommand").Invoke(_hud, new object[] { 1 });
+            Assert.That(Snapshot(), Is.SameAs(before), "투자 비용이 부족하면 방어 커맨드도 실행하지 않습니다.");
         }
 
         [UnityTest]
@@ -294,6 +302,14 @@ namespace CK.SemesterProject.Battle.Tests
                 .Invoke(_battle, new object[] { (Vector2)point }), Is.True);
             yield return null;
             Assert.That(commands.gameObject.activeSelf, Is.True);
+            Assert.That(commands.Find("CommandSelect").gameObject.activeSelf, Is.True);
+            Assert.That(_hud.GetType().GetProperty("IsCommandPhase").GetValue(_hud), Is.True);
+            GameObject skills = (GameObject)_hud.GetType().GetField("_skillPanel", PrivateInstance).GetValue(_hud);
+            Assert.That(skills.activeSelf, Is.False);
+            Assert.That(GameObject.Find("MemoryThrowPanel"), Is.Null);
+            _hud.GetType().GetMethod("ExecuteCommand").Invoke(_hud, new object[] { 0 });
+            Assert.That(commands.Find("CommandSelect").gameObject.activeSelf, Is.False);
+            Assert.That(_hud.GetType().GetProperty("HasSkillSelection").GetValue(_hud), Is.False);
             Assert.That(GameObject.Find("SkillPanel"), Is.Not.Null);
             Assert.That(GameObject.Find("MemoryThrowPanel"), Is.Not.Null);
             Assert.That(GameObject.Find("EnemyCard"), Is.Not.Null);
@@ -302,6 +318,37 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(BeginBattle(false, false), Is.True);
             yield return new WaitForSeconds(1.1f);
             Assert.That(commands.gameObject.activeSelf, Is.False, "새 전투에서 타깃 선택 상태가 초기화되어야 합니다.");
+        }
+
+        [UnityTest, Category("BattleSkillMenu")]
+        public IEnumerator SkillViewReturnsToCommandsAndDefendAdvancesTurn()
+        {
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            Assert.That(_hud.GetType().GetProperty("IsCommandPhase").GetValue(_hud), Is.True);
+            GameObject details = (GameObject)_hud.GetType().GetField("_skillDetailsPanel", PrivateInstance).GetValue(_hud);
+            GameObject back = (GameObject)_hud.GetType().GetField("_backHint", PrivateInstance).GetValue(_hud);
+            Assert.That(details.activeSelf, Is.False);
+            Assert.That(back.activeSelf, Is.False);
+            BattleSnapshot before = Snapshot();
+            _hud.GetType().GetMethod("ExecuteCommand").Invoke(_hud, new object[] { 3 });
+            Assert.That(_hud.GetType().GetProperty("IsCommandPhase").GetValue(_hud), Is.False);
+            Assert.That(_hud.GetType().GetProperty("HasSkillSelection").GetValue(_hud), Is.True);
+            Assert.That(details.activeInHierarchy, Is.True);
+            Assert.That(back.activeInHierarchy, Is.True);
+            _hud.GetType().GetMethod("ReturnToCommands").Invoke(_hud, null);
+            Assert.That(_hud.GetType().GetProperty("IsCommandPhase").GetValue(_hud), Is.True);
+            Assert.That(_hud.GetType().GetProperty("HasSkillSelection").GetValue(_hud), Is.False);
+            Assert.That(GameObject.Find("CommandSelect"), Is.Not.Null);
+            Assert.That(details.activeSelf, Is.False);
+            Assert.That(back.activeSelf, Is.False);
+            Assert.That(Snapshot(), Is.SameAs(before), "메뉴 전환만으로 턴을 진행하지 않습니다.");
+            _hud.GetType().GetMethod("ExecuteCommand").Invoke(_hud, new object[] { 1 });
+            BattleSnapshot after = Snapshot();
+            Assert.That(after.TurnId != before.TurnId || after.Phase != before.Phase, Is.True,
+                "방어 커맨드는 전투 코어의 턴을 진행해야 합니다.");
         }
 
         private bool BeginBattle(bool useFieldUi = false, bool selectTarget = true)
