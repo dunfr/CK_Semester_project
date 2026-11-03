@@ -41896,13 +41896,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialBattleController
   _actionSeconds: 1.2
   _battleSpacing: 4
-  _battleCameraOffset: {x: 2.2, y: 1.3, z: -2.3}
+  _battleCameraOffset: {x: 2.35, y: 1.45, z: -2}
   _cameraSettingsMigrated: 1
-  _battleCameraOffsetXY: {x: 2.2, y: 1.3}
-  _battleCameraDistance: 2.3
+  _battleCameraOffsetXY: {x: 2.35, y: 1.45}
+  _battleCameraDistance: 2
   _debugBattleCamera: 0
   _debugCameraTarget: {fileID: 0}
-  _battleFieldOfView: 56
+  _battleFieldOfView: 45
   _cameraEntrySeconds: 0.85
   _cameraDrift: 0.18
   _cameraActionTravel: 0.45
