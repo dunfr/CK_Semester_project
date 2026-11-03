@@ -25,6 +25,7 @@ namespace CK.SemesterProject.Tutorial
 
         // 모션 길이(초). 전투 연출은 이 시간만큼 기다린다.
         public float Length { get; private set; }
+        public float Elapsed => _elapsed;
 
         public override void Enter(PlayerBattleAnimation owner)
         {

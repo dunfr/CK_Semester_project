@@ -53,6 +53,51 @@ namespace CK.SemesterProject.Tutorial
 
         public bool IsInBattle => _currentState != null;
         public string CurrentStateName => _currentState?.Name ?? "Field";
+        public int SkillMotionCount => _skillMotions.Length;
+        public float ActionElapsed => _currentState is PlayerBattleActionState action ? action.Elapsed : 0f;
+        public float ActionLength => _currentState is PlayerBattleActionState action ? action.Length : 0f;
+
+        public bool TryGetSkillMotion(int index, out string skillId, out string animatorState)
+        {
+            skillId = animatorState = string.Empty;
+            if (index < 0 || index >= _skillMotions.Length)
+            {
+                return false;
+            }
+            skillId = _skillMotions[index].SkillId;
+            animatorState = _skillMotions[index].AnimatorState;
+            return true;
+        }
+
+        // Animation 창은 FSM을 재생하지 않으므로, 표에서 노드를 읽어 같은 시선 계산을 쓴다.
+        public bool TryGetSkillCinematicCamera(string skillId, out Transform cameraNode,
+            out Transform targetNode, out float horizontalFieldOfView)
+        {
+            foreach (SkillMotion motion in _skillMotions)
+            {
+                if (motion.SkillId == skillId)
+                {
+                    cameraNode = motion.CinematicCamera;
+                    targetNode = motion.CinematicCameraTarget;
+                    horizontalFieldOfView = motion.CinematicFieldOfView;
+                    return cameraNode != null;
+                }
+            }
+            cameraNode = targetNode = null;
+            horizontalFieldOfView = 0f;
+            return false;
+        }
+
+        public static Pose GetCinematicCameraPose(Transform node, Transform target)
+        {
+            Quaternion view = node.rotation * Quaternion.AngleAxis(180f, Vector3.up);
+            Vector3 toTarget = target != null ? target.position - node.position : Vector3.zero;
+            if (toTarget.sqrMagnitude > 1e-6f)
+            {
+                view = Quaternion.LookRotation(toTarget, node.up);
+            }
+            return new Pose(node.position, view);
+        }
 
         internal PlayerBattleState IdleState => _idleState ??= new PlayerBattleIdleState(_battleIdleState);
 
@@ -101,16 +146,7 @@ namespace CK.SemesterProject.Tutorial
         {
             if (_currentState is PlayerBattleActionState action && action.CinematicCamera != null)
             {
-                Transform node = action.CinematicCamera;
-                Quaternion view = node.rotation * Quaternion.AngleAxis(180f, Vector3.up);
-                Vector3 toTarget = action.CinematicCameraTarget != null
-                    ? action.CinematicCameraTarget.position - node.position
-                    : Vector3.zero;
-                if (toTarget.sqrMagnitude > 1e-6f)
-                {
-                    view = Quaternion.LookRotation(toTarget, node.up);
-                }
-                pose = new Pose(node.position, view);
+                pose = GetCinematicCameraPose(action.CinematicCamera, action.CinematicCameraTarget);
                 horizontalFieldOfView = action.CinematicFieldOfView;
                 return true;
             }
