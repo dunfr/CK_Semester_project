@@ -349,6 +349,18 @@ MonoBehaviour:
   _closeFinished:
     m_PersistentCalls:
       m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
+    m_PersistentCalls:
+      m_Calls: []
   _animatedOffset: {x: 0, y: 0}
   _animatedRotation: 0
 --- !u!95 &19596217
@@ -1531,6 +1543,18 @@ MonoBehaviour:
   _closeFinished:
     m_PersistentCalls:
       m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
+    m_PersistentCalls:
+      m_Calls: []
   _animatedOffset: {x: 0, y: 0}
   _animatedRotation: 0
 --- !u!114 &157041828
@@ -1809,7 +1833,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -2692,7 +2716,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -2811,6 +2835,18 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   _closeFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
     m_PersistentCalls:
       m_Calls: []
   _animatedOffset: {x: 0, y: 0}
@@ -3442,7 +3478,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -3579,7 +3615,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -4924,7 +4960,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -6793,6 +6829,18 @@ MonoBehaviour:
   _closeFinished:
     m_PersistentCalls:
       m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
+    m_PersistentCalls:
+      m_Calls: []
   _animatedOffset: {x: 0, y: 0}
   _animatedRotation: 0
 --- !u!95 &983284103
@@ -8074,11 +8122,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: CK.UI.Animation::CK.SemesterProject.UIAnimation.UIAnimationEditor
   _image: {fileID: 1804216322}
-  _assetName: SkillPanel
-  _folder: Assets/UI/Animation
-  _mouseEvents: 0
-  _startStyle: 0
-  _startPreset: {fileID: 0}
 --- !u!4 &1141660510
 Transform:
   m_ObjectHideFlags: 0
@@ -8197,7 +8240,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -8409,7 +8452,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -8522,6 +8565,18 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   _closeFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
     m_PersistentCalls:
       m_Calls: []
   _animatedOffset: {x: 0, y: 0}
@@ -8792,6 +8847,18 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   _closeFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
     m_PersistentCalls:
       m_Calls: []
   _animatedOffset: {x: 0, y: 0}
@@ -9304,6 +9371,18 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   _closeFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
     m_PersistentCalls:
       m_Calls: []
   _animatedOffset: {x: 0, y: 0}
@@ -12237,7 +12316,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -12374,7 +12453,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -13471,6 +13550,7 @@ GameObject:
   - component: {fileID: 1804216325}
   - component: {fileID: 1804216324}
   - component: {fileID: 1804216323}
+  - component: {fileID: 1804216328}
   m_Layer: 0
   m_Name: SkillPanel
   m_TagString: Untagged
@@ -13532,7 +13612,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 012d25c135012114aaf65e1afb3b2cc0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: CK.UI.Animation::CK.SemesterProject.UIAnimation.UIAnimationPlayer
-  _preset: {fileID: -583320827591155983, guid: fc33496abce1664489b1cea2238a5336, type: 2}
+  _preset: {fileID: 7879927780212550250, guid: fc33496abce1664489b1cea2238a5336, type: 2}
   _openDelay: 0
   _closeDelay: 0.275
   _followers:
@@ -13549,6 +13629,18 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   _closeFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
     m_PersistentCalls:
       m_Calls: []
   _animatedOffset: {x: 0, y: 0}
@@ -13609,6 +13701,27 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 420, y: 460}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1804216328
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1804216321}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed8a7cf729a24798b9efd8e64ef0b682, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: CK.UI.Animation::CK.SemesterProject.UIAnimation.UIAnimationFx
+  _skew: 0
+  _wipe: 1
+  _slice: 0
+  _split: 0
+  _scan: 0
+  _dissolve: 0
+  _sheen: 0
+  _flash: 0
+  _seed: 0
 --- !u!1 &1810376283
 GameObject:
   m_ObjectHideFlags: 0
@@ -14005,6 +14118,18 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   _closeFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _hideFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  _showStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  _showFinished:
     m_PersistentCalls:
       m_Calls: []
   _animatedOffset: {x: 0, y: 0}
@@ -14459,7 +14584,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
@@ -15966,7 +16091,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 0
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
