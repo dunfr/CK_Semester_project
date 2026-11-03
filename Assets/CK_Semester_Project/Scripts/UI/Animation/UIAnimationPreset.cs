@@ -79,6 +79,9 @@ namespace CK.SemesterProject.UIAnimation
         [SerializeField] private string _statePresetDescription = string.Empty;
         [SerializeField] private string _statePresetEdited = string.Empty;
         [SerializeField] private string _stayPresetName = string.Empty;
+        [SerializeField] private string _closePresetName = string.Empty;
+        [SerializeField] private string _hidePresetName = string.Empty;
+        [SerializeField] private string _showPresetName = string.Empty;
         [SerializeField] private string _pointerPresetName = string.Empty;
         [SerializeField] private string _pointerPresetEdited = string.Empty;
         [SerializeField] private bool _hideShowEnabled;
@@ -114,6 +117,110 @@ namespace CK.SemesterProject.UIAnimation
         // Stay만 따로 고르면 이 이름을 보여 주고 전체 프리셋 이름은 그대로 둔다.
         public string StayPresetName => _stayPresetName;
         public string StayPresetLabel => PresetLabel(string.IsNullOrEmpty(_stayPresetName) ? _statePresetName : _stayPresetName, StatePresetEdited);
+
+        // 상태마다 따로 고른 프리셋 이름이다. 비어 있으면 전체에 넣은 프리셋 이름을 쓴다.
+        public string PresetName(UIAnimationState state)
+        {
+            switch (state)
+            {
+                case UIAnimationState.Stay: return Or(_stayPresetName, _statePresetName);
+                case UIAnimationState.Close: return Or(_closePresetName, _statePresetName);
+                case UIAnimationState.Hide: return Or(_hidePresetName, Or(_closePresetName, _statePresetName));
+                case UIAnimationState.Show: return Or(_showPresetName, _statePresetName);
+                default: return _statePresetName;
+            }
+        }
+
+        public string PresetLabel(UIAnimationState state) => PresetLabel(PresetName(state), StatePresetEdited);
+
+        public string PresetDescription(UIAnimationState state)
+        {
+            if (state == UIAnimationState.Stay) return string.Empty;
+            string name = PresetName(state);
+            foreach (UIAnimationStyle style in (UIAnimationStyle[])System.Enum.GetValues(typeof(UIAnimationStyle)))
+            {
+                if (UIAnimationPresetCatalog.Name(style) == name) return UIAnimationPresetCatalog.Description(style);
+            }
+            return name == _statePresetName ? _statePresetDescription : string.Empty;
+        }
+
+        private static string Or(string value, string fallback) => string.IsNullOrEmpty(value) ? fallback : value;
+
+        // 고른 상태에만 넣는다. 다른 상태에 넣어 둔 프리셋과 값은 그대로 둔다.
+        public void ApplyStyle(UIAnimationStyle style, UIAnimationState state)
+        {
+            UIAnimationPreset source = CreateInstance<UIAnimationPreset>();
+            try
+            {
+                JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(this), source);
+                source.ApplyStyle(style);
+                string name = UIAnimationPresetCatalog.Name(style);
+                switch (state)
+                {
+                    case UIAnimationState.Open:
+                        _open = CopyState(source._open);
+                        _statePresetName = name;
+                        _statePresetDescription = UIAnimationPresetCatalog.Description(style);
+                        break;
+                    case UIAnimationState.Close:
+                        _close = CopyState(source._close);
+                        _closePresetName = name;
+                        break;
+                    case UIAnimationState.Hide:
+                        _hide = CopyState(source._close);
+                        _hide.KeepEnabled = true;
+                        _hide.AutoClose = false;
+                        _hidePresetName = name;
+                        break;
+                    case UIAnimationState.Show:
+                        _show = CopyState(source._open);
+                        _show.KeepEnabled = true;
+                        _show.AutoClose = false;
+                        _show.Time = source._open.Time * 0.7f;
+                        _showPresetName = name;
+                        break;
+                    default:
+                        _stay = CopyState(source._stay);
+                        _stayPresetName = name;
+                        break;
+                }
+                _statePresetEdited = string.Empty;
+                CopyShapeFor(source, Get(state));
+            }
+            finally
+            {
+                if (Application.isPlaying) Destroy(source);
+                else DestroyImmediate(source);
+            }
+        }
+
+        private static UIAnimationStateSettings CopyState(UIAnimationStateSettings source)
+        {
+            return JsonUtility.FromJson<UIAnimationStateSettings>(JsonUtility.ToJson(source));
+        }
+
+        // 효과 모양은 상태끼리 함께 쓴다. 새로 넣은 상태가 쓰는 효과만 그 프리셋의 모양으로 바꾼다.
+        private void CopyShapeFor(UIAnimationPreset source, UIAnimationStateSettings settings)
+        {
+            if (settings.Wipe.Use)
+            {
+                _wipeDirection = source._wipeDirection;
+                _wipeAngle = source._wipeAngle;
+                _wipeSoftness = source._wipeSoftness;
+            }
+            if (settings.Slice.Use)
+            {
+                _glitchBands = source._glitchBands;
+                _glitchFps = source._glitchFps;
+            }
+            if (settings.Dissolve.Use) _dissolveCellSize = source._dissolveCellSize;
+            if (settings.Sheen.Use)
+            {
+                _sheenAngle = source._sheenAngle;
+                _sheenWidth = source._sheenWidth;
+                _sheenIntensity = source._sheenIntensity;
+            }
+        }
 
         public void SetStatePreset(string name, string description = "")
         {
@@ -317,7 +424,7 @@ namespace CK.SemesterProject.UIAnimation
             _close.ClearMotion();
             _open.Speed = _stay.Speed = _close.Speed = 1f;
             SetStayPeriod(3.6f);
-            _stayPresetName = string.Empty;
+            _stayPresetName = _closePresetName = _hidePresetName = _showPresetName = string.Empty;
             _wipeDirection = UIWipeDirection.LeftToRight;
             _wipeAngle = 0f;
             _wipeSoftness = 0f;

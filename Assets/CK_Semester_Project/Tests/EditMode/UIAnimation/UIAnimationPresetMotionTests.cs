@@ -639,6 +639,44 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [Test]
+        public void ApplyingAPresetToOneState_KeepsTheOtherStatesAndTheirNames()
+        {
+            var preset = ScriptableObject.CreateInstance<UIAnimationPreset>();
+            var expected = ScriptableObject.CreateInstance<UIAnimationPreset>();
+            try
+            {
+                preset.ApplyStyle(UIAnimationStyle.PersonaSlash);
+                preset.ApplyStayStyle(UIStayStyle.Float);
+                string open = JsonUtility.ToJson(preset.Get(UIAnimationState.Open));
+                string stay = JsonUtility.ToJson(preset.Get(UIAnimationState.Stay));
+                // 프리셋을 넣어도 디자이너가 정한 Enable과 자동 Close는 남으므로 같은 출발점에서 비교한다.
+                JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(preset), expected);
+                expected.ApplyStyle(UIAnimationStyle.ZenlessTv);
+
+                preset.ApplyStyle(UIAnimationStyle.ZenlessTv, UIAnimationState.Close);
+
+                Assert.That(JsonUtility.ToJson(preset.Get(UIAnimationState.Open)), Is.EqualTo(open));
+                Assert.That(JsonUtility.ToJson(preset.Get(UIAnimationState.Stay)), Is.EqualTo(stay));
+                Assert.That(JsonUtility.ToJson(preset.Get(UIAnimationState.Close)),
+                    Is.EqualTo(JsonUtility.ToJson(expected.Get(UIAnimationState.Close))));
+                Assert.That(preset.PresetName(UIAnimationState.Open), Is.EqualTo(UIAnimationPresetCatalog.Name(UIAnimationStyle.PersonaSlash)));
+                Assert.That(preset.PresetName(UIAnimationState.Stay), Is.EqualTo(UIAnimationPresetCatalog.Name(UIStayStyle.Float)));
+                Assert.That(preset.PresetName(UIAnimationState.Close), Is.EqualTo(UIAnimationPresetCatalog.Name(UIAnimationStyle.ZenlessTv)));
+                Assert.That(preset.PresetDescription(UIAnimationState.Close),
+                    Is.EqualTo(UIAnimationPresetCatalog.Description(UIAnimationStyle.ZenlessTv)));
+
+                preset.ApplyStyle(UIAnimationStyle.Pop);
+
+                Assert.That(preset.PresetName(UIAnimationState.Close), Is.EqualTo(UIAnimationPresetCatalog.Name(UIAnimationStyle.Pop)));
+            }
+            finally
+            {
+                Object.DestroyImmediate(preset);
+                Object.DestroyImmediate(expected);
+            }
+        }
+
+        [Test]
         public void OldPreset_WithoutNewFieldsKeepsItsTimingSingleCurveAndBakedValues()
         {
             UIAnimationPreset preset = MakePreset(false);

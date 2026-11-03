@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -329,7 +330,13 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 if (!_preset.HideShowEnabled && (int)_state > (int)UIAnimationState.Close) _state = UIAnimationState.Open;
                 string[] names = _preset.HideShowEnabled ? StateNames : StateNames.Take(3).ToArray();
-                Select(ref _state, (UIAnimationState)EditorGUILayout.Popup("상태 선택", (int)_state, names));
+                var picked = (UIAnimationState)EditorGUILayout.Popup("상태 선택", (int)_state, names);
+                if (picked != _state)
+                {
+                    Select(ref _state, picked);
+                    // 상태를 옮길 때 지금까지 한 작업을 바로 남긴다.
+                    EditorApplication.delayCall += SaveNow;
+                }
                 using (new EditorGUI.DisabledScope(Application.isPlaying))
                 {
                     if (GUILayout.Button(_preset.HideShowEnabled ? "Hide·Show 상태 빼기" : "Hide·Show 상태 추가"))
@@ -352,10 +359,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                         ChangePreset("Close 자동 생성", preset => { preset.MirrorOpenToClose(); preset.MarkStatePresetEdited(); });
                     }
                 }
-                bool stay = _state == UIAnimationState.Stay;
-                EditorGUILayout.LabelField(stay ? _preset.StayPresetLabel : _preset.StatePresetLabel, EditorStyles.wordWrappedMiniLabel);
-                if (!stay && !string.IsNullOrEmpty(_preset.StatePresetDescription))
-                    EditorGUILayout.LabelField(_preset.StatePresetDescription, EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField(_preset.PresetLabel(_state), EditorStyles.wordWrappedMiniLabel);
+                string description = _preset.PresetDescription(_state);
+                if (!string.IsNullOrEmpty(description))
+                    EditorGUILayout.LabelField(description, EditorStyles.wordWrappedMiniLabel);
             }
             DrawState(_state);
             DrawPreviewControls();
@@ -374,10 +381,12 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
             else
             {
+                // 고른 상태에만 넣어 다른 상태에서 고른 프리셋을 덮어쓰지 않는다.
+                UIAnimationState state = _state;
                 foreach ((UIAnimationStyle style, string label) in Styles)
                 {
-                    menu.AddItem(new GUIContent(label), _preset.StatePresetName == label,
-                        () => ChangePreset("UI 애니메이션 프리셋", preset => preset.ApplyStyle(style)));
+                    menu.AddItem(new GUIContent(label), _preset.PresetName(state) == label,
+                        () => ChangePreset("UI 애니메이션 프리셋", preset => preset.ApplyStyle(style, state)));
                 }
             }
             menu.ShowAsContext();
@@ -1466,11 +1475,41 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         private void SavePending()
         {
-            if (_saveAt != double.MaxValue && _preset != null)
+            bool pending = _saveAt != double.MaxValue && _preset != null;
+            if (pending)
             {
                 UIAnimationGenerator.Save(_preset);
             }
             _saveAt = double.MaxValue;
+            if (pending)
+            {
+                SaveScene();
+            }
+        }
+
+        private void SaveNow()
+        {
+            if (this == null || _preset == null || _previewer.IsPlaying)
+            {
+                return;
+            }
+            SavePending();
+            SaveScene();
+        }
+
+        // 컴포넌트와 버튼 연결처럼 씬에 남는 값도 자동으로 저장한다.
+        // 미리보기 값이 씬에 들어가지 않게 AnimationMode와 Play 전환 중에는 저장하지 않는다.
+        private void SaveScene()
+        {
+            if (_player == null || EditorApplication.isPlayingOrWillChangePlaymode || AnimationMode.InAnimationMode())
+            {
+                return;
+            }
+            Scene scene = _player.gameObject.scene;
+            if (scene.IsValid() && scene.isDirty && !string.IsNullOrEmpty(scene.path) && !EditorSceneManager.IsPreviewScene(scene))
+            {
+                EditorSceneManager.SaveScene(scene);
+            }
         }
 
         private static string StateField(UIAnimationState state)
