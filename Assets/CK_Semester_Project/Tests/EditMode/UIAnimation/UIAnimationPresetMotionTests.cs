@@ -17,6 +17,154 @@ namespace CK.SemesterProject.UIAnimation.Tests
         private readonly List<Object> _created = new List<Object>();
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
         public static IEnumerable Styles => Enum.GetValues(typeof(UIAnimationStyle));
+        public static IEnumerable StayStyles => Enum.GetValues(typeof(UIStayStyle));
+
+        [TestCaseSource(nameof(StayStyles))]
+        public void EveryStay_KeepsOtherStatesNamesAndReadableMotion(UIStayStyle style)
+        {
+            UIAnimationPreset preset = MakePreset();
+            preset.ApplyStyle(UIAnimationStyle.PersonaSlash);
+            preset.SetHideShowEnabled(true);
+            var otherStates = new[] { UIAnimationState.Open, UIAnimationState.Close, UIAnimationState.Hide, UIAnimationState.Show };
+            string[] before = otherStates.Select(state => JsonUtility.ToJson(preset.Get(state))).ToArray();
+            string[] names = otherStates.Select(preset.PresetName).ToArray();
+            preset.ApplyStayStyle(UIStayStyle.GlitchTick);
+            preset.ApplyStayStyle(style);
+
+            Assert.That(preset.IsStayStatic, Is.EqualTo(style == UIStayStyle.Still));
+            Assert.That(otherStates.Select(state => JsonUtility.ToJson(preset.Get(state))), Is.EqualTo(before));
+            Assert.That(otherStates.Select(preset.PresetName), Is.EqualTo(names));
+            Assert.That(preset.StayPresetName, Is.EqualTo(UIAnimationPresetCatalog.Name(style)));
+            var menu = ((UIStayStyle Style, string Label)[])typeof(UIAnimationEditorInspector)
+                .GetField("StayStyles", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            Assert.That(menu.Select(item => item.Style), Is.EqualTo(Enum.GetValues(typeof(UIStayStyle))));
+            Assert.That(menu.Single(item => item.Style == style).Label, Is.EqualTo(preset.StayPresetName));
+
+            UIAnimationStateSettings stay = preset.Get(UIAnimationState.Stay);
+            UIAnimationSpan span = preset.GetSpan(UIAnimationState.Stay);
+            Vector2 shownScale = preset.GetSpan(UIAnimationState.Open).Scale.To;
+            for (int i = 0; i <= 1000; i++)
+            {
+                float t = i / 1000f;
+                Vector2 offset = stay.Offset.Evaluate(span.Offset.From, span.Offset.To, t) - span.Offset.From;
+                Vector2 scale = stay.Scale.Evaluate(span.Scale.From, span.Scale.To, t);
+                float rotation = Mathf.LerpUnclamped(span.Rotation.From, span.Rotation.To, stay.Rotation.Curve.Evaluate(t));
+                Assert.That(offset.magnitude, Is.LessThanOrEqualTo(6.0001f));
+                Assert.That(Mathf.Abs(rotation - span.Rotation.From), Is.LessThanOrEqualTo(0.6001f));
+                Assert.That(scale.x / shownScale.x, Is.InRange(0.9799f, 1.0201f));
+                Assert.That(scale.y / shownScale.y, Is.InRange(0.9799f, 1.0201f));
+            }
+        }
+
+        [TestCaseSource(nameof(StayStyles))]
+        public void EveryStay_PreservesAutoCloseTimeAndUnrelatedShapes(UIStayStyle style)
+        {
+            UIAnimationPreset preset = MakePreset();
+            preset.ApplyStyle(UIAnimationStyle.PersonaSlash);
+            preset.SheenWidth = 0.31f;
+            preset.SheenAngle = -12f;
+            preset.SheenIntensity = 0.6f;
+            float[] shapes = Snapshot(preset).Take(9).ToArray();
+            UIAnimationStateSettings stay = preset.Get(UIAnimationState.Stay);
+            stay.AutoClose = true;
+            stay.KeepEnabled = false;
+            stay.Time = 7.3f;
+            preset.ApplyStayStyle(style);
+            Assert.That(stay.AutoClose, Is.True);
+            Assert.That(stay.KeepEnabled, Is.False);
+            Assert.That(stay.Time, Is.EqualTo(7.3f));
+            float[] after = Snapshot(preset).Take(9).ToArray();
+            Assert.That(after.Take(6), Is.EqualTo(shapes.Take(6)));
+            Assert.That(after.Skip(6), Is.EqualTo(style == UIStayStyle.Glint
+                ? new[] { 25f, 0.18f, 0.8f } : shapes.Skip(6).ToArray()));
+        }
+
+        [TestCase(UIStayStyle.Breathe, 3.2f, 0)]
+        [TestCase(UIStayStyle.Sway, 4f, 0)]
+        [TestCase(UIStayStyle.Glint, 3f, 0)]
+        [TestCase(UIStayStyle.Hologram, 2.2f, 12)]
+        [TestCase(UIStayStyle.SnapPulse, 1f, 6)]
+        [TestCase(UIStayStyle.GlitchTick, 2.6f, 0)]
+        [TestCase(UIStayStyle.Blink, 0.8f, 0)]
+        [TestCase(UIStayStyle.Glow, 2.4f, 0)]
+        public void NewStay_UsesRequestedPeriodAndCadence(UIStayStyle style, float period, int fps)
+        {
+            UIAnimationPreset preset = MakePreset();
+            preset.ApplyStayStyle(UIStayStyle.Hologram);
+            preset.ApplyStayStyle(style);
+            UIAnimationStateSettings stay = preset.Get(UIAnimationState.Stay);
+            Assert.That(stay.Time, Is.EqualTo(period));
+            Assert.That(stay.Speed, Is.EqualTo(1f));
+            Assert.That(stay.StepsPerSecond, Is.EqualTo(fps));
+            AnimationClip clip = NewClip();
+            UIAnimationClipBaker.Bake(preset, UIAnimationState.Stay, clip);
+            if (fps > 0)
+            {
+                // 베이커는 주기를 ceil(Time * fps)개로 균등 분할한다. 상수와 글리치 시드는 별도 트랙이다.
+                int steps = Mathf.CeilToInt(period * fps);
+                foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(clip))
+                {
+                    AnimationCurve curve = AnimationUtility.GetEditorCurve(clip, binding);
+                    if (binding.propertyName == "_seed" || curve.keys.All(key => key.value == curve.keys[0].value)) continue;
+                    Assert.That(curve.length, Is.EqualTo(steps + 1), binding.propertyName);
+                    for (int i = 0; i <= steps; i++)
+                    {
+                        Keyframe key = curve.keys[i];
+                        Assert.That(key.time, Is.EqualTo(period * i / steps).Within(0.0001f), binding.propertyName);
+                        if (i < steps)
+                            Assert.That(curve.Evaluate((key.time + curve.keys[i + 1].time) * 0.5f),
+                                Is.EqualTo(key.value).Within(0.0001f), binding.propertyName);
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void NewStay_UsesRequestedEndpointsAndCurves()
+        {
+            UIAnimationPreset preset = MakePreset();
+            UIAnimationStateSettings stay = preset.Get(UIAnimationState.Stay);
+            preset.ApplyStayStyle(UIStayStyle.Breathe);
+            Assert.That(stay.Scale.To, Is.EqualTo((Vector2)preset.BaseScale * 1.012f));
+            Assert.That(stay.Scale.Curve.Ease, Is.EqualTo(UIEase.EaseInOutSine));
+            preset.ApplyStayStyle(UIStayStyle.Sway);
+            Assert.That(stay.Offset.To, Is.EqualTo(new Vector2(0f, 4f)));
+            Assert.That(stay.Rotation.To, Is.EqualTo(0.4f));
+            preset.ApplyStayStyle(UIStayStyle.Glint);
+            Assert.That(stay.Sheen.From, Is.Zero);
+            Assert.That(stay.Sheen.To, Is.EqualTo(1f));
+            Assert.That(stay.Sheen.Curve.Evaluate(0.7f), Is.Zero);
+            Assert.That(stay.Sheen.Curve.Evaluate(0.85f), Is.EqualTo(0.5f).Within(0.001f));
+            preset.ApplyStayStyle(UIStayStyle.Hologram);
+            Assert.That(stay.Scan.From, Is.EqualTo(0.12f));
+            Assert.That(stay.Scan.To, Is.EqualTo(0.28f));
+            Assert.That(stay.Color.To.a, Is.EqualTo(preset.BaseColor.a * 0.94f));
+            preset.ApplyStayStyle(UIStayStyle.SnapPulse);
+            Assert.That(stay.Scale.To, Is.EqualTo(Vector2.Scale(preset.BaseScale, new Vector2(1.015f, 1f))));
+            preset.ApplyStayStyle(UIStayStyle.GlitchTick);
+            Assert.That(stay.Slice.To, Is.EqualTo(0.35f));
+            Assert.That(stay.Split.To, Is.EqualTo(0.25f));
+            foreach (UIFloatTrack track in new[] { stay.Slice, stay.Split })
+            {
+                Assert.That(track.Curve.Evaluate(0.84f), Is.Zero);
+                Assert.That(track.Curve.Evaluate(0.90f), Is.EqualTo(1f));
+                Assert.That(track.Curve.Evaluate(1f), Is.Zero);
+            }
+            preset.ApplyStayStyle(UIStayStyle.Blink);
+            Assert.That(stay.Color.To.a, Is.Zero);
+            AnimationClip blink = NewClip();
+            UIAnimationClipBaker.Bake(preset, UIAnimationState.Stay, blink);
+            AnimationCurve alpha = Curve(blink, typeof(Image), "m_Color.a");
+            for (int i = 0; i <= 1000; i++)
+            {
+                float value = alpha.Evaluate(blink.length * i / 1000f);
+                Assert.That(value == 0f || Mathf.Abs(value - preset.BaseColor.a) < 0.0001f, Is.True);
+            }
+            preset.ApplyStayStyle(UIStayStyle.Glow);
+            Assert.That(stay.Flash.From, Is.Zero);
+            Assert.That(stay.Flash.To, Is.EqualTo(0.12f));
+            Assert.That(stay.Flash.Curve.Ease, Is.EqualTo(UIEase.EaseInOutSine));
+        }
 
         [TearDown]
         public void TearDown()
@@ -421,8 +569,18 @@ namespace CK.SemesterProject.UIAnimation.Tests
                 preset.ApplyStyle(style);
                 string open = JsonUtility.ToJson(preset.Get(UIAnimationState.Open));
                 string close = JsonUtility.ToJson(preset.Get(UIAnimationState.Close));
+                // 이전 Stay의 모든 FX를 켜 두어 새 프리셋에 불필요한 효과가 남는지도 확인한다.
+                foreach (var fx in FxTracks(preset.Get(UIAnimationState.Stay)))
+                    fx.track.Set(0.2f, 0.7f, UIEase.Linear);
                 preset.ApplyStayStyle(idle);
-                Assert.That(FxTracks(preset.Get(UIAnimationState.Stay)).All(fx => !fx.track.Use), Is.True);
+                foreach (var fx in FxTracks(preset.Get(UIAnimationState.Stay)))
+                {
+                    bool expected = (idle == UIStayStyle.Glint && fx.name == "Sheen")
+                        || (idle == UIStayStyle.Hologram && fx.name == "Scan")
+                        || (idle == UIStayStyle.GlitchTick && (fx.name == "Slice" || fx.name == "Split"))
+                        || (idle == UIStayStyle.Glow && fx.name == "Flash");
+                    Assert.That(fx.track.Use, Is.EqualTo(expected), idle + ":" + fx.name);
+                }
                 Assert.That(JsonUtility.ToJson(preset.Get(UIAnimationState.Open)), Is.EqualTo(open));
                 Assert.That(JsonUtility.ToJson(preset.Get(UIAnimationState.Close)), Is.EqualTo(close));
                 Assert.That(preset.IsStayStatic, Is.EqualTo(idle == UIStayStyle.Still));

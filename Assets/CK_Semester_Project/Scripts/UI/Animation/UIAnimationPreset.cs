@@ -34,7 +34,15 @@ namespace CK.SemesterProject.UIAnimation
     {
         Still,
         Float,
-        Pulse
+        Pulse,
+        Breathe,
+        Sway,
+        Glint,
+        Hologram,
+        SnapPulse,
+        GlitchTick,
+        Blink,
+        Glow
     }
 
     public enum UIPointerStyle
@@ -751,6 +759,59 @@ namespace CK.SemesterProject.UIAnimation
                     dim.a *= 0.9f;
                     SetStayPeriod(3.6f);
                     _stay.Color.Set(shown, dim, UIEase.EaseInOutSine);
+                    break;
+                case UIStayStyle.Breathe:
+                    SetStayPeriod(3.2f);
+                    Vector2 scale = GetSpan(UIAnimationState.Open).Scale.To;
+                    _stay.Scale.Set(scale, scale * 1.012f, UIEase.EaseInOutSine);
+                    break;
+                case UIStayStyle.Sway:
+                    SetFloatStay(4f, 4f);
+                    float rotation = GetSpan(UIAnimationState.Open).Rotation.To;
+                    _stay.Rotation.Set(rotation, rotation + 0.4f, UIEase.EaseInOutSine);
+                    break;
+                case UIStayStyle.Glint:
+                    SetStayPeriod(3f);
+                    _stay.Sheen.Set(0f, 1f, UIEase.Linear);
+                    _stay.Sheen.Curve.SetCustom(UIMotionCurves.Window(UIEase.Linear, 0.7f, 1f));
+                    _sheenWidth = 0.18f;
+                    _sheenAngle = 25f;
+                    _sheenIntensity = 0.8f;
+                    break;
+                case UIStayStyle.Hologram:
+                    SetStayPeriod(2.2f);
+                    _stay.Scan.Set(0.12f, 0.28f, UIEase.EaseInOutSine);
+                    Color hologram = GetSpan(UIAnimationState.Open).Color.To;
+                    Color faded = hologram;
+                    faded.a *= 0.94f;
+                    _stay.Color.Set(hologram, faded, UIEase.EaseInOutSine);
+                    _stay.StepsPerSecond = 12;
+                    break;
+                case UIStayStyle.SnapPulse:
+                    SetStayPeriod(1f);
+                    Vector2 snapScale = GetSpan(UIAnimationState.Open).Scale.To;
+                    _stay.Scale.Set(snapScale, Vector2.Scale(snapScale, new Vector2(1.015f, 1f)), UIEase.EaseInOutSine);
+                    _stay.StepsPerSecond = 6;
+                    break;
+                case UIStayStyle.GlitchTick:
+                    SetStayPeriod(2.6f);
+                    _stay.Slice.Set(0f, 0.35f, UIEase.Linear);
+                    _stay.Split.Set(0f, 0.25f, UIEase.Linear);
+                    AnimationCurve tick = UIMotionCurves.Steps((0f, 0f), (0.85f, 1f), (0.95f, 0f), (1f, 0f));
+                    _stay.Slice.Curve.SetCustom(tick);
+                    _stay.Split.Curve.SetCustom(tick);
+                    break;
+                case UIStayStyle.Blink:
+                    SetStayPeriod(0.8f);
+                    Color cursor = GetSpan(UIAnimationState.Open).Color.To;
+                    Color off = cursor;
+                    off.a = 0f;
+                    _stay.Color.Set(cursor, off, UIEase.Linear);
+                    _stay.Color.Curve.SetCustom(UIMotionCurves.Steps((0f, 0f), (0.5f, 1f), (1f, 1f)));
+                    break;
+                case UIStayStyle.Glow:
+                    SetStayPeriod(2.4f);
+                    _stay.Flash.Set(0f, 0.12f, UIEase.EaseInOutSine);
                     break;
                 default:
                     SetStayPeriod(3.6f);

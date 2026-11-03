@@ -33,7 +33,12 @@ namespace CK.SemesterProject.UIAnimation
             "작게 팝업하며 번쩍임과 빛 띠를 보이고 대기 중 드물게 반짝입니다."
         };
 
-        private static readonly string[] StayNames = { "가만히 있기", "둥실 떠 있기 (페르소나풍)", "은은하게 깜빡이기" };
+        private static readonly string[] StayNames =
+        {
+            "가만히 있기", "둥실 떠 있기 (페르소나풍)", "은은하게 깜빡이기",
+            "숨쉬기", "흔들리며 떠 있기 (페르소나풍)", "빛 띠 반짝임", "홀로그램 스캔 (스타레일풍)",
+            "스냅 맥동 (젠레스풍)", "글리치 틱 (젠레스풍)", "커서 깜빡임 (JRPG풍)", "은은한 밝기 (스타레일풍)"
+        };
         private static readonly string[] PointerNames = { "살짝 커지기", "옆으로 밀리기 (목록 선택)", "기울며 튀어나오기", "밝아지기 (하이라이트)" };
     }
 }

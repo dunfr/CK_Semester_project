@@ -68,11 +68,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 .Select(style => (style, UIAnimationPresetCatalog.Name(style))).ToArray();
 
         private static readonly (UIStayStyle Style, string Label)[] StayStyles =
-        {
-            (UIStayStyle.Still, "가만히 있기"),
-            (UIStayStyle.Float, "둥실 떠 있기 (페르소나풍)"),
-            (UIStayStyle.Pulse, "은은하게 깜빡이기")
-        };
+            ((UIStayStyle[])Enum.GetValues(typeof(UIStayStyle)))
+                .Select(style => (style, UIAnimationPresetCatalog.Name(style))).ToArray();
 
         private static readonly (UIPointerStyle Style, string Label)[] PointerStyles =
         {
