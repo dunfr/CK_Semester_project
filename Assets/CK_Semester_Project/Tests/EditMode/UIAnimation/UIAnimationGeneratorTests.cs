@@ -393,8 +393,8 @@ namespace CK.SemesterProject.UIAnimation.Tests
 
             Undo.PerformUndo();
 
-            Assert.That(preset.Get(UIAnimationState.Open).Time, Is.EqualTo(0.25f).Within(0.0001f));
-            Assert.That(clip.length, Is.EqualTo(0.25f).Within(0.001f));
+            Assert.That(preset.Get(UIAnimationState.Open).Time, Is.EqualTo(0.24f).Within(0.0001f));
+            Assert.That(clip.length, Is.EqualTo(0.24f).Within(0.001f));
         }
 
         [Test]
@@ -552,7 +552,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
                 UIAnimationStateSettings open = preset.Get(UIAnimationState.Open);
                 Assert.That(UIAnimationGenerator.ClipOf(preset, UIAnimationState.Open).length, Is.EqualTo(open.Time).Within(0.001f), style.ToString());
                 bool moves = style == UIAnimationStyle.PersonaDrift || style == UIAnimationStyle.StarRailHologram
-                    || style == UIAnimationStyle.JrpgSummon || style == UIAnimationStyle.JrpgItem;
+                    || style == UIAnimationStyle.JrpgVictory || style == UIAnimationStyle.JrpgItem;
                 Assert.That(preset.IsStayStatic, Is.EqualTo(!moves), style.ToString());
                 AnimationClip stay = UIAnimationGenerator.ClipOf(preset, UIAnimationState.Stay);
                 foreach (EditorCurveBinding binding in AnimationUtility.GetCurveBindings(stay))
@@ -659,7 +659,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Assert.That(second.BaseScale, Is.EqualTo(new Vector3(0.5f, 0.5f, 1f)));
             Assert.That(second.BaseColor, Is.EqualTo(new Color(1f, 0f, 0f, 1f)));
             Assert.That(second.Get(UIAnimationState.Open).Scale.From, Is.EqualTo(Vector2.one * 0.4f));
-            Assert.That(second.Get(UIAnimationState.Open).Offset.From, Is.EqualTo(new Vector2(120f, 0f)));
+            Assert.That(second.Get(UIAnimationState.Open).Offset.From, Is.EqualTo(new Vector2(-42f, -8f)));
         }
 
         [Test]

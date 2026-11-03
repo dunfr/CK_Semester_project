@@ -33,6 +33,48 @@ namespace CK.SemesterProject.UIAnimation
             return Settle(-Mathf.Abs(dip), dipTime, UIEase.EaseOutQuad, ease);
         }
 
+        // 각 도착점까지의 이징을 따로 골라 준비·충격·정착의 박자를 나눈다.
+        public static AnimationCurve Path(params (float t, float v, UIEase ease)[] points)
+        {
+            if (points == null || points.Length < 2 || points[0].t != 0f || points[points.Length - 1].t != 1f)
+                throw new ArgumentException("경로는 0에서 시작해 1에서 끝나야 합니다.", nameof(points));
+            var keys = new List<Keyframe>();
+            for (int i = 1; i < points.Length; i++)
+            {
+                if (points[i].t <= points[i - 1].t || points[i].t > 1f)
+                    throw new ArgumentException("키 시간은 0~1에서 증가해야 합니다.", nameof(points));
+                Segment(keys, points[i - 1].t, points[i].t, points[i - 1].v, points[i].v, points[i].ease);
+            }
+            return LinearKeys(keys);
+        }
+
+        // 1→0 트랙에 쓴다. 빛 띠를 0→1로 한 번 통과시킨 뒤 화면 밖에서 0으로 돌린다.
+        public static AnimationCurve Sweep(UIEase ease, float start, float end)
+        {
+            if (end >= 1f) throw new ArgumentOutOfRangeException(nameof(end));
+            AnimationCurve progress = Window(ease, start, end);
+            Keyframe[] keys = progress.keys;
+            for (int i = 0; i < keys.Length; i++)
+            {
+                Keyframe key = keys[i];
+                key.value = 1f - key.value;
+                key.inTangent = -key.inTangent;
+                key.outTangent = -key.outTangent;
+                keys[i] = key;
+            }
+            if (end < 1f)
+            {
+                Keyframe before = keys[keys.Length - 2];
+                before.outTangent = float.PositiveInfinity;
+                keys[keys.Length - 2] = before;
+            }
+            Keyframe last = keys[keys.Length - 1];
+            last.value = 1f;
+            last.inTangent = float.PositiveInfinity;
+            keys[keys.Length - 1] = last;
+            return new AnimationCurve(keys);
+        }
+
         public static AnimationCurve Steps(params (float t, float v)[] keys)
         {
             if (keys == null || keys.Length < 2) throw new ArgumentException("키가 두 개 이상 필요합니다.", nameof(keys));

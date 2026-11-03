@@ -38,10 +38,32 @@ namespace CK.SemesterProject.UIAnimation.Tests
         public void Create_SetupRunsBeforeBakingAndConnection()
         {
             Image image = Image();
-            UIAnimationPreset preset = Create(image, p => { p.ApplyStyle(UIAnimationStyle.Fade); p.Get(UIAnimationState.Open).Time = 0.73f; });
+            UIAnimationPreset preset = Create(image, p => { p.ApplyStyle(UIAnimationStyle.JrpgDialogue); p.Get(UIAnimationState.Open).Time = 0.73f; });
             Assert.That(UIAnimationGenerator.ClipOf(preset, UIAnimationState.Open).length, Is.EqualTo(0.73f).Within(0.001f));
             Assert.That(image.GetComponent<UIAnimationPlayer>().Preset, Is.SameAs(preset));
             Assert.That(preset.AnimatesScale, Is.False);
+            foreach (UIAnimationState state in System.Enum.GetValues(typeof(UIAnimationState)))
+                Assert.That(AnimationUtility.GetCurveBindings(UIAnimationGenerator.ClipOf(preset, state))
+                    .Any(binding => binding.type == typeof(RectTransform) && binding.propertyName.StartsWith("m_LocalScale.")), Is.False);
+        }
+
+        [Test]
+        public void Create_SetupBakesFadeScaleRelativeToCapturedImage()
+        {
+            Image image = Image();
+            image.rectTransform.localScale = new Vector3(1.2f, 0.8f, 1f);
+            UIAnimationPreset preset = Create(image, p => p.ApplyStyle(UIAnimationStyle.Fade));
+            AnimationClip clip = UIAnimationGenerator.ClipOf(preset, UIAnimationState.Open);
+            Assert.That(preset.AnimatesScale, Is.True);
+            foreach (string axis in new[] { "x", "y" })
+            {
+                float full = axis == "x" ? 1.2f : 0.8f;
+                AnimationCurve curve = AnimationUtility.GetEditorCurve(clip,
+                    EditorCurveBinding.FloatCurve(string.Empty, typeof(RectTransform), "m_LocalScale." + axis));
+                Assert.That(curve, Is.Not.Null);
+                Assert.That(curve.Evaluate(0f), Is.EqualTo(full * 0.975f).Within(0.001f));
+                Assert.That(curve.Evaluate(clip.length), Is.EqualTo(full).Within(0.001f));
+            }
         }
 
         [Test]

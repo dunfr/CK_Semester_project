@@ -156,5 +156,36 @@ namespace CK.SemesterProject.UIAnimation.Tests
                 Assert.That(baked.keys.Take(baked.length - 1).All(key => float.IsInfinity(key.outTangent)), Is.True);
             }
         }
+
+        [Test]
+        public void Path_PreservesPreparationImpactAndQuietTail()
+        {
+            AnimationCurve curve = UIMotionCurves.Path((0f, 0f, UIEase.Linear),
+                (0.10f, -0.05f, UIEase.EaseOutQuad), (0.65f, 1.08f, UIEase.EaseOutCubic),
+                (0.95f, 1f, UIEase.EaseInOutSine), (1f, 1f, UIEase.Linear));
+            Assert.That(curve.Evaluate(0.10f), Is.EqualTo(-0.05f).Within(Precision));
+            Assert.That(curve.Evaluate(0.65f), Is.EqualTo(1.08f).Within(Precision));
+            Assert.That(curve.Evaluate(0.98f), Is.EqualTo(1f).Within(Precision));
+            Assert.Throws<ArgumentException>(() => UIMotionCurves.Path((0.1f, 0f, UIEase.Linear), (1f, 1f, UIEase.Linear)));
+            Assert.Throws<ArgumentException>(() => UIMotionCurves.Path((0f, 0f, UIEase.Linear), (0f, 1f, UIEase.Linear), (1f, 1f, UIEase.Linear)));
+        }
+
+        [Test]
+        public void Sweep_CrossesOnceThenResetsOutsideTheImageAndSurvivesBaking()
+        {
+            var shape = new UIEaseCurve();
+            shape.SetCustom(UIMotionCurves.Sweep(UIEase.Linear, 0.15f, 0.85f));
+            AnimationCurve baked = UIAnimationCurveFitter.Fit(t => 1f - shape.Evaluate(t), 0.4f, shape, false);
+            Assert.That(baked.Evaluate(0f), Is.Zero.Within(Precision));
+            Assert.That(baked.Evaluate(0.4f * 0.5f), Is.EqualTo(0.5f).Within(Precision));
+            Assert.That(baked.Evaluate(0.4f * 0.9f), Is.EqualTo(1f).Within(Precision));
+            Assert.That(baked.Evaluate(0.4f), Is.Zero.Within(Precision));
+            for (int i = 0; i <= 1000; i++)
+            {
+                float t = i / 1000f;
+                Assert.That(baked.Evaluate(t * 0.4f), Is.EqualTo(1f - shape.Evaluate(t)).Within(0.002f));
+            }
+            Assert.Throws<ArgumentOutOfRangeException>(() => UIMotionCurves.Sweep(UIEase.Linear, 0f, 1f));
+        }
     }
 }
