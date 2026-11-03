@@ -27,7 +27,9 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         {
             UIAnimationState.Open,
             UIAnimationState.Stay,
-            UIAnimationState.Close
+            UIAnimationState.Close,
+            UIAnimationState.Hide,
+            UIAnimationState.Show
         };
 
         private static readonly string[] HighlightWords = { "Selected", "Highlight", "Highlighted", "Hover" };
@@ -42,10 +44,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             return $"{folder}/{name}_{state}.anim";
         }
 
-        public static IEnumerable<string> AssetPaths(string folder, string name)
+        public static IEnumerable<string> AssetPaths(string folder, string name, bool hideShow = false)
         {
             yield return ControllerPath(folder, name);
-            foreach (UIAnimationState state in States)
+            foreach (UIAnimationState state in States.Where(state => hideShow || (int)state <= (int)UIAnimationState.Close))
             {
                 yield return ClipPath(folder, name, state);
             }
@@ -103,7 +105,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         public static bool IsNameFree(string folder, string name)
         {
-            return !AssetPaths(folder, name).Any(File.Exists);
+            return !AssetPaths(folder, name, true).Any(File.Exists);
         }
 
         public static string UniqueName(string folder, string name)
@@ -186,7 +188,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         {
             if (Application.isPlaying) return;
             bool legacyWipe = HasLegacyWipe(preset);
-            if (legacyWipe)
+            bool graphMismatch = !GraphMatches(preset);
+            if (legacyWipe || graphMismatch)
             {
                 Rebuild(preset);
                 Save(preset);
@@ -195,9 +198,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             Animator animator = image.GetComponent<Animator>();
             UIAnimationPointerEffects effects = image.GetComponent<UIAnimationPointerEffects>();
             UIAnimationPlayer player = image.GetComponent<UIAnimationPlayer>();
-            bool connected = !legacyWipe && animator != null && player != null && player.Preset == preset
+            bool connected = !legacyWipe && !graphMismatch && animator != null && player != null && player.Preset == preset
                 && animator.runtimeAnimatorController == ControllerOf(preset)
                 && (image.GetComponent<UIAnimationFx>() != null) == preset.UsesFx
+                && (!preset.HideShowEnabled || image.GetComponent<CanvasGroup>() != null)
                 && (image.type != Image.Type.Filled || preset.ImageType == Image.Type.Filled)
                 && (effects != null ? preset.HasPointerEffects || effects.HasTriggers : !preset.HasPointerEffects);
             if (!connected)
@@ -339,7 +343,14 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 return;
             }
             Undo.RecordObject(button, "UI 애니메이션 버튼 연결");
-            UnityAction action = method == nameof(UIAnimationPlayer.Close) ? player.Close : (UnityAction)player.Open;
+            UnityAction action;
+            switch (method)
+            {
+                case nameof(UIAnimationPlayer.Close): action = player.Close; break;
+                case nameof(UIAnimationPlayer.Hide): action = player.Hide; break;
+                case nameof(UIAnimationPlayer.Show): action = player.Show; break;
+                default: action = player.Open; break;
+            }
             UnityEventTools.AddVoidPersistentListener(button.onClick, action);
             EditorUtility.SetDirty(button);
         }
@@ -408,7 +419,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             string path = AssetDatabase.GetAssetPath(controller);
             string folder = Path.GetDirectoryName(path)?.Replace('\\', '/');
             string name = Path.GetFileNameWithoutExtension(path);
-            foreach (UIAnimationState state in States)
+            SyncGraph(preset, controller, folder, name);
+            foreach (UIAnimationState state in ActiveStates(preset))
             {
                 AnimatorState animatorState = FindState(controller, state);
                 if (animatorState == null)
@@ -432,7 +444,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 foreach (AnimatorStateTransition transition in stay.transitions)
                 {
-                    transition.duration = preset.IsStayStatic ? 0f : BlendSeconds;
+                    transition.duration = preset.IsStayStatic && transition.destinationState.name == nameof(UIAnimationState.Close)
+                        ? 0f : BlendSeconds;
                     EditorUtility.SetDirty(transition);
                 }
             }
@@ -494,6 +507,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
 
         private static AnimationClip CreateClip(string folder, string name, UIAnimationState state)
         {
+            AnimationClip existing = AssetDatabase.LoadAssetAtPath<AnimationClip>(ClipPath(folder, name, state));
+            if (existing != null) return existing;
             var clip = new AnimationClip { name = $"{name}_{state}" };
             AssetDatabase.CreateAsset(clip, ClipPath(folder, name, state));
             return clip;
@@ -508,9 +523,139 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             transition.AddCondition(mode, 0f, UIAnimationPreset.IsOpenParameter);
         }
 
+        private static IEnumerable<UIAnimationState> ActiveStates(UIAnimationPreset preset)
+        {
+            return States.Where(state => preset.HideShowEnabled || (int)state <= (int)UIAnimationState.Close);
+        }
+
+        // Close와 숨김 요청이 완료 전환보다 먼저 처리되어야 짧은 클립도 Stay로 새지 않는다.
+        private static IEnumerable<(UIAnimationState From, UIAnimationState To, bool Finished, bool? Open, bool? Hidden)> Edges(bool hidden)
+        {
+            yield return (UIAnimationState.Open, UIAnimationState.Close, false, false, null);
+            if (hidden) yield return (UIAnimationState.Open, UIAnimationState.Hide, false, true, true);
+            yield return (UIAnimationState.Open, UIAnimationState.Stay, true, true, hidden ? (bool?)false : null);
+            yield return (UIAnimationState.Stay, UIAnimationState.Close, false, false, null);
+            if (hidden) yield return (UIAnimationState.Stay, UIAnimationState.Hide, false, true, true);
+            yield return (UIAnimationState.Close, UIAnimationState.Open, false, true, null);
+            if (!hidden) yield break;
+            yield return (UIAnimationState.Hide, UIAnimationState.Close, false, false, null);
+            yield return (UIAnimationState.Hide, UIAnimationState.Show, false, true, false);
+            yield return (UIAnimationState.Show, UIAnimationState.Close, false, false, null);
+            yield return (UIAnimationState.Show, UIAnimationState.Hide, false, true, true);
+            yield return (UIAnimationState.Show, UIAnimationState.Stay, true, true, false);
+        }
+
+        private static AnimatorCondition[] Conditions(bool? open, bool? hidden)
+        {
+            var conditions = new List<AnimatorCondition>();
+            if (open.HasValue) conditions.Add(new AnimatorCondition { parameter = UIAnimationPreset.IsOpenParameter,
+                mode = open.Value ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot });
+            if (hidden.HasValue) conditions.Add(new AnimatorCondition { parameter = UIAnimationPreset.IsHiddenParameter,
+                mode = hidden.Value ? AnimatorConditionMode.If : AnimatorConditionMode.IfNot });
+            return conditions.ToArray();
+        }
+
+        private static bool GraphMatches(UIAnimationPreset preset, bool checkStayDuration = true)
+        {
+            AnimatorController controller = ControllerOf(preset);
+            if (controller == null || controller.layers.Length == 0) return false;
+            AnimatorStateMachine machine = controller.layers[0].stateMachine;
+            if (!preset.HideShowEnabled)
+            {
+                string path = AssetDatabase.GetAssetPath(controller);
+                string folder = Path.GetDirectoryName(path)?.Replace('\\', '/');
+                string name = Path.GetFileNameWithoutExtension(path);
+                if (AssetDatabase.LoadAssetAtPath<AnimationClip>(ClipPath(folder, name, UIAnimationState.Hide)) != null
+                    || AssetDatabase.LoadAssetAtPath<AnimationClip>(ClipPath(folder, name, UIAnimationState.Show)) != null) return false;
+            }
+            if (machine.defaultState != FindState(controller, UIAnimationState.Open)) return false;
+            foreach (string parameter in new[] { UIAnimationPreset.IsOpenParameter, UIAnimationPreset.IsHiddenParameter })
+            {
+                bool wanted = parameter == UIAnimationPreset.IsOpenParameter || preset.HideShowEnabled;
+                AnimatorControllerParameter[] found = controller.parameters.Where(p => p.name == parameter).ToArray();
+                if (found.Length != (wanted ? 1 : 0) || wanted && (found[0].type != AnimatorControllerParameterType.Bool
+                    || found[0].defaultBool != (parameter == UIAnimationPreset.IsOpenParameter))) return false;
+            }
+            var edges = Edges(preset.HideShowEnabled).ToArray();
+            foreach (UIAnimationState state in States)
+            {
+                AnimatorState found = FindState(controller, state);
+                bool wanted = preset.HideShowEnabled || (int)state <= (int)UIAnimationState.Close;
+                if (machine.states.Count(child => child.state.name == state.ToString()) != (wanted ? 1 : 0)) return false;
+                if (!wanted) { if (found != null) return false; continue; }
+                if (found == null || !(found.motion is AnimationClip) || found.writeDefaultValues) return false;
+                if (checkStayDuration && (AnimationUtility.GetAnimationClipSettings((AnimationClip)found.motion).loopTime
+                    != (state == UIAnimationState.Stay) || !Mathf.Approximately(found.speed, preset.Get(state).Speed))) return false;
+                var expected = edges.Where(edge => edge.From == state).ToArray();
+                if (found.transitions.Length != expected.Length) return false;
+                for (int i = 0; i < expected.Length; i++)
+                {
+                    var edge = expected[i];
+                    AnimatorStateTransition transition = found.transitions[i];
+                    AnimatorCondition[] conditions = Conditions(edge.Open, edge.Hidden);
+                    float duration = edge.Finished && state == UIAnimationState.Open || state == UIAnimationState.Stay && edge.To == UIAnimationState.Close
+                        && preset.IsStayStatic ? 0f : BlendSeconds;
+                    if (transition.destinationState != FindState(controller, edge.To) || transition.hasExitTime != edge.Finished
+                        || !transition.hasFixedDuration || (checkStayDuration || state != UIAnimationState.Stay)
+                        && !Mathf.Approximately(transition.duration, duration)
+                        || edge.Finished && transition.exitTime != 1f
+                        || transition.interruptionSource != TransitionInterruptionSource.Destination
+                        || transition.orderedInterruption || !transition.conditions.SequenceEqual(conditions)) return false;
+                }
+            }
+            return true;
+        }
+
+        private static void SyncGraph(UIAnimationPreset preset, AnimatorController controller, string folder, string name)
+        {
+            if (GraphMatches(preset, false)) return;
+            if (controller.layers.Length == 0) controller.AddLayer("Base Layer");
+            AnimatorStateMachine machine = controller.layers[0].stateMachine;
+            foreach (UIAnimationState state in States)
+            {
+                AnimatorState found = FindState(controller, state);
+                foreach (ChildAnimatorState duplicate in machine.states.Where(child => child.state.name == state.ToString() && child.state != found))
+                    machine.RemoveState(duplicate.state);
+                if (found != null)
+                    foreach (AnimatorStateTransition transition in found.transitions) found.RemoveTransition(transition);
+                if (!preset.HideShowEnabled && (state == UIAnimationState.Hide || state == UIAnimationState.Show))
+                {
+                    if (found != null) machine.RemoveState(found);
+                    string clipPath = ClipPath(folder, name, state);
+                    if (AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath) != null) AssetDatabase.DeleteAsset(clipPath);
+                    continue;
+                }
+                if (found == null) found = AddState(machine, state, new Vector3(300f + (int)state * 140f, 120f), folder, name);
+                found.writeDefaultValues = false;
+            }
+            foreach (string parameter in new[] { UIAnimationPreset.IsOpenParameter, UIAnimationPreset.IsHiddenParameter })
+            {
+                for (int index = controller.parameters.Length - 1; index >= 0; index--)
+                    if (controller.parameters[index].name == parameter) controller.RemoveParameter(index);
+                if (parameter == UIAnimationPreset.IsOpenParameter || preset.HideShowEnabled)
+                    controller.AddParameter(new AnimatorControllerParameter { name = parameter, type = AnimatorControllerParameterType.Bool,
+                        defaultBool = parameter == UIAnimationPreset.IsOpenParameter });
+            }
+            machine.defaultState = FindState(controller, UIAnimationState.Open);
+            foreach (var edge in Edges(preset.HideShowEnabled))
+            {
+                AnimatorStateTransition transition = FindState(controller, edge.From).AddTransition(FindState(controller, edge.To));
+                transition.hasExitTime = edge.Finished;
+                transition.exitTime = 1f;
+                transition.hasFixedDuration = true;
+                transition.duration = edge.Finished && edge.From == UIAnimationState.Open || edge.From == UIAnimationState.Stay && edge.To == UIAnimationState.Close
+                    && preset.IsStayStatic ? 0f : BlendSeconds;
+                // 요청이 유지되는 출발 상태의 전환을 다시 고르지 않고, 도착 상태에서 새 요청을 받는다.
+                transition.interruptionSource = TransitionInterruptionSource.Destination;
+                transition.orderedInterruption = false;
+                transition.conditions = Conditions(edge.Open, edge.Hidden);
+            }
+            EditorUtility.SetDirty(machine);
+        }
+
         private static AnimatorState FindState(AnimatorController controller, UIAnimationState state)
         {
-            if (controller == null)
+            if (controller == null || controller.layers.Length == 0)
             {
                 return null;
             }
@@ -535,7 +680,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             {
                 Undo.DestroyObjectImmediate(fx);
             }
-            if (preset.FadeChildren)
+            if (preset.FadeChildren || preset.HideShowEnabled)
             {
                 GetOrAdd<CanvasGroup>(target);
             }
@@ -655,7 +800,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     continue;
                 }
 
-                foreach (string asset in AssetPaths(from, name))
+                foreach (string asset in AssetPaths(from, name, preset.HideShowEnabled).Where(File.Exists))
                 {
                     AssetDatabase.MoveAsset(asset, $"{folder}/{Path.GetFileName(asset)}");
                 }

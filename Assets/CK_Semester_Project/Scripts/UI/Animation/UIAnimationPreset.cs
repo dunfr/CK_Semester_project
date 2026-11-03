@@ -50,6 +50,7 @@ namespace CK.SemesterProject.UIAnimation
     public sealed class UIAnimationPreset : ScriptableObject
     {
         public const string IsOpenParameter = "IsOpen";
+        public const string IsHiddenParameter = "IsHidden";
         public const string OffsetField = "_animatedOffset";
         public const string RotationField = "_animatedRotation";
 
@@ -80,6 +81,27 @@ namespace CK.SemesterProject.UIAnimation
         [SerializeField] private string _stayPresetName = string.Empty;
         [SerializeField] private string _pointerPresetName = string.Empty;
         [SerializeField] private string _pointerPresetEdited = string.Empty;
+        [SerializeField] private bool _hideShowEnabled;
+        [SerializeField] private UIAnimationStateSettings _hide = new UIAnimationStateSettings();
+        [SerializeField] private UIAnimationStateSettings _show = new UIAnimationStateSettings();
+
+        public bool HideShowEnabled => _hideShowEnabled;
+
+        public void SetHideShowEnabled(bool enabled)
+        {
+            if (_hideShowEnabled == enabled) return;
+            _hideShowEnabled = enabled;
+            if (enabled) GenerateHideShow();
+        }
+
+        private void GenerateHideShow()
+        {
+            _hide = JsonUtility.FromJson<UIAnimationStateSettings>(JsonUtility.ToJson(_close));
+            _show = JsonUtility.FromJson<UIAnimationStateSettings>(JsonUtility.ToJson(_open));
+            _hide.KeepEnabled = _show.KeepEnabled = true;
+            _hide.AutoClose = _show.AutoClose = false;
+            _show.Time = _open.Time * 0.7f;
+        }
 
         public string StatePresetName => _statePresetName;
         public string StatePresetDescription => _statePresetDescription;
@@ -143,19 +165,31 @@ namespace CK.SemesterProject.UIAnimation
             set => _reactToSelection = value;
         }
 
-        public bool AnimatesOffset => _open.Offset.Use || _stay.Offset.Use || _close.Offset.Use;
-        public bool AnimatesScale => _open.Scale.Use || _stay.Scale.Use || _close.Scale.Use;
-        public bool AnimatesRotation => _open.Rotation.Use || _stay.Rotation.Use || _close.Rotation.Use;
-        public bool AnimatesColor => _open.Color.Use || _stay.Color.Use || _close.Color.Use;
-        public bool AnimatesWipe => _open.Wipe.Use || _stay.Wipe.Use || _close.Wipe.Use;
-        public bool AnimatesSkew => _open.Skew.Use || _stay.Skew.Use || _close.Skew.Use;
-        public bool AnimatesSlice => _open.Slice.Use || _stay.Slice.Use || _close.Slice.Use;
-        public bool AnimatesSplit => _open.Split.Use || _stay.Split.Use || _close.Split.Use;
-        public bool AnimatesScan => _open.Scan.Use || _stay.Scan.Use || _close.Scan.Use;
-        public bool AnimatesDissolve => _open.Dissolve.Use || _stay.Dissolve.Use || _close.Dissolve.Use;
-        public bool AnimatesSheen => _open.Sheen.Use || _stay.Sheen.Use || _close.Sheen.Use;
-        public bool AnimatesFlash => _open.Flash.Use || _stay.Flash.Use || _close.Flash.Use;
-        public bool UsesFx => _open.UsesFx || _stay.UsesFx || _close.UsesFx;
+        public bool AnimatesOffset => _open.Offset.Use || _stay.Offset.Use || _close.Offset.Use
+            || _hideShowEnabled && (_hide.Offset.Use || _show.Offset.Use);
+        public bool AnimatesScale => _open.Scale.Use || _stay.Scale.Use || _close.Scale.Use
+            || _hideShowEnabled && (_hide.Scale.Use || _show.Scale.Use);
+        public bool AnimatesRotation => _open.Rotation.Use || _stay.Rotation.Use || _close.Rotation.Use
+            || _hideShowEnabled && (_hide.Rotation.Use || _show.Rotation.Use);
+        public bool AnimatesColor => _open.Color.Use || _stay.Color.Use || _close.Color.Use
+            || _hideShowEnabled && (_hide.Color.Use || _show.Color.Use);
+        public bool AnimatesWipe => _open.Wipe.Use || _stay.Wipe.Use || _close.Wipe.Use
+            || _hideShowEnabled && (_hide.Wipe.Use || _show.Wipe.Use);
+        public bool AnimatesSkew => _open.Skew.Use || _stay.Skew.Use || _close.Skew.Use
+            || _hideShowEnabled && (_hide.Skew.Use || _show.Skew.Use);
+        public bool AnimatesSlice => _open.Slice.Use || _stay.Slice.Use || _close.Slice.Use
+            || _hideShowEnabled && (_hide.Slice.Use || _show.Slice.Use);
+        public bool AnimatesSplit => _open.Split.Use || _stay.Split.Use || _close.Split.Use
+            || _hideShowEnabled && (_hide.Split.Use || _show.Split.Use);
+        public bool AnimatesScan => _open.Scan.Use || _stay.Scan.Use || _close.Scan.Use
+            || _hideShowEnabled && (_hide.Scan.Use || _show.Scan.Use);
+        public bool AnimatesDissolve => _open.Dissolve.Use || _stay.Dissolve.Use || _close.Dissolve.Use
+            || _hideShowEnabled && (_hide.Dissolve.Use || _show.Dissolve.Use);
+        public bool AnimatesSheen => _open.Sheen.Use || _stay.Sheen.Use || _close.Sheen.Use
+            || _hideShowEnabled && (_hide.Sheen.Use || _show.Sheen.Use);
+        public bool AnimatesFlash => _open.Flash.Use || _stay.Flash.Use || _close.Flash.Use
+            || _hideShowEnabled && (_hide.Flash.Use || _show.Flash.Use);
+        public bool UsesFx => _open.UsesFx || _stay.UsesFx || _close.UsesFx || _hideShowEnabled && (_hide.UsesFx || _show.UsesFx);
         public float WipeAngle { get => _wipeAngle; set => _wipeAngle = value; }
         public float WipeSoftness { get => Mathf.Clamp01(_wipeSoftness); set => _wipeSoftness = value; }
         public int GlitchBands { get => Mathf.Clamp(_glitchBands, 1, 48); set => _glitchBands = value; }
@@ -189,6 +223,8 @@ namespace CK.SemesterProject.UIAnimation
             {
                 case UIAnimationState.Open: return _open;
                 case UIAnimationState.Stay: return _stay;
+                case UIAnimationState.Hide: return _hide;
+                case UIAnimationState.Show: return _show;
                 default: return _close;
             }
         }
@@ -206,6 +242,15 @@ namespace CK.SemesterProject.UIAnimation
         // Open만 시작값을 직접 고른다. Stay와 Close는 Open이 끝난 값에서 이어져 튀지 않는다.
         public UIAnimationSpan GetSpan(UIAnimationState state)
         {
+            if (state == UIAnimationState.Show)
+            {
+                UIAnimationSpan shown = GetSpan(UIAnimationState.Open);
+                return new UIAnimationSpan(First(_show.Offset, shown.Offset.To), First(_show.Scale, shown.Scale.To),
+                    First(_show.Rotation, shown.Rotation.To), First(_show.Color, shown.Color.To), First(_show.Wipe, shown.Wipe.To),
+                    First(_show.Skew, shown.Skew.To), First(_show.Slice, shown.Slice.To), First(_show.Split, shown.Split.To),
+                    First(_show.Scan, shown.Scan.To), First(_show.Dissolve, shown.Dissolve.To),
+                    First(_show.Sheen, shown.Sheen.To), First(_show.Flash, shown.Flash.To));
+            }
             UIRange<Vector2> offset = First(_open.Offset, Vector2.zero);
             UIRange<Vector2> scale = First(_open.Scale, _baseScale);
             UIRange<float> rotation = First(_open.Rotation, 0f);
@@ -479,6 +524,7 @@ namespace CK.SemesterProject.UIAnimation
                     throw new System.ArgumentOutOfRangeException(nameof(style));
             }
             SetStatePreset(UIAnimationPresetCatalog.Name(style), UIAnimationPresetCatalog.Description(style));
+            if (_hideShowEnabled) GenerateHideShow();
         }
 
         private void Entrance(float time, Vector2 offset, Vector2 factors, float tilt)
@@ -680,6 +726,7 @@ namespace CK.SemesterProject.UIAnimation
             {
                 _close.Color.Off();
             }
+            if (_hideShowEnabled) GenerateHideShow();
         }
 
         // 저장한 프리셋을 불러온다.
@@ -709,6 +756,8 @@ namespace CK.SemesterProject.UIAnimation
             _open.Scale.Rescale(ratio);
             _stay.Scale.Rescale(ratio);
             _close.Scale.Rescale(ratio);
+            _hide.Scale.Rescale(ratio);
+            _show.Scale.Rescale(ratio);
         }
 
         private void SetTimes(float open, float close)

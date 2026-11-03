@@ -31,6 +31,7 @@ namespace CK.SemesterProject.UIAnimation
         private bool _closing;
         private bool _hoverRaised;
         private float _submitWait;
+        private int _visibilityBlocks;
 
         private UIPointerEffectSettings _effect;
         private float _effectElapsed;
@@ -55,7 +56,28 @@ namespace CK.SemesterProject.UIAnimation
         private bool IsHighlighted => _pointerInside || _selected;
 
         private bool CanReact =>
-            Preset != null && !_player.IsClosing && (_selectable == null || _selectable.IsInteractable());
+            isActiveAndEnabled && _player != null && _visibilityBlocks == 0 && Preset != null && !_player.IsClosing
+            && !_player.InputBlocked && (_selectable == null || _selectable.IsInteractable());
+
+        internal void SuspendVisibility()
+        {
+            if (++_visibilityBlocks != 1) return;
+            if (_player == null) return;
+            bool inside = _pointerInside;
+            // 숨김은 입력 Exit가 아니므로 연결된 입력 트리거를 호출하지 않는다.
+            _hoverRaised = false;
+            OnDisable();
+            _pointerInside = inside;
+        }
+
+        internal void ResumeVisibility()
+        {
+            _visibilityBlocks = Mathf.Max(0, _visibilityBlocks - 1);
+            if (!CanReact) return;
+            _selected = Preset.ReactToSelection && EventSystem.current != null
+                && EventSystem.current.currentSelectedGameObject == gameObject;
+            if (IsHighlighted) EnterHighlight(true);
+        }
 
         private void Awake()
         {
@@ -122,7 +144,7 @@ namespace CK.SemesterProject.UIAnimation
         // 모습만 바꾼다. 효과음과 트리거는 입력이 실제로 일어났을 때 Raise에서 실행한다.
         public void PlayEffect(UIPointerEffect effect)
         {
-            if (Preset == null)
+            if (Preset == null || _visibilityBlocks > 0 || _player.InputBlocked)
             {
                 return;
             }
@@ -191,7 +213,7 @@ namespace CK.SemesterProject.UIAnimation
         // 마우스 클릭으로 선택될 때는 무시한다. 그대로 받으면 마우스가 나가도 Hover 모습이 남는다.
         public void OnSelect(BaseEventData eventData)
         {
-            if (eventData is PointerEventData || Preset == null || !Preset.ReactToSelection)
+            if (!CanReact || eventData is PointerEventData || !Preset.ReactToSelection)
             {
                 return;
             }
@@ -282,6 +304,7 @@ namespace CK.SemesterProject.UIAnimation
 
         private void LateUpdate()
         {
+            if (_visibilityBlocks > 0 || _player.InputBlocked) return;
             if (_player.IsClosing && !_closing)
             {
                 _pressed = false;

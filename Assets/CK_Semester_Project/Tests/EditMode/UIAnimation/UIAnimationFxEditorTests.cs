@@ -266,7 +266,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Assert.That(image.type, Is.EqualTo(UnityEngine.UI.Image.Type.Sliced));
             Assert.That(image.GetComponent<UIAnimationFx>(), Is.Not.Null);
             Assert.That(JsonUtility.ToJson(preset), Is.EqualTo(values));
-            foreach (UIAnimationState state in Enum.GetValues(typeof(UIAnimationState)))
+            foreach (UIAnimationState state in new[] { UIAnimationState.Open, UIAnimationState.Stay, UIAnimationState.Close })
             {
                 AnimationClip clip = UIAnimationGenerator.ClipOf(preset, state);
                 Assert.That(Curve(clip, "_wipe"), Is.Not.Null);

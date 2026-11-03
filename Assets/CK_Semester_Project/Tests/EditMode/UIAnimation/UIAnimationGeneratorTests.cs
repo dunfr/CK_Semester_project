@@ -113,6 +113,8 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Assert.That(finished.hasExitTime, Is.True);
             Assert.That(finished.exitTime, Is.EqualTo(1f));
             Assert.That(finished.duration, Is.EqualTo(0f));
+            Assert.That(finished.conditions.Select(condition => condition.parameter + ":" + condition.mode),
+                Is.EqualTo(new[] { "IsOpen:If" }), "Close 요청 뒤에는 Open 완료 전환이 끼어들 수 없습니다.");
             Assert.That(open.transitions.Any(t => t.destinationState.name == "Close"), Is.True);
             Assert.That(State(controller, "Stay").transitions.Single().destinationState.name, Is.EqualTo("Close"));
             Assert.That(State(controller, "Close").transitions.Single().destinationState.name, Is.EqualTo("Open"));

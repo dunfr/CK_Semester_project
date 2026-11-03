@@ -7,7 +7,9 @@ namespace CK.SemesterProject.UIAnimation
     {
         Open,
         Stay,
-        Close
+        Close,
+        Hide,
+        Show
     }
 
     public enum UIPointerEffect

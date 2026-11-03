@@ -129,6 +129,32 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Assert.That(Alpha, Is.EqualTo(1f).Within(0.001f));
         }
 
+        [Test]
+        public void CloseAndReopenGraph_BlendsCompleteWhileTheRequestStaysSet()
+        {
+            Restart();
+            Assert.That(_preset.HideShowEnabled, Is.False);
+            _animator.Play("Open", 0, 0.1f);
+            _animator.Update(0f);
+            _player.Close();
+            _animator.Update(0.01f);
+            Assert.That(_animator.IsInTransition(0), Is.True);
+            for (int frame = 0; frame < 60; frame++) _animator.Update(0.02f);
+            Assert.That(_animator.GetBool("IsOpen"), Is.False);
+            Assert.That(_animator.IsInTransition(0), Is.False, "같은 퇴장 요청 때문에 블렌드가 재시작되면 안 됩니다.");
+            Assert.That(_animator.GetCurrentAnimatorStateInfo(0).IsName("Close"), Is.True);
+            Assert.That(_animator.GetCurrentAnimatorStateInfo(0).normalizedTime, Is.GreaterThanOrEqualTo(1f));
+
+            _player.Open();
+            _animator.Update(0.01f);
+            Assert.That(_animator.IsInTransition(0), Is.True);
+            for (int frame = 0; frame < 60; frame++) _animator.Update(0.02f);
+            Assert.That(_animator.GetBool("IsOpen"), Is.True);
+            Assert.That(_animator.IsInTransition(0), Is.False);
+            Assert.That(_animator.GetCurrentAnimatorStateInfo(0).IsName("Stay"), Is.True);
+            Assert.That(Alpha, Is.EqualTo(1f).Within(0.001f));
+        }
+
         [UnityTest]
         public IEnumerator Close_CalledRepeatedly_DoesNotBreakTheFlow()
         {

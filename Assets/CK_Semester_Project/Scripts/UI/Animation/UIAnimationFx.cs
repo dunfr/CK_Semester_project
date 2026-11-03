@@ -236,14 +236,19 @@ namespace CK.SemesterProject.UIAnimation
         {
             if (Application.isPlaying) Destroy(link);
 #if UNITY_EDITOR
-            // 루트와 함께 파괴 중인 연결은 Unity가 정리하게 두고, 남은 연결만 다음에 지운다.
-            else if (defer) UnityEditor.EditorApplication.delayCall += () =>
+            // Inspector 갱신에 기대지 않고, 루트 파괴가 끝난 다음 편집기 업데이트에서 정리한다.
+            else if (defer)
             {
-                if (link == null) return;
-                if (link is UIAnimationFxMesh mesh && mesh.Owner != null) return;
-                if (link is UIAnimationFxText text && text.Owner != null) return;
-                DestroyImmediate(link);
-            };
+                void Cleanup()
+                {
+                    UnityEditor.EditorApplication.update -= Cleanup;
+                    if (link == null) return;
+                    if (link is UIAnimationFxMesh mesh && mesh.Owner != null) return;
+                    if (link is UIAnimationFxText text && text.Owner != null) return;
+                    DestroyImmediate(link);
+                }
+                UnityEditor.EditorApplication.update += Cleanup;
+            }
 #endif
             else DestroyImmediate(link);
         }

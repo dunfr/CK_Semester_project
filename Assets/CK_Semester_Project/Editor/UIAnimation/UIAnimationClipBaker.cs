@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 namespace CK.SemesterProject.UIAnimation.EditorTools
 {
-    // 프리셋 값을 .anim 커브로 굽는다. 세 클립이 같은 속성을 쓰므로 상태가 바뀌어도 이전 값이 남지 않는다.
+    // 프리셋 값을 .anim 커브로 굽는다. 각 상태가 같은 속성을 쓰므로 상태가 바뀌어도 이전 값이 남지 않는다.
     public static class UIAnimationClipBaker
     {
         private sealed class CurveSet
@@ -84,6 +84,44 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         public static void BakePreview(UIAnimationPreset preset, UIAnimationState state, RectTransform rect, AnimationClip clip)
         {
             Write(preset, state, clip, rect);
+        }
+
+        // 흐름 미리보기도 Hide 끝에서 Show로 블렌드한다. 서로 다른 등장·퇴장 모션의 시작점 차이가 튀지 않는다.
+        public static void BakeShowFlowPreview(UIAnimationPreset preset, RectTransform rect, AnimationClip clip, float blendSeconds)
+        {
+            var hidden = new AnimationClip { hideFlags = HideFlags.HideAndDontSave };
+            var stay = new AnimationClip { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                BakePreview(preset, UIAnimationState.Hide, rect, hidden);
+                BakePreview(preset, UIAnimationState.Show, rect, clip);
+                BakePreview(preset, UIAnimationState.Stay, rect, stay);
+                UIAnimationStateSettings show = preset.Get(UIAnimationState.Show);
+                float duration = show.Time + blendSeconds * show.Speed;
+                EditorCurveBinding[] bindings = AnimationUtility.GetCurveBindings(clip);
+                var blended = new AnimationCurve[bindings.Length];
+                for (int i = 0; i < bindings.Length; i++)
+                {
+                    AnimationCurve incoming = AnimationUtility.GetEditorCurve(clip, bindings[i]);
+                    AnimationCurve outgoing = AnimationUtility.GetEditorCurve(hidden, bindings[i]);
+                    AnimationCurve resting = AnimationUtility.GetEditorCurve(stay, bindings[i]);
+                    float from = outgoing != null ? outgoing.Evaluate(hidden.length) : incoming.Evaluate(0f);
+                    float to = resting != null ? resting.Evaluate(0f) : incoming.Evaluate(show.Time);
+                    blended[i] = UIAnimationCurveFitter.Fit(u =>
+                    {
+                        float time = u * duration;
+                        return time <= show.Time
+                            ? Mathf.Lerp(from, incoming.Evaluate(time), time / show.Speed / Mathf.Max(0.001f, blendSeconds))
+                            : Mathf.Lerp(incoming.Evaluate(show.Time), to, (time - show.Time) / show.Speed / Mathf.Max(0.001f, blendSeconds));
+                    }, duration);
+                }
+                AnimationUtility.SetEditorCurves(clip, bindings, blended);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(hidden);
+                UnityEngine.Object.DestroyImmediate(stay);
+            }
         }
 
         // 입력 반응은 실행 중에 트윈으로 재생하므로, 미리보기용 임시 클립에만 굽는다.
@@ -191,7 +229,8 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             AddFx(curves, preset.AnimatesSheen, "_sheen", settings.Sheen, span.Sheen, roundTrip);
             AddFx(curves, preset.AnimatesFlash, "_flash", settings.Flash, span.Flash, roundTrip);
             if (preset.AnimatesSlice) curves.AddSeed(settings.Slice.Use, preset.GlitchFps, settings.Speed);
-            curves.AddEnabled(preset.ImageEnabled, roundTrip || settings.KeepEnabled);
+            curves.AddEnabled(preset.ImageEnabled, roundTrip || state == UIAnimationState.Hide
+                || state == UIAnimationState.Show || settings.KeepEnabled);
             curves.WriteTo(clip);
         }
 

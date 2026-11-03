@@ -42,7 +42,7 @@ namespace CK.SemesterProject.UIAnimation.Tests
             Assert.That(UIAnimationGenerator.ClipOf(preset, UIAnimationState.Open).length, Is.EqualTo(0.73f).Within(0.001f));
             Assert.That(image.GetComponent<UIAnimationPlayer>().Preset, Is.SameAs(preset));
             Assert.That(preset.AnimatesScale, Is.False);
-            foreach (UIAnimationState state in System.Enum.GetValues(typeof(UIAnimationState)))
+            foreach (UIAnimationState state in new[] { UIAnimationState.Open, UIAnimationState.Stay, UIAnimationState.Close })
                 Assert.That(AnimationUtility.GetCurveBindings(UIAnimationGenerator.ClipOf(preset, state))
                     .Any(binding => binding.type == typeof(RectTransform) && binding.propertyName.StartsWith("m_LocalScale.")), Is.False);
         }

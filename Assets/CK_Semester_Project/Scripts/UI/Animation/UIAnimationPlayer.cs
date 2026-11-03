@@ -1,10 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 
 namespace CK.SemesterProject.UIAnimation
 {
-    // Open → Stay → Close 흐름을 맡는다.
+    // Open → Stay → Close와 선택 기능인 Hide·Show 흐름을 맡는다.
     // 켜지면 Open부터 재생되고, 버튼 OnClick에는 Open()과 Close()를 연결하면 된다.
     // 위치와 회전은 상대값이라 같은 클립을 여러 Image가 써도 각자 자리에서 움직인다.
     [DisallowMultipleComponent]
@@ -12,7 +13,9 @@ namespace CK.SemesterProject.UIAnimation
     [AddComponentMenu("UI/UI Animation Player")]
     public sealed class UIAnimationPlayer : MonoBehaviour
     {
-        private static readonly int IsOpen = Animator.StringToHash(UIAnimationPreset.IsOpenParameter);
+        private static readonly int IsOpenHash = Animator.StringToHash(UIAnimationPreset.IsOpenParameter);
+        private static readonly int IsHiddenHash = Animator.StringToHash(UIAnimationPreset.IsHiddenParameter);
+        private static readonly int HideState = Animator.StringToHash(nameof(UIAnimationState.Hide));
         private static readonly int StayState = Animator.StringToHash(nameof(UIAnimationState.Stay));
         private static readonly int CloseState = Animator.StringToHash(nameof(UIAnimationState.Close));
 
@@ -30,6 +33,10 @@ namespace CK.SemesterProject.UIAnimation
         [SerializeField] private UnityEvent _openFinished = new UnityEvent();
         [SerializeField] private UnityEvent _closeStarted = new UnityEvent();
         [SerializeField] private UnityEvent _closeFinished = new UnityEvent();
+        [SerializeField] private UnityEvent _hideStarted = new UnityEvent();
+        [SerializeField] private UnityEvent _hideFinished = new UnityEvent();
+        [SerializeField] private UnityEvent _showStarted = new UnityEvent();
+        [SerializeField] private UnityEvent _showFinished = new UnityEvent();
 
         // Animator가 쓰는 상대값이다. 클립에는 이 값만 들어가고 실제 자리는 LateUpdate에서 더한다.
         [SerializeField, HideInInspector] private Vector2 _animatedOffset;
@@ -40,6 +47,21 @@ namespace CK.SemesterProject.UIAnimation
         private bool _parked;
         private bool _closing;
         private bool _stateFinished;
+        private bool _openPending;
+        private bool _openPendingBeforeClose;
+        private float _stayTimeOrigin;
+        private bool _hidden;
+        private bool _inputBlocked;
+        private UIAnimationState? _visibilityState;
+        private bool _visibilityFinished;
+        private bool _fallbackHidden;
+        private bool _fallbackAnimatorEnabled;
+        private float _fallbackAlpha;
+        private CanvasGroup _visibilityGroup;
+        private GameObject _selectionBeforeHide;
+        private readonly List<(CanvasGroup Group, bool Interactable, bool Raycasts)> _groups =
+            new List<(CanvasGroup, bool, bool)>();
+        private UIAnimationPointerEffects[] _visibilityPointers;
         private float _openWait;
         private float _closeWait;
         private bool _poseApplied;
@@ -52,6 +74,8 @@ namespace CK.SemesterProject.UIAnimation
 
         public UIAnimationPreset Preset => _preset;
         public bool IsClosing => _closing;
+        public bool IsHidden => _hidden;
+        internal bool InputBlocked => _inputBlocked;
         public float OpenDelay => _openDelay;
         public float CloseDelay => _closeDelay;
         public IReadOnlyList<UIAnimationPlayer> Followers => _followers;
@@ -59,6 +83,10 @@ namespace CK.SemesterProject.UIAnimation
         public UnityEvent OpenFinished => _openFinished;
         public UnityEvent CloseStarted => _closeStarted;
         public UnityEvent CloseFinished => _closeFinished;
+        public UnityEvent HideStarted => _hideStarted;
+        public UnityEvent HideFinished => _hideFinished;
+        public UnityEvent ShowStarted => _showStarted;
+        public UnityEvent ShowFinished => _showFinished;
 
         private void Awake()
         {
@@ -68,6 +96,7 @@ namespace CK.SemesterProject.UIAnimation
 
         private void OnEnable()
         {
+            ClearHidden(false);
             _closing = false;
             _closeWait = 0f;
             foreach (UIAnimationPlayer follower in _followers)
@@ -91,6 +120,7 @@ namespace CK.SemesterProject.UIAnimation
 
         private void OnDisable()
         {
+            ClearHidden(false);
             if (_parked)
             {
                 _parked = false;
@@ -103,6 +133,10 @@ namespace CK.SemesterProject.UIAnimation
 
         public void Open()
         {
+            if (_hidden || _inputBlocked)
+            {
+                Show();
+            }
             if (!gameObject.activeSelf)
             {
                 gameObject.SetActive(true);
@@ -124,20 +158,25 @@ namespace CK.SemesterProject.UIAnimation
             if (_closeWait > 0f)
             {
                 _closeWait = 0f;
+                _openPending = _openPendingBeforeClose;
                 return;
             }
-            _animator.SetBool(IsOpen, true);
+            _animator.SetBool(IsOpenHash, true);
             BeginOpen();
         }
 
         public void Close()
         {
+            _hidden = false;
             if (!isActiveAndEnabled || _closing)
             {
                 return;
             }
 
             _closing = true;
+            ClearHidden(false);
+            _openPendingBeforeClose = _openPending;
+            _openPending = false;
             _openWait = 0f;
             _animator.speed = 1f;
             foreach (UIAnimationPlayer follower in _followers)
@@ -158,6 +197,188 @@ namespace CK.SemesterProject.UIAnimation
             }
         }
 
+        public void Hide()
+        {
+            if (!isActiveAndEnabled || !gameObject.activeInHierarchy || _closing || _hidden) return;
+            _hidden = true;
+            _visibilityState = UIAnimationState.Hide;
+            _visibilityFinished = false;
+            _openPending = false;
+            _openWait = 0f;
+            _animator.speed = 1f;
+            BlockInput();
+            bool wasParked = _parked;
+            bool animatorWasEnabled = _animator.enabled;
+            if (_preset != null && _preset.HideShowEnabled)
+            {
+                // 정지하거나 다시 구운 Animator는 먼저 깨워야 상태와 파라미터를 읽을 수 있다.
+                WakeStay();
+                PrepareAnimator();
+            }
+            if (HasHideShowGraph())
+            {
+                _animator.SetBool(IsOpenHash, true);
+                _animator.SetBool(IsHiddenHash, true);
+                PlaySound(UIAnimationState.Hide);
+            }
+            else
+            {
+                if (wasParked) _parked = true;
+                // 옛 Controller도 입력과 내부 상태를 유지한 채 즉시 숨길 수 있다.
+                if (!_fallbackHidden)
+                {
+                    _fallbackAlpha = _visibilityGroup.alpha;
+                    _fallbackAnimatorEnabled = animatorWasEnabled;
+                    _fallbackHidden = true;
+                }
+                _visibilityGroup.alpha = 0f;
+                _animator.enabled = false;
+            }
+            _hideStarted.Invoke();
+            if (_fallbackHidden && _hidden && _visibilityState == UIAnimationState.Hide) FinishVisibility(UIAnimationState.Hide);
+        }
+
+        public void Show()
+        {
+            if (!isActiveAndEnabled || !_hidden || _closing) return;
+            _hidden = false;
+            _visibilityState = UIAnimationState.Show;
+            _visibilityFinished = false;
+            bool instant = _fallbackHidden;
+            if (instant)
+            {
+                RestoreFallback();
+            }
+            else
+            {
+                PrepareAnimator();
+                _animator.SetBool(IsOpenHash, true);
+                _animator.SetBool(IsHiddenHash, false);
+                PlaySound(UIAnimationState.Show);
+            }
+            _showStarted.Invoke();
+            if (instant && !_hidden && _visibilityState == UIAnimationState.Show) FinishVisibility(UIAnimationState.Show);
+        }
+
+        private bool HasHideShowGraph()
+        {
+            if (_preset == null || !_preset.HideShowEnabled || _animator.runtimeAnimatorController == null
+                || _animator.layerCount == 0) return false;
+            string layer = _animator.GetLayerName(0) + ".";
+            if (!_animator.HasState(0, Animator.StringToHash(layer + nameof(UIAnimationState.Hide)))
+                || !_animator.HasState(0, Animator.StringToHash(layer + nameof(UIAnimationState.Show)))) return false;
+            return HasHiddenParameter();
+        }
+
+        private bool HasHiddenParameter()
+        {
+            if (_animator.runtimeAnimatorController == null) return false;
+            foreach (AnimatorControllerParameter parameter in _animator.parameters)
+                if (parameter.nameHash == IsHiddenHash && parameter.type == AnimatorControllerParameterType.Bool) return true;
+            return false;
+        }
+
+        private void PrepareAnimator()
+        {
+            if (_animator.isActiveAndEnabled && _animator.runtimeAnimatorController != null && !_animator.isInitialized)
+                _animator.Update(0f);
+        }
+
+        private void WakeStay()
+        {
+            if (!_parked) return;
+            _parked = false;
+            _animator.enabled = true;
+            PrepareAnimator();
+            _animator.Play(StayState, 0, 0f);
+            // Play를 확정한 뒤 bool을 써야 초기화 과정에서 요청이 기본값으로 돌아가지 않는다.
+            _animator.Update(0f);
+        }
+
+        private void FinishVisibility(UIAnimationState state)
+        {
+            if (_visibilityState != state || _visibilityFinished) return;
+            _visibilityFinished = true;
+            if (state == UIAnimationState.Hide)
+            {
+                _hideFinished.Invoke();
+            }
+            else
+            {
+                _visibilityState = null;
+                if (_animator.isActiveAndEnabled && _animator.runtimeAnimatorController != null)
+                {
+                    AnimatorStateInfo stay = _animator.GetCurrentAnimatorStateInfo(0);
+                    _stayTimeOrigin = stay.shortNameHash == StayState ? stay.normalizedTime : 0f;
+                }
+                RestoreInput(true);
+                _showFinished.Invoke();
+            }
+        }
+
+        private void ClearHidden(bool restoreSelection)
+        {
+            _hidden = false;
+            _visibilityState = null;
+            RestoreFallback();
+            if (_animator.isActiveAndEnabled && _animator.isInitialized && HasHiddenParameter())
+                _animator.SetBool(IsHiddenHash, false);
+            RestoreInput(restoreSelection);
+        }
+
+        private void RestoreFallback()
+        {
+            if (!_fallbackHidden) return;
+            _fallbackHidden = false;
+            if (_visibilityGroup != null) _visibilityGroup.alpha = _fallbackAlpha;
+            _animator.enabled = _fallbackAnimatorEnabled;
+        }
+
+        private void BlockInput()
+        {
+            if (_inputBlocked) return;
+            _inputBlocked = true;
+            _visibilityGroup = GetComponent<CanvasGroup>();
+            if (_visibilityGroup == null) _visibilityGroup = gameObject.AddComponent<CanvasGroup>();
+            EventSystem events = EventSystem.current;
+            _selectionBeforeHide = events != null ? events.currentSelectedGameObject : null;
+            if (_selectionBeforeHide != null && !_selectionBeforeHide.transform.IsChildOf(transform)) _selectionBeforeHide = null;
+            // 루트 그룹이 자식 입력을 막는다. 숨김 중에도 게임이 버튼을 켜고 끌 수 있으므로 버튼 값은 건드리지 않는다.
+            // 부모 그룹을 무시하는 자식 그룹만 따로 막는다.
+            foreach (CanvasGroup group in GetComponentsInChildren<CanvasGroup>(true))
+            {
+                if (group != _visibilityGroup && !group.ignoreParentGroups) continue;
+                _groups.Add((group, group.interactable, group.blocksRaycasts));
+                group.interactable = false;
+                group.blocksRaycasts = false;
+            }
+            _visibilityPointers = GetComponentsInChildren<UIAnimationPointerEffects>(true);
+            foreach (UIAnimationPointerEffects pointer in _visibilityPointers) pointer.SuspendVisibility();
+            if (_selectionBeforeHide != null) events.SetSelectedGameObject(null);
+        }
+
+        private void RestoreInput(bool restoreSelection)
+        {
+            if (!_inputBlocked) return;
+            _inputBlocked = false;
+            foreach (var saved in _groups)
+                if (saved.Group != null)
+                {
+                    saved.Group.interactable = saved.Interactable;
+                    saved.Group.blocksRaycasts = saved.Raycasts;
+                }
+            _groups.Clear();
+            if (restoreSelection && _selectionBeforeHide != null && _selectionBeforeHide.activeInHierarchy
+                && EventSystem.current != null && EventSystem.current.currentSelectedGameObject == null)
+                EventSystem.current.SetSelectedGameObject(_selectionBeforeHide);
+            _selectionBeforeHide = null;
+            UIAnimationPointerEffects[] pointers = _visibilityPointers;
+            _visibilityPointers = null;
+            if (pointers != null)
+                foreach (UIAnimationPointerEffects pointer in pointers)
+                    if (pointer != null) pointer.ResumeVisibility();
+        }
+
         // 입력 반응이 Animator 결과 위에 더하는 값이다.
         public void SetPointerPose(Vector2 offset, float rotation)
         {
@@ -167,7 +388,15 @@ namespace CK.SemesterProject.UIAnimation
 
         private void BeginOpen()
         {
+            PrepareAnimator();
+            if (_animator.runtimeAnimatorController != null)
+            {
+                _animator.SetBool(IsOpenHash, true);
+                if (HasHiddenParameter()) _animator.SetBool(IsHiddenHash, false);
+            }
             _stateFinished = false;
+            _openPending = true;
+            _stayTimeOrigin = 0f;
             PlaySound(UIAnimationState.Open);
             _openStarted.Invoke();
         }
@@ -175,12 +404,9 @@ namespace CK.SemesterProject.UIAnimation
         private void BeginClose()
         {
             bool wasParked = _parked;
-            if (wasParked)
-            {
-                _parked = false;
-                _animator.enabled = true;
-            }
-            _animator.SetBool(IsOpen, false);
+            WakeStay();
+            PrepareAnimator();
+            _animator.SetBool(IsOpenHash, false);
             if (wasParked)
             {
                 _animator.Play(CloseState, 0, 0f);
@@ -209,6 +435,11 @@ namespace CK.SemesterProject.UIAnimation
 
         private void LateUpdate()
         {
+            if (_inputBlocked && EventSystem.current != null)
+            {
+                GameObject selected = EventSystem.current.currentSelectedGameObject;
+                if (selected != null && selected.transform.IsChildOf(transform)) EventSystem.current.SetSelectedGameObject(null);
+            }
             TickWaits();
             FollowAnimator();
             ApplyPose();
@@ -246,14 +477,18 @@ namespace CK.SemesterProject.UIAnimation
             }
 
             AnimatorStateInfo state = _animator.GetCurrentAnimatorStateInfo(0);
-            if (state.shortNameHash == CloseState)
+            if (state.shortNameHash == HideState && _hidden)
+            {
+                if (state.normalizedTime >= 1f) FinishVisibility(UIAnimationState.Hide);
+            }
+            else if (state.shortNameHash == CloseState && _closing)
             {
                 if (state.normalizedTime >= 1f)
                 {
                     FinishClose();
                 }
             }
-            else if (state.shortNameHash == StayState && !_closing)
+            else if (state.shortNameHash == StayState && !_closing && !_hidden)
             {
                 FollowStay(state);
             }
@@ -271,19 +506,26 @@ namespace CK.SemesterProject.UIAnimation
 
         private void FollowStay(AnimatorStateInfo state)
         {
-            FinishState(_openFinished);
-            if (_closing)
+            bool finishedShow = _visibilityState == UIAnimationState.Show;
+            FinishVisibility(UIAnimationState.Show);
+            bool finishedOpen = _openPending;
+            if (finishedOpen)
+            {
+                _openPending = false;
+                FinishState(_openFinished);
+            }
+            if (_closing || _hidden || _inputBlocked)
             {
                 return;
             }
 
-            if (!_preset.Get(UIAnimationState.Open).KeepEnabled)
+            if (finishedOpen && !_preset.Get(UIAnimationState.Open).KeepEnabled)
             {
                 gameObject.SetActive(false);
             }
             else if (_preset.Get(UIAnimationState.Stay).AutoClose)
             {
-                if (state.normalizedTime >= 1f)
+                if (!finishedShow && state.normalizedTime - _stayTimeOrigin >= 1f)
                 {
                     Close();
                 }
