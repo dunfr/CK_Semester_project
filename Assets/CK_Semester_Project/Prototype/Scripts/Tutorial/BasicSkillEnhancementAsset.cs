@@ -113,6 +113,8 @@ namespace CK.SemesterProject.Tutorial
         private int _victoriesPerStage = 5;
         [SerializeField, Tooltip("기본 스킬 3종의 ID와 단계별 공격력·연출 연결")]
         private SkillStages[] _skills;
+        [SerializeField, Tooltip("강화 없이 연출만 연결하는 스킬(특수스킬·궁극기 등). 단계 칸 3개를 같은 값으로 채웁니다. 공격력은 Skill_DT 값을 그대로 씁니다")]
+        private SkillStages[] _extraSkills = new SkillStages[0];
         [SerializeField, Range(0.05f, 0.45f), Tooltip("전체 행동 시간 중 공격 전 차징에 사용하는 비율(0~1)")]
         private float _chargeFraction = .25f;
         [SerializeField, Range(.1f, 2f), Tooltip("차징 이펙트 재생 속도(배). 0.5는 절반 속도이며 차징 시간은 두 배가 됩니다")]
@@ -169,30 +171,30 @@ namespace CK.SemesterProject.Tutorial
         public AnimationClip GetAnimation(string skillId, int stage)
         {
             ValidateStage(stage);
-            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetAnimation(stage);
+            return Find(skillId)?.GetAnimation(stage);
         }
 
         public GameObject GetEffect(string skillId, int stage)
         {
             ValidateStage(stage);
-            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetEffect(stage);
+            return Find(skillId)?.GetEffect(stage);
         }
 
         public GameObject GetChargeEffect(string skillId)
         {
-            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.ChargeEffect;
+            return Find(skillId)?.ChargeEffect;
         }
 
         public SkillVfxPlacement GetPlacement(string skillId, int stage, bool charge)
         {
             ValidateStage(stage);
-            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetPlacement(stage, charge) ?? default;
+            return Find(skillId)?.GetPlacement(stage, charge) ?? default;
         }
 
         public void SetPlacement(string skillId, int stage, bool charge, GameObject prefab, SkillVfxPlacement placement)
         {
             ValidateStage(stage);
-            SkillStages settings = _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId));
+            SkillStages settings = Find(skillId);
             if (settings == null)
             {
                 throw new ArgumentException("이펙트 배치: 스킬 ID를 찾을 수 없습니다: " + skillId);
@@ -203,19 +205,19 @@ namespace CK.SemesterProject.Tutorial
         public float GetActionSpeed(string skillId, int stage)
         {
             ValidateStage(stage);
-            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetActionSpeed(stage) ?? 1f;
+            return Find(skillId)?.GetActionSpeed(stage) ?? 1f;
         }
 
         public float GetImpactFraction(string skillId, int stage)
         {
             ValidateStage(stage);
-            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))?.GetImpactFraction(stage) ?? .35f;
+            return Find(skillId)?.GetImpactFraction(stage) ?? .35f;
         }
 
         public void SetActionSettings(string skillId, int stage, AnimationClip animation, float speed, float impact)
         {
             ValidateStage(stage);
-            SkillStages settings = _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId));
+            SkillStages settings = Find(skillId);
             if (settings == null)
             {
                 throw new ArgumentException("공격 연출: 스킬 ID를 찾을 수 없습니다: " + skillId);
@@ -246,6 +248,13 @@ namespace CK.SemesterProject.Tutorial
             float chargePart = ChargeFraction / (ChargePlaybackSpeed * charge.EffectivePlaybackSpeed);
             float originalSeconds = Mathf.Max(0f, presentationSeconds - delay) / (1f - ChargeFraction + chargePart);
             return Mathf.Clamp01((originalSeconds * chargePart + delay) / Mathf.Max(.001f, presentationSeconds));
+        }
+
+        // 기본 스킬을 먼저 찾고, 없으면 강화 없는 연출 전용 스킬(특수·궁극기)에서 찾는다.
+        private SkillStages Find(string skillId)
+        {
+            return _skills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId))
+                ?? _extraSkills?.FirstOrDefault(skill => skill != null && skill.Matches(skillId));
         }
 
         private static void ValidateStage(int stage)

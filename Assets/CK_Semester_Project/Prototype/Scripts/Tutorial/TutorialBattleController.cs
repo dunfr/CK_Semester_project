@@ -104,6 +104,31 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("전투 대상 선택 버튼 3개. 숫자 1~3 키로도 선택할 수 있습니다.")]
         private Button[] _targetButtons;
 
+        [Serializable]
+        private struct SkillCinematicBinding
+        {
+            public string SkillId;
+            public SkillCinematic Cinematic;
+        }
+
+        [Header("Skill Cinematics")]
+        [SerializeField, Tooltip("스킬별 타임라인 연출(이펙터 시네머신 연출). 지정하면 사용 시 연출 카메라로 넘겨 재생합니다")]
+        private SkillCinematicBinding[] _skillCinematics = Array.Empty<SkillCinematicBinding>();
+
+        [Header("Cinematic Camera")]
+        [SerializeField, Min(0f), Tooltip("스킬 연출 카메라(Ult_cam 등)를 시선 반대 방향으로 물리는 거리(m). 이펙트가 화면에 들어오도록 원본 카메라보다 멀리 잡습니다")]
+        private float _cinematicPullback = 1.5f;
+        [SerializeField, Range(1f, 2f), Tooltip("스킬 연출 카메라 시야각 배율. 1이면 원본 그대로")]
+        private float _cinematicFieldOfViewScale = 1.25f;
+
+        [Header("Cheat (Editor/Development)")]
+        [SerializeField, Tooltip("전투 중 치트 키 사용. 에디터와 Development 빌드에서만 동작합니다")]
+        private bool _enableCheats = true;
+        [SerializeField, Tooltip("누르면 플레이어 폭주 게이지를 채웁니다(특수·궁극기 테스트용)")]
+        private Key _rageCheatKey = Key.F9;
+        [SerializeField, Range(0, 90), Tooltip("치트로 채울 폭주 값. 91 이상은 폭주(과열)로 행동 불능이 되므로 90까지")]
+        private int _rageCheatValue = 90;
+
         [SerializeField, Min(0.01f), Tooltip("전투 중 우클릭 드래그 회전 감도(도/픽셀)")]
         private float _battleMouseSensitivity = 0.15f;
 
@@ -342,6 +367,11 @@ namespace CK.SemesterProject.Tutorial
                 }
                 return;
             }
+            if (_enableCheats && Application.isFocused && Keyboard.current != null
+                && Keyboard.current[_rageCheatKey].wasPressedThisFrame)
+            {
+                DebugFillRage();
+            }
             if (_cameraTime < _cameraEntrySeconds)
             {
                 return;
@@ -477,10 +507,12 @@ namespace CK.SemesterProject.Tutorial
                     _cinematicReturnFieldOfView = _camera.fieldOfView;
                 }
                 // 모션의 컷 전환을 그대로 보여 주도록 따라가지 않고 바로 맞춘다.
-                _camera.transform.SetPositionAndRotation(pose.position, pose.rotation);
+                _camera.transform.SetPositionAndRotation(pose.position - pose.rotation * Vector3.forward * _cinematicPullback,
+                    pose.rotation);
                 if (horizontalFieldOfView > 0f)
                 {
-                    _camera.fieldOfView = Camera.HorizontalToVerticalFieldOfView(horizontalFieldOfView, _camera.aspect);
+                    _camera.fieldOfView = Camera.HorizontalToVerticalFieldOfView(
+                        Mathf.Min(120f, horizontalFieldOfView * _cinematicFieldOfViewScale), _camera.aspect);
                 }
                 return true;
             }
@@ -875,6 +907,19 @@ namespace CK.SemesterProject.Tutorial
             return false;
         }
 
+        // 테스트용 치트: 전투 중 플레이어 폭주 게이지를 채운다. 에디터·Development 빌드에서만 동작한다.
+        public bool DebugFillRage()
+        {
+            if (!Debug.isDebugBuild || _session == null || !_session.DebugSetRageEnergy("player", _rageCheatValue))
+            {
+                return false;
+            }
+            _cachedSnapshot = null;
+            RefreshUI();
+            _notice.text = "치트: 폭주 게이지 " + _rageCheatValue;
+            return true;
+        }
+
         public void SelectTarget(int index)
         {
             if (!CanInput(Snapshot) || index < 0 || index >= _encounterMembers.Length)
@@ -1057,6 +1102,19 @@ namespace CK.SemesterProject.Tutorial
             {
                 _playerMotionSeconds = _battleAnimation.PlaySkill(request.SkillId, out _playerMotionApproaches);
                 _playerMotionActionId = _playerMotionSeconds > 0f ? result.ActionId : -1;
+            }
+            if (request.ActorId == "player" && request.Kind == BattleActionKind.Skill && !result.WasSkipped)
+            {
+                foreach (SkillCinematicBinding binding in _skillCinematics)
+                {
+                    if (binding.Cinematic != null && binding.SkillId == request.SkillId)
+                    {
+                        // 연출이 끝날 때까지 결과 연출(피해 반영·다음 행동)을 기다린다.
+                        _playerMotionSeconds = Mathf.Max(_playerMotionSeconds, binding.Cinematic.Play(_camera));
+                        _playerMotionActionId = result.ActionId;
+                        break;
+                    }
+                }
             }
             string actor = Snapshot.Combatants.First(unit => unit.InstanceId == request.ActorId).Data.DisplayName;
             _notice.text = result.WasSkipped ? actor + " 행동 불능" : request.Kind == BattleActionKind.Defend ? actor + " 방어"

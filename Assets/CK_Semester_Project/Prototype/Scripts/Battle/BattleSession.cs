@@ -261,6 +261,21 @@ namespace CK.SemesterProject.Battle
             return true;
         }
 
+        // 테스트용 치트: 플레이어의 폭주 에너지를 바로 설정한다. 폭주(과열) 임계값 바로 아래까지만 채워 행동 불능이 되지 않게 한다.
+        public bool DebugSetRageEnergy(string instanceId, int rageEnergy)
+        {
+            if (instanceId == null || !_combatants.TryGetValue(instanceId, out CombatantState before)
+                || before.Data.Team != BattleTeam.Player || before.IsDead)
+            {
+                return false;
+            }
+            int value = Math.Max(0, Math.Min(rageEnergy, BattleCombatRules.OverheatThreshold - 1));
+            _combatants[instanceId] = new CombatantState(before.InstanceId, before.Data, before.Hp, before.Memory,
+                before.SkippedTurns, before.IsDefending, value, before.ChainStep, before.ImprintDamage,
+                before.IsOverheated, before.HasMemoryLoss, before.DefenseDamageMultiplier, before.HasAfterimageRecovery);
+            return true;
+        }
+
         public BattleActionError ValidateRequest(BattleActionRequest request)
         {
             if (_phase != BattlePhase.AwaitingAction)

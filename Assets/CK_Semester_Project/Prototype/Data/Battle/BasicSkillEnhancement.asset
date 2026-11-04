@@ -29,6 +29,52 @@ MonoBehaviour:
     - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
     - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
     _chargeEffect: {fileID: 2269284084507686060, guid: e49faadf4ddd96a4289cd4a0c5258d78, type: 3}
+    _effectPlacements:
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _chargePlacement:
+      Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _actionSpeeds:
+    - 0
+    - 0
+    - 0
+    _impactFractions:
+    - 0
+    - 0
+    - 0
   - _skillId: SK01
     _stageSkillIds:
     - SK01
@@ -44,6 +90,52 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
     _chargeEffect: {fileID: 6022995082793512756, guid: a993e8ad102c713449900e0063726a7b, type: 3}
+    _effectPlacements:
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _chargePlacement:
+      Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _actionSpeeds:
+    - 0
+    - 0
+    - 0
+    _impactFractions:
+    - 0
+    - 0
+    - 0
   - _skillId: SK02
     _stageSkillIds:
     - SK02
@@ -59,5 +151,170 @@ MonoBehaviour:
     - {fileID: 0}
     - {fileID: 0}
     _chargeEffect: {fileID: 5329720332027559207, guid: 48ccbd52c19c0834892053abcbb6f424, type: 3}
+    _effectPlacements:
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _chargePlacement:
+      Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _actionSpeeds:
+    - 0
+    - 0
+    - 0
+    _impactFractions:
+    - 0
+    - 0
+    - 0
+  _extraSkills:
+  - _skillId: SK09
+    _stageSkillIds:
+    - SK09
+    _stagePowers: 000000000000000000000000
+    _animations:
+    - {fileID: 0}
+    - {fileID: 0}
+    - {fileID: 0}
+    _effects:
+    - {fileID: 0}
+    - {fileID: 0}
+    - {fileID: 0}
+    _chargeEffect: {fileID: 0}
+    _effectPlacements:
+    - Enabled: 1
+      Anchor: 1
+      Position: {x: 0, y: 1, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 1.6
+      Follow: 0
+      PlaybackSpeed: 0.6
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 1
+      Anchor: 1
+      Position: {x: 0, y: 1, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 1.6
+      Follow: 0
+      PlaybackSpeed: 0.6
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 1
+      Anchor: 1
+      Position: {x: 0, y: 1, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 1.6
+      Follow: 0
+      PlaybackSpeed: 0.6
+      StartDelay: 0
+      Lifetime: 0
+    _chargePlacement:
+      Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _actionSpeeds:
+    - 0
+    - 0
+    - 0
+    _impactFractions:
+    - 0.35
+    - 0.35
+    - 0.35
+  - _skillId: SK10
+    _stageSkillIds:
+    - SK10
+    _stagePowers: 000000000000000000000000
+    _animations:
+    - {fileID: 0}
+    - {fileID: 0}
+    - {fileID: 0}
+    _effects:
+    - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
+    - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
+    - {fileID: 5471995936799284913, guid: 15b679abfa77e1d4aa138e9a174338d0, type: 3}
+    _chargeEffect: {fileID: 0}
+    _effectPlacements:
+    - Enabled: 0
+      Anchor: 1
+      Position: {x: 0, y: 1, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 1.3
+      Follow: 0
+      PlaybackSpeed: 0.7
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 1
+      Position: {x: 0, y: 1, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 1.3
+      Follow: 0
+      PlaybackSpeed: 0.7
+      StartDelay: 0
+      Lifetime: 0
+    - Enabled: 0
+      Anchor: 1
+      Position: {x: 0, y: 1, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 1.3
+      Follow: 0
+      PlaybackSpeed: 0.7
+      StartDelay: 0
+      Lifetime: 0
+    _chargePlacement:
+      Enabled: 0
+      Anchor: 0
+      Position: {x: 0, y: 0, z: 0}
+      Rotation: {x: 0, y: 0, z: 0}
+      Scale: 0
+      Follow: 0
+      PlaybackSpeed: 0
+      StartDelay: 0
+      Lifetime: 0
+    _actionSpeeds:
+    - 0
+    - 0
+    - 0
+    _impactFractions:
+    - 0.65
+    - 0.65
+    - 0.65
   _chargeFraction: 0.25
   _chargePlaybackSpeed: 0.25

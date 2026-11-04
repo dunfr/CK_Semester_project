@@ -9,6 +9,11 @@ namespace CK.SemesterProject.Tutorial
     {
         public void Initialize(SkillVfxPlacement settings, float baseSpeed = 1f)
         {
+            // 루트가 꺼진 채 저장된 이펙트 프리팹(타임라인용 등)도 전투에서 재생되도록 켠다.
+            if (!gameObject.activeSelf)
+            {
+                gameObject.SetActive(true);
+            }
             ParticleSystem[] particles = GetComponentsInChildren<ParticleSystem>(true);
             float speed = settings.EffectivePlaybackSpeed * baseSpeed;
             foreach (ParticleSystem particle in particles)
