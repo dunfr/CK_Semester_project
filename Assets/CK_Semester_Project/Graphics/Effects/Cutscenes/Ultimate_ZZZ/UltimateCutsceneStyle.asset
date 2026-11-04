@@ -1,0 +1,167 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a90085fad9be6ff439f338ba30a937cd, type: 3}
+  m_Name: UltimateCutsceneStyle
+  m_EditorClassIdentifier: Assembly-CSharp-Editor::CK.CutsceneTools.UltimateCutsceneStyle
+  autoApply: 0
+  bloomThreshold: 1.05
+  bloomIntensity: 1
+  bloomScatter: 0.66
+  bloomTint: {r: 1, g: 0.87, b: 0.98, a: 1}
+  lookExposure: -1
+  lookSaturation: 0
+  lookColorFilter: {r: 1, g: 1, b: 1, a: 1}
+  lookVolumeTimes: {x: 1.05, y: 1.75, z: 4.371212, w: 4.851212}
+  flurryScale: 0.42
+  comboScale: 0.48
+  strikeScale: 1
+  slash1Scale: 2.3
+  slash1UsePose: 1
+  slash1NoRise: 1
+  slash1Position: {x: 0.17, y: 0.79, z: 3.68}
+  slash1Euler: {x: 1.1, y: 335.2, z: 250}
+  ghostColorA: {r: 0.85, g: 0.32, b: 0.78, a: 1}
+  ghostColorB: {r: 0.5, g: 0.32, b: 0.95, a: 1}
+  ghostAlphaA: 0.5
+  ghostAlphaB: 0.32
+  ghostDelayA: 0.07
+  ghostDelayB: 0.14
+  ghostFadeIn: 0.1
+  ghostFadeOut: 0.18
+  ghostWindowDash: {x: 0.2, y: 1.25}
+  ghostWindowFrames:
+  - {x: 72, y: 79}
+  - {x: 88, y: 99}
+  - {x: 111, y: 123}
+  - {x: 127, y: 139}
+  - {x: 147, y: 157}
+  ghostFrameRate: 60
+  ghostSwingStart: 0.15
+  ghostSwingEnd: 0.37
+  dissolveColorA: {r: 1, g: 0.6, b: 0.95, a: 1}
+  dissolveColorB: {r: 0.75, g: 0.55, b: 1, a: 1}
+  domeBottom: {r: 0.02, g: 0.01, b: 0.05, a: 1}
+  domeLow: {r: 0.07, g: 0.02, b: 0.14, a: 1}
+  domeHorizon: {r: 0.11, g: 0.04, b: 0.2, a: 1}
+  domeTop: {r: 0.03, g: 0.01, b: 0.09, a: 1}
+  domeStreak: {r: 1, g: 0.75, b: 0.97, a: 1}
+  domeStreakStrength: 0.3
+  floorCenter: {r: 0.08, g: 0.03, b: 0.15, a: 1}
+  floorEdge: {r: 0.04, g: 0.015, b: 0.1, a: 1}
+  swirlLow: {r: 0.32, g: 0.11, b: 0.55, a: 1}
+  swirlHigh: {r: 0.75, g: 0.55, b: 0.88, a: 1}
+  puffColor1: {r: 1, g: 1, b: 1, a: 1}
+  puffColor2: {r: 1, g: 0.55, b: 0.88, a: 1}
+  puffColor3: {r: 0.55, g: 0.3, b: 0.95, a: 1}
+  puffAlpha: 0.18
+  streakColor1: {r: 1, g: 1, b: 1, a: 1}
+  streakColor2: {r: 1, g: 0.55, b: 0.88, a: 1}
+  streakColor3: {r: 0.55, g: 0.3, b: 0.95, a: 1}
+  shardColor1: {r: 0.55, g: 0.3, b: 0.95, a: 1}
+  shardColor2: {r: 1, g: 0.55, b: 0.88, a: 1}
+  shardColor3: {r: 0.3, g: 0.12, b: 0.5, a: 1}
+  fogIn: {x: 1.1, y: 1.75}
+  fogLayerStagger: 0.1
+  enableWipe: 0
+  enableDarkSpread: 1
+  darkSpreadTime: {x: 1.1, y: 1.75}
+  darkSpreadColor: {r: 0.012, g: 0.004, b: 0.04, a: 1}
+  darkSpreadAlpha: 0.93
+  darkSpreadDistance: 40
+  fogOut: {x: 4.371212, y: 4.851212}
+  domeSpinDegPerSec: 20
+  vortexASpinDegPerSec: -95
+  vortexBSpinDegPerSec: 150
+  hitRingA: {r: 1, g: 0.55, b: 0.9, a: 1}
+  hitRingB: {r: 1, g: 0.97, b: 1, a: 1}
+  hitFlareA: {r: 1, g: 0.97, b: 1, a: 1}
+  hitFlareB: {r: 1, g: 0.55, b: 0.9, a: 1}
+  hitSparkA: {r: 1, g: 0.97, b: 1, a: 1}
+  hitSparkB: {r: 1, g: 0.55, b: 0.9, a: 1}
+  landRingA: {r: 1, g: 0.55, b: 0.9, a: 1}
+  landRingB: {r: 1, g: 0.97, b: 1, a: 1}
+  landDustA: {r: 1, g: 0.97, b: 1, a: 1}
+  landDustB: {r: 1, g: 0.55, b: 0.9, a: 1}
+  pourLayers: 1
+  comboIncludesEarlyParticles: 1
+  comboLead: 0.57
+  flurryAOffset: 0.02
+  flurryBOffset: 0.22
+  comboCenter: {x: 0.2, y: 1.7, z: 5}
+  flurryACenter: {x: 0.4, y: 1.6, z: 4.8}
+  flurryBCenter: {x: -0.2, y: 1.6, z: 5.2}
+  pourCameraLead: 0.47
+  pourCameraMoveTime: 0.5
+  pourCameraPos: {x: 4.8, y: 2.5, z: -2.4}
+  pourCameraLook: {x: 0, y: 1.5, z: 2.6}
+  pourCameraFov: 62
+  pourCameraDrift: {x: -0.3, y: 0.05, z: 0.2}
+  finalShotTime: 4.85
+  battleCameraPos: {x: 2.2, y: 1.3, z: -2.3}
+  battleCameraLook: {x: 0, y: 0.9, z: 2.2}
+  battleCameraFov: 56
+  returnStartAfterBreak: 0.25
+  returnDuration: 1
+  endHold: 0.2
+  webFirstLine: -0.57
+  webBuildTime: 1
+  sizzleStart: 0.1
+  completeTime: 0.55
+  glowStart: 0.65
+  breakTime: 1.15
+  enableWeb: 1
+  webScale: 0.6
+  webHoldUntilBurst: 1
+  webExtraLife: 0
+  sizzleAmplitude: 0.08
+  sizzleRotation: 0.8
+  sizzleScalePulse: 0.01
+  completePop: 1
+  sizzleFps: 24
+  webSeed: 7
+  glowColor: {r: 1, g: 0.82, b: 0.96, a: 1}
+  glowCoreSize: 4
+  glowBloomIntensity: 0.9
+  glowExposure: 0.5
+  glowLightIntensity: 3
+  enableBurst: 1
+  enableBreakPetals: 1
+  burstFadeTime: 0.2
+  burstGlowBoost: 0.4
+  webCoreHoldAlpha: 0.06
+  webCorePeakAlpha: 0.55
+  webBurstThin: 0.25
+  breakFlareSize: 5
+  petalGroups: 6
+  petalScale: 0.7
+  petalGravity: 0.6
+  petalLifeMul: 1.25
+  breakShake: 9
+  breakFlash: 0.2
+  impactTime: 1.02
+  flashHoldUntil: 1.24
+  flashHoldDecay: 0.12
+  dashRumbleTime: 0.25
+  shakeMultiplier: 1
+  shakeImpact: 3.2
+  shakeSwing: 2.8
+  shakeLastSwing: 3.4
+  shakeLand: 7.5
+  shakePour: 3.5
+  hitPulseSwing: 0.7
+  hitPulseLastSwing: 0.9
+  hitPulseLand: 1
+  flashSwing: 0.15
+  flashLand: 0.55
+  flashLandSecond: 0.4
+  whiteoutTime: 4.85
+  whiteoutPeak: 0
