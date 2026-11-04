@@ -1,4 +1,5 @@
 using UnityEngine;
+using CK.SemesterProject.Audio;
 
 namespace CK.SemesterProject.UIAnimation
 {
@@ -20,6 +21,7 @@ namespace CK.SemesterProject.UIAnimation
                 s_source = host.AddComponent<AudioSource>();
                 s_source.playOnAwake = false;
                 s_source.spatialBlend = 0f;
+                GameAudioSettings.Register(s_source, AudioChannel.Sfx);
             }
             s_source.PlayOneShot(clip);
         }
