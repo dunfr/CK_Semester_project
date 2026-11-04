@@ -37,6 +37,10 @@ namespace CK.SemesterProject.LevelDesign
         private TMP_Text _areaNameText;
         [SerializeField, Tooltip("영문 위치 문구. 비워도 동작합니다.")]
         private TMP_Text _areaNameEnglishText;
+        [SerializeField, Tooltip("배너의 한글 위치 문구. 비워도 동작합니다.")]
+        private TMP_Text _bannerAreaNameText;
+        [SerializeField, Tooltip("배너의 영문 위치 문구. 비워도 동작합니다.")]
+        private TMP_Text _bannerAreaNameEnglishText;
         [SerializeField, Tooltip("스토리 번호. 비워도 동작합니다.")]
         private TMP_Text _storyNumberText;
         [SerializeField, Tooltip("한글 스토리 제목. 비워도 동작합니다.")]
@@ -167,6 +171,14 @@ namespace CK.SemesterProject.LevelDesign
             if (_areaNameEnglishText != null)
             {
                 _areaNameEnglishText.text = AreaNameEnglish;
+            }
+            if (_bannerAreaNameText != null)
+            {
+                _bannerAreaNameText.text = AreaName;
+            }
+            if (_bannerAreaNameEnglishText != null)
+            {
+                _bannerAreaNameEnglishText.text = AreaNameEnglish;
             }
         }
 

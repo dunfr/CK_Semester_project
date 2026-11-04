@@ -446,7 +446,7 @@ namespace CK.SemesterProject.Tutorial
             _fieldName.text = _battle.PlayerData == null ? state.CharacterId : _battle.PlayerData.DisplayName;
             _fieldMemory.text = "HP " + state.Hp + "/" + state.MaxHp + "   메모리 " + state.Memory + "/" + state.MaxMemory;
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
-            _floorBanner.text = "0" + floor + "F";
+            _floorBanner.text = floor + "F";
         }
 
         private void RefreshBattle()
