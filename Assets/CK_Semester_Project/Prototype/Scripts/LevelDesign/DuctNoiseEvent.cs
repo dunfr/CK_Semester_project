@@ -1,6 +1,7 @@
 using Semester.Enemies;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Events;
 
 namespace CK.SemesterProject.LevelDesign
 {
@@ -22,6 +23,8 @@ namespace CK.SemesterProject.LevelDesign
         [SerializeField, Tooltip("확인하러 가는 적이 지나갈 문(3-6)")]
         private LevelDoor _passageDoor;
         [SerializeField] private NoisePulse _pulse;
+        [SerializeField, Tooltip("파손음이 났을 때. 적 이동 프리셋의 React()를 연결하면 소리 반응을 프리셋으로 정할 수 있습니다.")]
+        private UnityEvent _triggered = new UnityEvent();
 
         private bool _hasTriggered;
 
@@ -65,6 +68,7 @@ namespace CK.SemesterProject.LevelDesign
                     investigator.InvestigatePosition(floorPoint);
                 }
             }
+            _triggered.Invoke();
         }
     }
 }
