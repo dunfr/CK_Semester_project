@@ -1,0 +1,137 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace CK.SemesterProject.UIAnimation
+{
+    // 구간 경계와 정착점을 키로 남겨 베이크와 인스펙터에서 같은 모양을 쓴다.
+    public static class UIMotionCurves
+    {
+        private const int Samples = 24;
+
+        public static AnimationCurve Window(UIEase ease, float start, float end)
+        {
+            if (start < 0f || end > 1f || start >= end) throw new ArgumentOutOfRangeException(nameof(start));
+            var keys = new List<Keyframe>();
+            if (start > 0f) keys.Add(new Keyframe(0f, 0f));
+            Segment(keys, start, end, 0f, 1f, ease);
+            if (end < 1f) keys.Add(new Keyframe(1f, 1f));
+            return LinearKeys(keys);
+        }
+
+        public static AnimationCurve Settle(float peak, float peakTime, UIEase rise, UIEase fall)
+        {
+            if (peakTime <= 0f || peakTime >= 1f) throw new ArgumentOutOfRangeException(nameof(peakTime));
+            var keys = new List<Keyframe>();
+            Segment(keys, 0f, peakTime, 0f, peak, rise);
+            Segment(keys, peakTime, 1f, peak, 1f, fall);
+            return LinearKeys(keys);
+        }
+
+        public static AnimationCurve Anticipate(float dip, float dipTime, UIEase ease)
+        {
+            return Settle(-Mathf.Abs(dip), dipTime, UIEase.EaseOutQuad, ease);
+        }
+
+        // 각 도착점까지의 이징을 따로 골라 준비·충격·정착의 박자를 나눈다.
+        public static AnimationCurve Path(params (float t, float v, UIEase ease)[] points)
+        {
+            if (points == null || points.Length < 2 || points[0].t != 0f || points[points.Length - 1].t != 1f)
+                throw new ArgumentException("경로는 0에서 시작해 1에서 끝나야 합니다.", nameof(points));
+            var keys = new List<Keyframe>();
+            for (int i = 1; i < points.Length; i++)
+            {
+                if (points[i].t <= points[i - 1].t || points[i].t > 1f)
+                    throw new ArgumentException("키 시간은 0~1에서 증가해야 합니다.", nameof(points));
+                Segment(keys, points[i - 1].t, points[i].t, points[i - 1].v, points[i].v, points[i].ease);
+            }
+            return LinearKeys(keys);
+        }
+
+        // 1→0 트랙에 쓴다. 빛 띠를 0→1로 한 번 통과시킨 뒤 화면 밖에서 0으로 돌린다.
+        public static AnimationCurve Sweep(UIEase ease, float start, float end)
+        {
+            if (end >= 1f) throw new ArgumentOutOfRangeException(nameof(end));
+            AnimationCurve progress = Window(ease, start, end);
+            Keyframe[] keys = progress.keys;
+            for (int i = 0; i < keys.Length; i++)
+            {
+                Keyframe key = keys[i];
+                key.value = 1f - key.value;
+                key.inTangent = -key.inTangent;
+                key.outTangent = -key.outTangent;
+                keys[i] = key;
+            }
+            if (end < 1f)
+            {
+                Keyframe before = keys[keys.Length - 2];
+                before.outTangent = float.PositiveInfinity;
+                keys[keys.Length - 2] = before;
+            }
+            Keyframe last = keys[keys.Length - 1];
+            last.value = 1f;
+            last.inTangent = float.PositiveInfinity;
+            keys[keys.Length - 1] = last;
+            return new AnimationCurve(keys);
+        }
+
+        public static AnimationCurve Steps(params (float t, float v)[] keys)
+        {
+            if (keys == null || keys.Length < 2) throw new ArgumentException("키가 두 개 이상 필요합니다.", nameof(keys));
+            var frames = new Keyframe[keys.Length];
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (keys[i].t < 0f || keys[i].t > 1f || i > 0 && keys[i].t <= keys[i - 1].t)
+                    throw new ArgumentException("키 시간은 0~1에서 증가해야 합니다.", nameof(keys));
+                frames[i] = new Keyframe(keys[i].t, keys[i].v, float.PositiveInfinity, float.PositiveInfinity);
+            }
+            return new AnimationCurve(frames);
+        }
+
+        public static AnimationCurve Reverse(AnimationCurve source)
+        {
+            Keyframe[] original = source.keys;
+            var keys = new List<Keyframe>();
+            for (int i = original.Length - 1; i >= 0; i--)
+            {
+                Keyframe key = original[i];
+                var reversed = new Keyframe(1f - key.time, 1f - key.value, key.outTangent, key.inTangent,
+                    key.outWeight, key.inWeight);
+                reversed.weightedMode = key.weightedMode == WeightedMode.In ? WeightedMode.Out
+                    : key.weightedMode == WeightedMode.Out ? WeightedMode.In : key.weightedMode;
+                keys.Add(reversed);
+                // 역방향 컷의 경계값과 경계 직후 값을 모두 보존한다.
+                if (i > 0 && float.IsInfinity(original[i - 1].outTangent) && original[i - 1].value != key.value)
+                {
+                    float epsilon = Mathf.Min(0.000001f, (key.time - original[i - 1].time) * 0.01f);
+                    reversed.outTangent = float.PositiveInfinity;
+                    keys[keys.Count - 1] = reversed;
+                    keys.Add(new Keyframe(1f - key.time + epsilon, 1f - original[i - 1].value,
+                        float.PositiveInfinity, float.PositiveInfinity));
+                }
+            }
+            return new AnimationCurve(keys.ToArray());
+        }
+
+        private static void Segment(List<Keyframe> keys, float start, float end, float from, float to, UIEase ease)
+        {
+            for (int i = keys.Count > 0 && keys[keys.Count - 1].time == start ? 1 : 0; i <= Samples; i++)
+            {
+                float u = i / (float)Samples;
+                keys.Add(new Keyframe(Mathf.Lerp(start, end, u), Mathf.LerpUnclamped(from, to, UIEasing.Evaluate(ease, u))));
+            }
+        }
+
+        private static AnimationCurve LinearKeys(List<Keyframe> keys)
+        {
+            for (int i = 0; i < keys.Count; i++)
+            {
+                Keyframe key = keys[i];
+                key.inTangent = i == 0 ? 0f : (key.value - keys[i - 1].value) / (key.time - keys[i - 1].time);
+                key.outTangent = i == keys.Count - 1 ? 0f : (keys[i + 1].value - key.value) / (keys[i + 1].time - key.time);
+                keys[i] = key;
+            }
+            return new AnimationCurve(keys.ToArray());
+        }
+    }
+}

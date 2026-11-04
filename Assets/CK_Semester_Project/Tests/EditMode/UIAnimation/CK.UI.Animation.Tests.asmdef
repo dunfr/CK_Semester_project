@@ -1,0 +1,7 @@
+{
+    "name": "CK.UI.Animation.Tests",
+    "rootNamespace": "CK.SemesterProject.UIAnimation.Tests",
+    "references": ["CK.UI.Animation", "CK.UI.Animation.Editor", "UnityEngine.UI"],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}
