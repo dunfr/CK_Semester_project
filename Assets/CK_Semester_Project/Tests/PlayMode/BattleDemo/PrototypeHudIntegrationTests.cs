@@ -175,6 +175,21 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [UnityTest, Category("BattleSkillMenu")]
+        public IEnumerator InvestmentPanelFollowsSelectedSkillPositionAndRotation()
+        {
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            _hud.GetType().GetMethod("ExecuteCommand").Invoke(_hud, new object[] { 0 });
+            _hud.GetType().GetMethod("MoveSkillSelection").Invoke(_hud, new object[] { 1 });
+            RectTransform panel = (RectTransform)GameObject.Find("MemoryThrowPanel").transform;
+            RectTransform skill = (RectTransform)GameObject.Find("SkillButton_QuickSlash").transform;
+            Assert.That(panel.anchoredPosition, Is.EqualTo(skill.anchoredPosition));
+            Assert.That(panel.localRotation, Is.EqualTo(skill.localRotation));
+        }
+
+        [UnityTest, Category("BattleSkillMenu")]
         public IEnumerator SelectingSkillThenExecutingUsesCoreCostsAndRestoresField()
         {
             Assert.That(BeginBattle(), Is.True, "테스트 전투 공간에서 단독 전투 배치를 확보해야 합니다.");
@@ -355,6 +370,56 @@ namespace CK.SemesterProject.Battle.Tests
             BattleSnapshot after = Snapshot();
             Assert.That(after.TurnId != before.TurnId || after.Phase != before.Phase, Is.True,
                 "방어 커맨드는 전투 코어의 턴을 진행해야 합니다.");
+        }
+
+        [UnityTest, Category("BattleSkillMenu")]
+        public IEnumerator TurnSlotsKeepPlayerFirstAndHighlightCurrentActor()
+        {
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            BattleSnapshot state = Snapshot();
+            CombatantState[] units = new[] { state.Combatants.Single(unit => unit.Data.Team == BattleTeam.Player) }
+                .Concat(state.Combatants.Where(unit => unit.Data.Team == BattleTeam.Monster)).ToArray();
+            object[] slots = ((Array)_hud.GetType().GetField("_turnSlots", PrivateInstance).GetValue(_hud))
+                .Cast<object>().ToArray();
+            Assert.That(slots.Length, Is.GreaterThanOrEqualTo(units.Length), "테스트 씬에는 모든 유닛의 슬롯이 필요합니다.");
+            GameObject[] roots = slots.Select(slot => (GameObject)slot.GetType().GetProperty("Root").GetValue(slot)).ToArray();
+            GameObject[] highlights = slots.Select(slot => (GameObject)slot.GetType().GetProperty("Highlight").GetValue(slot)).ToArray();
+            Component name = (Component)slots[0].GetType().GetProperty("Name").GetValue(slots[0]);
+            Assert.That(name.GetType().GetProperty("text").GetValue(name), Is.EqualTo("01"));
+            Assert.That(roots.Count(root => root != null && root.activeInHierarchy), Is.EqualTo(units.Length));
+            Assert.That(highlights.Count(highlight => highlight != null && highlight.activeInHierarchy), Is.EqualTo(1));
+            int actorSlot = Array.FindIndex(units, unit => unit.InstanceId == state.CurrentActorId);
+            Assert.That(actorSlot, Is.GreaterThanOrEqualTo(0));
+            Assert.That(highlights[actorSlot], Is.Not.Null);
+            Assert.That(highlights[actorSlot].activeInHierarchy, Is.True, "현재 행동할 유닛의 고정 슬롯을 강조해야 합니다.");
+            for (int index = 0; index < roots.Length; index++)
+            {
+                Assert.That(roots[index], Is.Not.Null);
+                Assert.That(roots[index].activeSelf, Is.EqualTo(index < units.Length));
+            }
+        }
+
+        [UnityTest, Category("BattleSkillMenu")]
+        public IEnumerator EnemyHeadBarsMatchLivingMonstersAfterTargetSelection()
+        {
+            Array bars = (Array)_hud.GetType().GetField("_enemyHeadBars", PrivateInstance).GetValue(_hud);
+            if (bars == null || bars.Length == 0)
+            {
+                Assert.Ignore("머리 위 체력바가 연결되지 않은 씬입니다.");
+            }
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            Canvas.ForceUpdateCanvases();
+            int living = Snapshot().Combatants.Count(unit => unit.Data.Team == BattleTeam.Monster && !unit.IsDead);
+            RectTransform[] roots = bars.Cast<object>().Where(bar => bar != null)
+                .Select(bar => (RectTransform)bar.GetType().GetProperty("Root").GetValue(bar)).ToArray();
+            Assert.That(roots.Count(root => root != null && root.gameObject.activeInHierarchy), Is.EqualTo(living),
+                "살아 있는 몬스터마다 머리 위 체력바 하나가 켜져야 합니다.");
         }
 
         private bool BeginBattle(bool useFieldUi = false, bool selectTarget = true)

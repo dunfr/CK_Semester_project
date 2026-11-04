@@ -795,6 +795,24 @@ namespace CK.SemesterProject.Tutorial
             return true;
         }
 
+        public bool TryGetMonsterTransform(string instanceId, out Transform monster)
+        {
+            monster = null;
+            if (!IsInBattle || string.IsNullOrEmpty(instanceId))
+            {
+                return false;
+            }
+            for (int index = 0; index < _encounterMembers.Length; index++)
+            {
+                if (instanceId == GetMonsterId(index) && _encounterMembers[index] != null)
+                {
+                    monster = _encounterMembers[index].transform;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private static string GetMonsterId(int index)
         {
             return index == 0 ? "monster" : "monster_" + index;

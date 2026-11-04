@@ -14,6 +14,72 @@ namespace CK.SemesterProject.Tutorial
     public sealed class PrototypeHudPresenter : MonoBehaviour
     {
         [Serializable]
+        private sealed class EnemyHeadBar
+        {
+            [SerializeField] private RectTransform _root;
+            [SerializeField] private Image _background;
+            [SerializeField] private Slider _hp;
+
+            public RectTransform Root => _root;
+            public Image Background => _background;
+            public Slider Hp => _hp;
+
+            private Transform _monster;
+            private Renderer[] _renderers;
+            private Collider[] _colliders;
+
+            public Vector3 GetWorldPosition(Transform monster, float height)
+            {
+                if (_monster != monster || _renderers == null || _colliders == null)
+                {
+                    _monster = monster;
+                    // 목록만 캐시하고 활성 상태와 Bounds는 매번 확인한다.
+                    _renderers = monster.GetComponentsInChildren<Renderer>(true);
+                    _colliders = monster.GetComponentsInChildren<Collider>(true);
+                }
+                Bounds bounds = default;
+                bool hasBounds = false;
+                foreach (Collider collider in _colliders)
+                {
+                    if (collider == null || !collider.enabled || collider.isTrigger || !collider.gameObject.activeInHierarchy)
+                    {
+                        continue;
+                    }
+                    if (hasBounds)
+                    {
+                        bounds.Encapsulate(collider.bounds);
+                    }
+                    else
+                    {
+                        bounds = collider.bounds;
+                        hasBounds = true;
+                    }
+                }
+                if (!hasBounds)
+                {
+                    foreach (Renderer renderer in _renderers)
+                    {
+                        if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                        {
+                            continue;
+                        }
+                        if (hasBounds)
+                        {
+                            bounds.Encapsulate(renderer.bounds);
+                        }
+                        else
+                        {
+                            bounds = renderer.bounds;
+                            hasBounds = true;
+                        }
+                    }
+                }
+                return hasBounds ? new Vector3(bounds.center.x, bounds.max.y + height, bounds.center.z)
+                    : monster.position + Vector3.up * 2f;
+            }
+        }
+
+        [Serializable]
         private sealed class TurnSlot
         {
             [SerializeField] private GameObject _root;
@@ -25,6 +91,62 @@ namespace CK.SemesterProject.Tutorial
             public GameObject Highlight => _highlight;
             public Slider Hp => _hp;
             public TMP_Text Name => _name;
+
+            private RectTransform _rect;
+            private Vector2 _originalPosition;
+            private Vector2 _moveStart;
+            private Vector2 _moveTarget;
+            private float _moveElapsed;
+
+            public void SetPositionOffset(Vector2 offset, float seconds)
+            {
+                if (_root == null)
+                {
+                    return;
+                }
+                if (_rect == null)
+                {
+                    _rect = _root.transform as RectTransform;
+                    if (_rect == null)
+                    {
+                        return;
+                    }
+                    // 최초 위치는 한 번만 기억한다.
+                    _originalPosition = _rect.anchoredPosition;
+                    _moveStart = _originalPosition;
+                    _moveTarget = _originalPosition;
+                }
+                Vector2 target = _originalPosition + offset;
+                if (_moveTarget != target)
+                {
+                    _moveStart = _rect.anchoredPosition;
+                    _moveTarget = target;
+                    _moveElapsed = 0f;
+                }
+                if (seconds <= 0f)
+                {
+                    _rect.anchoredPosition = _moveTarget;
+                }
+            }
+
+            public void UpdatePosition(float seconds, bool reset)
+            {
+                if (_rect == null)
+                {
+                    return;
+                }
+                if (reset || _root == null || !_root.activeInHierarchy)
+                {
+                    _rect.anchoredPosition = _originalPosition;
+                    _moveStart = _originalPosition;
+                    _moveTarget = _originalPosition;
+                    _moveElapsed = 0f;
+                    return;
+                }
+                _moveElapsed += Time.unscaledDeltaTime;
+                float progress = seconds <= 0f ? 1f : Mathf.Clamp01(_moveElapsed / seconds);
+                _rect.anchoredPosition = Vector2.Lerp(_moveStart, _moveTarget, Mathf.SmoothStep(0f, 1f, progress));
+            }
         }
 
         [SerializeField] private TutorialBattleController _battle;
@@ -40,6 +162,17 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private TMP_Text _enemyCardName;
         [SerializeField] private TMP_Text _enemyDetails;
         [SerializeField] private Slider _enemyHp;
+        [SerializeField] private EnemyHeadBar[] _enemyHeadBars = Array.Empty<EnemyHeadBar>();
+        [SerializeField, Tooltip("잔상 몬스터 머리 위 체력바의 배경. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _afterimageHeadBar;
+        [SerializeField, Tooltip("각인 몬스터 머리 위 체력바의 배경. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _imprintHeadBar;
+        [SerializeField, Tooltip("망각 몬스터 머리 위 체력바의 배경. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _oblivionHeadBar;
+        [SerializeField, Tooltip("몬스터 렌더러 Bounds 윗면에서 체력바를 위로 띄우는 월드 거리(m).")]
+        private float _enemyHeadBarHeight = 0.35f;
+        [SerializeField, Tooltip("머리 위 체력바의 화면 위치 보정(px).")]
+        private Vector2 _enemyHeadBarScreenOffset = Vector2.zero;
         [SerializeField] private Slider _enemyCardHp;
         [SerializeField] private Slider _playerHp;
         [SerializeField] private Slider _playerMemory;
@@ -62,6 +195,10 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private TMP_Text[] _commandLabels = Array.Empty<TMP_Text>();
         [SerializeField] private Sprite _normalCommand;
         [SerializeField] private Sprite _selectedCommandSprite;
+        [SerializeField, Tooltip("선택된 커맨드 버튼의 크기 배율.")]
+        private float _selectedCommandScale = 1f;
+        [SerializeField, Tooltip("나머지 커맨드 버튼의 기본 크기 배율.")]
+        private float _normalCommandScale = 1f;
         [SerializeField] private TMP_Text _skillPower;
         [SerializeField] private TMP_Text _skillAccuracy;
         [SerializeField] private TMP_Text _skillElement;
@@ -69,20 +206,40 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private Button[] _skills;
         [SerializeField] private TMP_Text[] _skillNames;
         [SerializeField] private TMP_Text[] _skillCosts;
+        [SerializeField, Tooltip("선택된 스킬의 비용 문구 색. 비용이 부족하면 빨강을 우선 적용한다.")]
+        private Color _selectedSkillCostColor = new Color(.45f, .9f, 1f);
         [SerializeField] private Image[] _skillImages;
         [SerializeField] private Sprite _normalSkill;
         [SerializeField] private Sprite _selectedSkillSprite;
         [SerializeField] private Transform _player;
         [SerializeField] private GameObject _fieldRoot;
         [SerializeField] private RawImage _minimap;
+        [SerializeField, Tooltip("미니맵 플레이어 방향 표시. 위쪽(+Y)이 앞인 아이콘을 연결한다.")]
+        private RectTransform _minimapPlayerMarker;
         [SerializeField] private Button _execute;
         [SerializeField] private Button _investment;
+        [SerializeField, Tooltip("메모리 투자 패널이 선택된 스킬 버튼을 따라간다.")]
+        private bool _investmentFollowsSelectedSkill = true;
         [SerializeField] private Button _defend;
         [SerializeField] private Button[] _targets;
         [SerializeField] private TMP_Text[] _targetNames;
         [SerializeField] private GameObject[] _investmentGlow;
         [SerializeField] private GameObject[] _investmentLock;
         [SerializeField] private TurnSlot[] _turnSlots;
+        [SerializeField, Tooltip("현재 행동할 유닛의 슬롯 번호 색.")]
+        private Color _turnHighlightColor = new Color(102f / 255f, 251f / 255f, 1f);
+        [SerializeField, Tooltip("나머지 슬롯 번호의 기본 색.")]
+        private Color _turnNormalColor = new Color(231f / 255f, 1f, 1f);
+        [SerializeField, Tooltip("현재 행동할 유닛의 슬롯 번호 크기.")]
+        private float _turnHighlightFontSize = 21f;
+        [SerializeField, Tooltip("나머지 슬롯 번호의 기본 크기.")]
+        private float _turnNormalFontSize = 18f;
+        [SerializeField, Tooltip("현재 행동할 유닛의 슬롯을 원래 위치에서 내미는 거리.")]
+        private Vector2 _turnSlotActiveOffset = new Vector2(14f, 0f);
+        [SerializeField, Min(0f), Tooltip("턴 슬롯 이동에 걸리는 초. 0이면 즉시 이동한다.")]
+        private float _turnSlotMoveSeconds = 0.12f;
+        [SerializeField, Range(0f, 1f), Tooltip("죽은 유닛 슬롯의 투명도. 루트에 CanvasGroup이 있을 때 적용한다.")]
+        private float _deadTurnSlotAlpha = 0.4f;
 
         [SerializeField] private PlayerMovement _movement;
         [SerializeField] private Button _sprint;
@@ -182,6 +339,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnEnable()
         {
+            Canvas.willRenderCanvases += UpdateEnemyHeadBars;
             PlayerSessionState.Current.Changed += RefreshField;
             RefreshField();
         }
@@ -256,6 +414,10 @@ namespace CK.SemesterProject.Tutorial
             _sprint.targetGraphic.color = _movement.IsSprinting || _movement.IsSprintToggled
                 ? new Color(.35f, 1f, 1f) : Color.white;
             _fieldAttack.interactable = _battle.CanInitiateNearbyBattle;
+            if (_fieldRoot.activeInHierarchy && _minimapPlayerMarker != null && _player != null)
+            {
+                _minimapPlayerMarker.localRotation = Quaternion.Euler(0f, 0f, -_player.eulerAngles.y);
+            }
             bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
             _mapCamera.enabled = renderMap;
             if (renderMap)
@@ -270,6 +432,111 @@ namespace CK.SemesterProject.Tutorial
                 RefreshField();
             }
             RefreshBattleIfChanged();
+            UpdateTurnSlotPositions(_battle.Snapshot == null);
+        }
+
+        private void UpdateTurnSlotPositions(bool reset)
+        {
+            if (_turnSlots == null)
+            {
+                return;
+            }
+            foreach (TurnSlot slot in _turnSlots)
+            {
+                if (slot != null)
+                {
+                    slot.UpdatePosition(_turnSlotMoveSeconds, reset);
+                }
+            }
+        }
+
+        private void UpdateEnemyHeadBars()
+        {
+            if (!isActiveAndEnabled || _enemyHeadBars == null || _enemyHeadBars.Length == 0)
+            {
+                return;
+            }
+            BattleSnapshot state = _battle == null ? null : _battle.Snapshot;
+            if (state == null)
+            {
+                return;
+            }
+            Camera camera = Camera.main;
+            int index = 0;
+            foreach (CombatantState unit in state.Combatants)
+            {
+                if (unit.Data.Team != BattleTeam.Monster)
+                {
+                    continue;
+                }
+                if (index >= _enemyHeadBars.Length)
+                {
+                    break;
+                }
+                EnemyHeadBar bar = _enemyHeadBars[index++];
+                if (bar == null || bar.Root == null)
+                {
+                    continue;
+                }
+                if (unit.IsDead || camera == null || !_battle.TryGetMonsterTransform(unit.InstanceId, out Transform monster))
+                {
+                    bar.Root.gameObject.SetActive(false);
+                    continue;
+                }
+                Sprite background = unit.Data.Element == BattleElement.Afterimage ? _afterimageHeadBar
+                    : unit.Data.Element == BattleElement.Imprint ? _imprintHeadBar
+                    : unit.Data.Element == BattleElement.Oblivion ? _oblivionHeadBar : null;
+                if (bar.Background != null && background != null)
+                {
+                    bar.Background.sprite = background;
+                }
+                if (bar.Hp != null)
+                {
+                    SetBar(bar.Hp, unit.Hp, unit.Data.MaxHp);
+                }
+                Vector3 screen = camera.WorldToScreenPoint(bar.GetWorldPosition(monster, _enemyHeadBarHeight));
+                RectTransform parent = bar.Root.parent as RectTransform;
+                Canvas canvas = bar.Root.GetComponentInParent<Canvas>(true);
+                canvas = canvas == null ? null : canvas.rootCanvas;
+                if (screen.z <= 0f || parent == null || canvas == null)
+                {
+                    bar.Root.gameObject.SetActive(false);
+                    continue;
+                }
+                Camera uiCamera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+                if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(parent,
+                    (Vector2)screen + _enemyHeadBarScreenOffset, uiCamera, out Vector2 local))
+                {
+                    bar.Root.gameObject.SetActive(false);
+                    continue;
+                }
+                // 부모 로컬 좌표를 써서 앵커 위치의 영향을 받지 않는다.
+                bar.Root.localPosition = new Vector3(local.x, local.y, 0f);
+                bar.Root.gameObject.SetActive(true);
+            }
+            for (; index < _enemyHeadBars.Length; index++)
+            {
+                EnemyHeadBar bar = _enemyHeadBars[index];
+                if (bar != null && bar.Root != null)
+                {
+                    bar.Root.gameObject.SetActive(false);
+                }
+            }
+        }
+
+        private void HideEnemyHeadBars()
+        {
+            if (_enemyHeadBars == null)
+            {
+                return;
+            }
+            foreach (EnemyHeadBar bar in _enemyHeadBars)
+            {
+                if (bar != null && bar.Root != null)
+                {
+                    bar.Root.gameObject.SetActive(false);
+                }
+            }
         }
 
         private void RefreshBattleIfChanged()
@@ -277,6 +544,7 @@ namespace CK.SemesterProject.Tutorial
             BattleSnapshot state = _battle.Snapshot;
             if (state == null)
             {
+                HideEnemyHeadBars();
                 _previousSnapshot = null;
                 _previousPlayerData = null;
                 _hasSkillSelection = false;
@@ -298,7 +566,10 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnDisable()
         {
+            Canvas.willRenderCanvases -= UpdateEnemyHeadBars;
+            HideEnemyHeadBars();
             PlayerSessionState.Current.Changed -= RefreshField;
+            UpdateTurnSlotPositions(true);
         }
 
         private void OnDestroy()
@@ -476,16 +747,22 @@ namespace CK.SemesterProject.Tutorial
                 _hasSkillSelection = false;
             }
             _skillDetailsPanel.SetActive(!IsCommandPhase && _hasSkillSelection && _couldChoose && _battle.HasSelectedBattleTarget);
-            CombatantState player = state.Combatants.First(unit => unit.InstanceId == "player");
+            CombatantState player = state.Combatants.First(unit => unit.Data.Team == BattleTeam.Player);
             CombatantState[] enemies = state.Combatants.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
             CombatantState target = enemies.FirstOrDefault(unit => unit.InstanceId == _battle.TargetId) ?? enemies[0];
             _playerTurn.SetActive(_couldChoose && _battle.HasSelectedBattleTarget);
             SetBar(_playerHp, player.Hp, player.Data.MaxHp);
             SetBar(_playerMemory, player.Memory, player.Data.MaxMemory);
-            SetBar(_enemyHp, target.Hp, target.Data.MaxHp);
+            if (_enemyHp != null)
+            {
+                SetBar(_enemyHp, target.Hp, target.Data.MaxHp);
+            }
             SetBar(_enemyCardHp, target.Hp, target.Data.MaxHp);
-            _playerVitals.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
-                + "  폭주 " + player.RageEnergy;
+            if (_playerVitals != null)
+            {
+                _playerVitals.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
+                    + "  폭주 " + player.RageEnergy;
+            }
             _memoryCurrent.text = player.Memory.ToString();
             _memoryCapacity.text = player.Data.MaxMemory.ToString();
             _skillMemory.text = player.Memory.ToString();
@@ -513,8 +790,9 @@ namespace CK.SemesterProject.Tutorial
                 _skillNames[index].color = index == _selectedSkill ? new Color(.04f, .12f, .2f) : Color.white;
                 _skillCosts[index].color = cost > player.Memory
                     ? new Color(1f, 0.4f, 0.4f)
-                    : index == _selectedSkill ? new Color(0f, .25f, .32f) : Color.cyan;
+                    : index == _selectedSkill ? _selectedSkillCostColor : Color.cyan;
             }
+            FollowInvestmentToSelectedSkill();
             SkillData selected = _battle.Skills[_selectedSkill];
             _execute.interactable = _couldChoose && _hasSkillSelection && selected.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
             _defend.interactable = _couldChoose && _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
@@ -532,20 +810,82 @@ namespace CK.SemesterProject.Tutorial
                         + TutorialMonster.GetElementName(enemy.Data.Element) + " " + enemy.Hp;
                 }
             }
-            string[] order = state.TurnOrder.Distinct().ToArray();
+            // 슬롯은 플레이어, 몬스터 순서로 고정하고 행동 강조만 옮긴다.
             for (int index = 0; index < _turnSlots.Length; index++)
             {
-                _turnSlots[index].Root.SetActive(index < order.Length);
-                if (index < order.Length)
+                TurnSlot slot = _turnSlots[index];
+                if (slot == null)
                 {
-                    CombatantState unit = state.Combatants.First(item => item.InstanceId == order[index]);
-                    int actions = state.TurnOrder.Count(id => id == unit.InstanceId);
-                    _turnSlots[index].Name.text = (index + 1).ToString("00") + " "
-                        + (unit.Data.Team == BattleTeam.Player ? "플레이어" : TutorialMonster.GetElementName(unit.Data.Element))
-                        + (actions > 1 ? " ×" + actions : "");
-                    SetBar(_turnSlots[index].Hp, unit.Hp, unit.Data.MaxHp);
-                    _turnSlots[index].Highlight.SetActive(unit.InstanceId == state.CurrentActorId);
+                    continue;
                 }
+                CombatantState unit = index == 0 ? player : index - 1 < enemies.Length ? enemies[index - 1] : null;
+                bool highlighted = unit != null && unit.InstanceId == state.CurrentActorId;
+                if (slot.Root != null)
+                {
+                    slot.Root.SetActive(unit != null);
+                    CanvasGroup group = slot.Root.GetComponent<CanvasGroup>();
+                    if (group != null)
+                    {
+                        group.alpha = unit != null && unit.IsDead ? _deadTurnSlotAlpha : 1f;
+                    }
+                }
+                slot.SetPositionOffset(highlighted ? _turnSlotActiveOffset : Vector2.zero, _turnSlotMoveSeconds);
+                if (unit == null || !isActiveAndEnabled)
+                {
+                    slot.UpdatePosition(_turnSlotMoveSeconds, true);
+                }
+                if (slot.Highlight != null)
+                {
+                    slot.Highlight.SetActive(highlighted);
+                }
+                if (unit != null)
+                {
+                    if (slot.Name != null)
+                    {
+                        slot.Name.text = (index + 1).ToString("00");
+                        slot.Name.color = highlighted ? _turnHighlightColor : _turnNormalColor;
+                        slot.Name.fontSize = highlighted ? _turnHighlightFontSize : _turnNormalFontSize;
+                    }
+                    if (slot.Hp != null)
+                    {
+                        SetBar(slot.Hp, unit.Hp, unit.Data.MaxHp);
+                    }
+                }
+            }
+        }
+
+        private void FollowInvestmentToSelectedSkill()
+        {
+            if (!_investmentFollowsSelectedSkill || _investment == null || _skills == null
+                || _selectedSkill < 0 || _selectedSkill >= _skills.Length || _skills[_selectedSkill] == null)
+            {
+                return;
+            }
+            RectTransform panel = _investment.transform as RectTransform;
+            RectTransform target = _skills[_selectedSkill].transform as RectTransform;
+            if (panel == null || target == null)
+            {
+                return;
+            }
+            // 같은 부모에서는 UI 기준점과 크기도 맞춘다.
+            if (panel.parent == target.parent)
+            {
+                panel.anchorMin = target.anchorMin;
+                panel.anchorMax = target.anchorMax;
+                panel.pivot = target.pivot;
+                panel.anchoredPosition = target.anchoredPosition;
+                panel.sizeDelta = target.sizeDelta;
+                panel.localRotation = target.localRotation;
+            }
+            else
+            {
+                panel.position = target.position;
+                panel.rotation = target.rotation;
+            }
+            panel.localScale = target.localScale;
+            if (panel.parent != null && panel.GetSiblingIndex() != panel.parent.childCount - 1)
+            {
+                panel.SetAsLastSibling();
             }
         }
 
@@ -575,6 +915,8 @@ namespace CK.SemesterProject.Tutorial
                     && (index != 1 || _defend.interactable);
                 _commandImages[index].sprite = index == _selectedCommand ? _selectedCommandSprite : _normalCommand;
                 _commandLabels[index].color = index == _selectedCommand ? new Color(.04f, .12f, .2f) : Color.white;
+                float scale = index == _selectedCommand ? _selectedCommandScale : _normalCommandScale;
+                _commands[index].transform.localScale = Vector3.one * scale;
             }
         }
 
