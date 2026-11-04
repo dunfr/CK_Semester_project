@@ -180,12 +180,32 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private TMP_Text _memoryCurrent;
         [SerializeField] private TMP_Text _memoryCapacity;
         [SerializeField] private TMP_Text _skillMemory;
+        [SerializeField, Tooltip("현재 메모리 투자 단계. 비어 있으면 건너뛴다.")]
+        private TMP_Text _investmentStageText;
+        [SerializeField, Tooltip("최대 메모리 투자 단계. 투자 칸 수를 표시하며 비어 있으면 건너뛴다.")]
+        private TMP_Text _investmentStageMaxText;
         [SerializeField] private TMP_Text _round;
         [SerializeField] private TMP_Text _investmentCost;
         [SerializeField] private TMP_Text _skillName;
         [SerializeField] private TMP_Text _skillType;
         [SerializeField] private TMP_Text _skillDescription;
         [SerializeField] private GameObject _skillDetailsPanel;
+        [SerializeField, Tooltip("스킬 설명 패널의 기본 배경. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _skillPanelDefault;
+        [SerializeField, Tooltip("잔상 스킬의 설명 패널 배경. 비어 있으면 기본 배경을 사용한다.")]
+        private Sprite _skillPanelAfterimage;
+        [SerializeField, Tooltip("각인 스킬의 설명 패널 배경. 비어 있으면 기본 배경을 사용한다.")]
+        private Sprite _skillPanelImprint;
+        [SerializeField, Tooltip("망각 스킬의 설명 패널 배경. 비어 있으면 기본 배경을 사용한다.")]
+        private Sprite _skillPanelOblivion;
+        [SerializeField, Tooltip("특수기의 설명 패널 배경. 비어 있으면 기본 배경을 사용한다.")]
+        private Sprite _skillPanelSpecial;
+        [SerializeField, Tooltip("궁극기의 설명 패널 배경. 비어 있으면 기본 배경을 사용한다.")]
+        private Sprite _skillPanelUltimate;
+        [SerializeField, Tooltip("특수기 배경을 사용할 스킬 ID 목록. 궁극기 목록을 우선한다.")]
+        private string[] _specialSkillIds = { "SK09" };
+        [SerializeField, Tooltip("궁극기 배경을 사용할 스킬 ID 목록.")]
+        private string[] _ultimateSkillIds = { "SK10" };
         [SerializeField] private GameObject _commandPanel;
         [SerializeField] private GameObject _skillPanel;
         [SerializeField] private GameObject _backHint;
@@ -200,6 +220,12 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("나머지 커맨드 버튼의 기본 크기 배율.")]
         private float _normalCommandScale = 1f;
         [SerializeField] private TMP_Text _skillPower;
+        [SerializeField, Tooltip("선택한 스킬의 메모리 사용량. 투자 비용을 포함하며 비어 있으면 건너뛴다.")]
+        private TMP_Text _skillMemoryCost;
+        [SerializeField, Tooltip("선택한 스킬의 폭주 에너지 증감. 비어 있으면 건너뛴다.")]
+        private TMP_Text _skillRage;
+        [SerializeField, Tooltip("선택한 스킬의 범위(단일/전체). 비어 있으면 건너뛴다.")]
+        private TMP_Text _skillRange;
         [SerializeField] private TMP_Text _skillAccuracy;
         [SerializeField] private TMP_Text _skillElement;
         [SerializeField] private TMP_Text _skillTarget;
@@ -209,6 +235,26 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("선택된 스킬의 비용 문구 색. 비용이 부족하면 빨강을 우선 적용한다.")]
         private Color _selectedSkillCostColor = new Color(.45f, .9f, 1f);
         [SerializeField] private Image[] _skillImages;
+        [SerializeField, Tooltip("스킬 버튼 아이콘. 비어 있으면 각 버튼의 자식 Icon에서 찾는다.")]
+        private UnityEngine.UI.Image[] _skillIcons = Array.Empty<UnityEngine.UI.Image>();
+        [SerializeField, Tooltip("잔상 스킬 아이콘. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _afterimageSkillIcon;
+        [SerializeField, Tooltip("각인 스킬 아이콘. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _imprintSkillIcon;
+        [SerializeField, Tooltip("망각 스킬 아이콘. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _oblivionSkillIcon;
+        [SerializeField, Tooltip("특수기 아이콘. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _specialSkillIcon;
+        [SerializeField, Tooltip("궁극기 아이콘. 비어 있으면 기존 스프라이트를 유지한다.")]
+        private Sprite _ultimateSkillIcon;
+        [SerializeField, Tooltip("선택된 스킬 버튼의 켜진 별. 비어 있으면 기존 표시를 유지한다.")]
+        private Sprite _selectedStarOn;
+        [SerializeField, Tooltip("선택된 스킬 버튼의 꺼진 별. 비어 있으면 기존 표시를 유지한다.")]
+        private Sprite _selectedStarOff;
+        [SerializeField, Tooltip("나머지 스킬 버튼의 켜진 별. 비어 있으면 기존 표시를 유지한다.")]
+        private Sprite _normalStarOn;
+        [SerializeField, Tooltip("나머지 스킬 버튼의 꺼진 별. 비어 있으면 기존 표시를 유지한다.")]
+        private Sprite _normalStarOff;
         [SerializeField] private Sprite _normalSkill;
         [SerializeField] private Sprite _selectedSkillSprite;
         [SerializeField] private Transform _player;
@@ -254,6 +300,8 @@ namespace CK.SemesterProject.Tutorial
         private UnityAction[] _selectActions;
         private UnityAction[] _targetActions;
         private UnityAction[] _commandActions;
+        private UnityEngine.UI.Image[][] _skillStars;
+        private TMP_Text[] _skillLevels;
         private int _selectedCommand;
         private bool _isCommandPhase = true;
         private int _skillPhaseEnteredFrame = -1;
@@ -288,18 +336,22 @@ namespace CK.SemesterProject.Tutorial
                 _skillDetailsPanel = _skillName.transform.parent.gameObject;
             }
             _selectActions = new UnityAction[_skills.Length];
+            CacheSkillButtonVisuals();
             for (int index = 0; index < _skills.Length; index++)
             {
                 int skillIndex = index;
                 _selectActions[index] = () => SelectSkill(skillIndex);
                 _skills[index].onClick.AddListener(_selectActions[index]);
             }
-            _targetActions = new UnityAction[_targets.Length];
-            for (int index = 0; index < _targets.Length; index++)
+            _targetActions = new UnityAction[_targets == null ? 0 : _targets.Length];
+            for (int index = 0; index < _targetActions.Length; index++)
             {
                 int targetIndex = index;
                 _targetActions[index] = () => _battle.SelectTarget(targetIndex);
-                _targets[index].onClick.AddListener(_targetActions[index]);
+                if (_targets[index] != null)
+                {
+                    _targets[index].onClick.AddListener(_targetActions[index]);
+                }
             }
             _commandActions = new UnityAction[_commands == null ? 0 : _commands.Length];
             for (int index = 0; index < _commandActions.Length; index++)
@@ -335,6 +387,31 @@ namespace CK.SemesterProject.Tutorial
             _mapCamera.targetTexture = _mapTexture;
             _mapCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
             _minimap.texture = _mapTexture;
+        }
+
+        private void CacheSkillButtonVisuals()
+        {
+            bool findIcons = _skillIcons == null || _skillIcons.Length == 0;
+            if (findIcons)
+            {
+                _skillIcons = new UnityEngine.UI.Image[_skills.Length];
+            }
+            _skillStars = new UnityEngine.UI.Image[_skills.Length][];
+            _skillLevels = new TMP_Text[_skills.Length];
+            for (int index = 0; index < _skills.Length; index++)
+            {
+                Transform button = _skills[index].transform;
+                if (findIcons)
+                {
+                    _skillIcons[index] = button.Find("Icon")?.GetComponent<UnityEngine.UI.Image>();
+                }
+                _skillStars[index] = new UnityEngine.UI.Image[3];
+                for (int star = 0; star < 3; star++)
+                {
+                    _skillStars[index][star] = button.Find("Star_" + (star + 1))?.GetComponent<UnityEngine.UI.Image>();
+                }
+                _skillLevels[index] = button.Find("Level")?.GetComponent<TMP_Text>();
+            }
         }
 
         private void OnEnable()
@@ -578,9 +655,12 @@ namespace CK.SemesterProject.Tutorial
             {
                 _skills[index].onClick.RemoveListener(_selectActions[index]);
             }
-            for (int index = 0; index < _targets.Length; index++)
+            for (int index = 0; _targets != null && index < _targets.Length; index++)
             {
-                _targets[index].onClick.RemoveListener(_targetActions[index]);
+                if (_targets[index] != null)
+                {
+                    _targets[index].onClick.RemoveListener(_targetActions[index]);
+                }
             }
             for (int index = 0; index < _commandActions.Length; index++)
             {
@@ -757,23 +837,51 @@ namespace CK.SemesterProject.Tutorial
             {
                 SetBar(_enemyHp, target.Hp, target.Data.MaxHp);
             }
-            SetBar(_enemyCardHp, target.Hp, target.Data.MaxHp);
+            if (_enemyCardHp != null)
+            {
+                SetBar(_enemyCardHp, target.Hp, target.Data.MaxHp);
+            }
             if (_playerVitals != null)
             {
                 _playerVitals.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
                     + "  폭주 " + player.RageEnergy;
             }
-            _memoryCurrent.text = player.Memory.ToString();
-            _memoryCapacity.text = player.Data.MaxMemory.ToString();
-            _skillMemory.text = player.Memory.ToString();
+            if (_memoryCurrent != null)
+            {
+                _memoryCurrent.text = player.Memory.ToString();
+            }
+            if (_memoryCapacity != null)
+            {
+                _memoryCapacity.text = player.Data.MaxMemory.ToString();
+            }
+            if (_skillMemory != null)
+            {
+                _skillMemory.text = player.Memory.ToString();
+            }
+            if (_investmentStageText != null)
+            {
+                _investmentStageText.text = _battle.InvestmentStage.ToString();
+            }
+            if (_investmentStageMaxText != null)
+            {
+                _investmentStageMaxText.text = _investmentGlow.Length.ToString();
+            }
             string element = TutorialMonster.GetElementName(target.Data.Element);
             _enemyName.text = target.Data.DisplayName + " [" + element + "]";
-            _enemyCardName.text = target.Data.DisplayName;
-            _enemyDetails.text = element + " · HP " + target.Hp + "/" + target.Data.MaxHp + "\n메모리 " + target.Memory
-                + "  연쇄 " + target.ChainStep + "/4\n약점 순서: "
-                + string.Join(" → ", target.Data.WeaknessChain.Select(TutorialMonster.GetElementName));
+            if (_enemyCardName != null)
+            {
+                _enemyCardName.text = target.Data.DisplayName;
+            }
+            if (_enemyDetails != null)
+            {
+                _enemyDetails.text = element + " · HP " + target.Hp + "/" + target.Data.MaxHp + "\n메모리 " + target.Memory
+                    + "  연쇄 " + target.ChainStep + "/4\n약점 순서: "
+                    + string.Join(" → ", target.Data.WeaknessChain.Select(TutorialMonster.GetElementName));
+            }
             _round.text = "ROUND " + state.Round.ToString("00") + "   TURN " + state.TurnId.ToString("00");
-            _investmentCost.text = "투자 " + _battle.InvestmentStage + "/5 · 비용 " + _battle.GetInvestmentCost(_battle.InvestmentStage);
+            SkillData selected = _battle.Skills[_selectedSkill];
+            int investmentCost = _battle.GetInvestmentCost(_battle.InvestmentStage);
+            _investmentCost.text = "메모리 " + player.Memory + "/" + player.Data.MaxMemory + " 비용 " + investmentCost;
             for (int index = 0; index < _investmentGlow.Length; index++)
             {
                 _investmentGlow[index].SetActive(index < _battle.InvestmentStage);
@@ -783,31 +891,38 @@ namespace CK.SemesterProject.Tutorial
             {
                 SkillData skill = _battle.Skills[index];
                 _skillNames[index].text = skill.DisplayName;
-                int cost = skill.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage);
+                int cost = skill.MemoryCost + investmentCost;
                 _skillCosts[index].text = "MEM " + cost;
                 _skills[index].interactable = _couldChoose;
                 _skillImages[index].sprite = index == _selectedSkill ? _selectedSkillSprite : _normalSkill;
+                RefreshSkillButtonVisuals(index, skill);
                 _skillNames[index].color = index == _selectedSkill ? new Color(.04f, .12f, .2f) : Color.white;
                 _skillCosts[index].color = cost > player.Memory
                     ? new Color(1f, 0.4f, 0.4f)
                     : index == _selectedSkill ? _selectedSkillCostColor : Color.cyan;
             }
             FollowInvestmentToSelectedSkill();
-            SkillData selected = _battle.Skills[_selectedSkill];
             _execute.interactable = _couldChoose && _hasSkillSelection && selected.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
             _defend.interactable = _couldChoose && _battle.GetInvestmentCost(_battle.InvestmentStage) <= player.Memory;
             _investment.interactable = _couldChoose;
             RefreshCommandMenu();
             RefreshSkillDetails(selected);
-            for (int index = 0; index < _targets.Length; index++)
+            for (int index = 0; _targets != null && index < _targets.Length; index++)
             {
+                if (_targets[index] == null)
+                {
+                    continue;
+                }
                 _targets[index].gameObject.SetActive(index < enemies.Length);
                 if (index < enemies.Length)
                 {
                     CombatantState enemy = enemies[index];
                     _targets[index].interactable = _couldChoose && !enemy.IsDead;
-                    _targetNames[index].text = (enemy.InstanceId == target.InstanceId ? "▶ " : "") + (index + 1) + " "
-                        + TutorialMonster.GetElementName(enemy.Data.Element) + " " + enemy.Hp;
+                    if (_targetNames != null && index < _targetNames.Length && _targetNames[index] != null)
+                    {
+                        _targetNames[index].text = (enemy.InstanceId == target.InstanceId ? "▶ " : "") + (index + 1) + " "
+                            + TutorialMonster.GetElementName(enemy.Data.Element) + " " + enemy.Hp;
+                    }
                 }
             }
             // 슬롯은 플레이어, 몬스터 순서로 고정하고 행동 강조만 옮긴다.
@@ -922,16 +1037,121 @@ namespace CK.SemesterProject.Tutorial
 
         private void RefreshSkillDetails(SkillData skill)
         {
+            RefreshSkillPanel(skill);
             _skillName.text = skill.DisplayName;
-            _skillType.text = TutorialMonster.GetElementName(skill.Element);
-            _skillDescription.text = (skill.Target == SkillTarget.Enemy
-                ? "적 1명에게 " + TutorialMonster.GetElementName(skill.Element) + " 속성으로 공격합니다."
-                : "대상: " + skill.Target)
-                + "\n기본 메모리 " + skill.MemoryCost + " · 투자 비용 " + _battle.GetInvestmentCost(_battle.InvestmentStage);
-            _skillPower.text = skill.Power.ToString();
-            _skillAccuracy.text = (skill.Accuracy * 100).ToString("0.#") + "%";
-            _skillElement.text = TutorialMonster.GetElementName(skill.Element);
-            _skillTarget.text = skill.Target == SkillTarget.Enemy ? "적 1명" : skill.Target.ToString();
+            if (_skillType != null)
+            {
+                _skillType.text = "속성 : " + TutorialMonster.GetElementName(skill.Element);
+            }
+            if (_skillDescription != null)
+            {
+                _skillDescription.text = (skill.Target == SkillTarget.Enemy
+                    ? "적 1명에게 " + TutorialMonster.GetElementName(skill.Element) + " 속성으로 공격합니다."
+                    : "대상: " + skill.Target)
+                    + "\n기본 메모리 " + skill.MemoryCost + " · 투자 비용 " + _battle.GetInvestmentCost(_battle.InvestmentStage);
+            }
+            if (_skillPower != null)
+            {
+                _skillPower.text = skill.Power.ToString();
+            }
+            if (_skillMemoryCost != null)
+            {
+                _skillMemoryCost.text = (skill.MemoryCost + _battle.GetInvestmentCost(_battle.InvestmentStage)).ToString();
+            }
+            if (_skillRage != null)
+            {
+                _skillRage.text = skill.RageCost > 0 ? "-" + skill.RageCost : "+" + skill.RageGain;
+            }
+            if (_skillRange != null)
+            {
+                _skillRange.text = skill.IsAreaOfEffect ? "전체" : "단일";
+            }
+            if (_skillAccuracy != null)
+            {
+                _skillAccuracy.text = (skill.Accuracy * 100).ToString("0.#") + "%";
+            }
+            if (_skillElement != null)
+            {
+                _skillElement.text = TutorialMonster.GetElementName(skill.Element);
+            }
+            if (_skillTarget != null)
+            {
+                _skillTarget.text = skill.Target == SkillTarget.Enemy ? "적 1명" : skill.Target.ToString();
+            }
+        }
+
+        private void RefreshSkillButtonVisuals(int index, SkillData skill)
+        {
+            Sprite icon = GetSkillSprite(skill, null, _afterimageSkillIcon, _imprintSkillIcon,
+                _oblivionSkillIcon, _specialSkillIcon, _ultimateSkillIcon);
+            if (icon != null && index < _skillIcons.Length && _skillIcons[index] != null)
+            {
+                _skillIcons[index].sprite = icon;
+            }
+            int stage = _battle.SkillStage;
+            int starsOn = Mathf.Clamp(stage, 0, 3);
+            bool selected = index == _selectedSkill;
+            for (int star = 0; star < _skillStars[index].Length; star++)
+            {
+                UnityEngine.UI.Image image = _skillStars[index][star];
+                Sprite sprite = selected
+                    ? (star < starsOn ? _selectedStarOn : _selectedStarOff)
+                    : (star < starsOn ? _normalStarOn : _normalStarOff);
+                if (image != null && sprite != null)
+                {
+                    image.sprite = sprite;
+                    image.SetNativeSize();
+                }
+            }
+            if (_skillLevels[index] != null)
+            {
+                _skillLevels[index].text = "Lv." + stage;
+            }
+        }
+
+        private void RefreshSkillPanel(SkillData skill)
+        {
+            UnityEngine.UI.Image image = _skillDetailsPanel != null
+                ? _skillDetailsPanel.GetComponent<UnityEngine.UI.Image>() : null;
+            if (image == null)
+            {
+                return;
+            }
+            Sprite sprite = GetSkillSprite(skill, _skillPanelDefault, _skillPanelAfterimage, _skillPanelImprint,
+                _skillPanelOblivion, _skillPanelSpecial, _skillPanelUltimate);
+            // 전용 배경이 없으면 기본형, 기본형도 없으면 현재 그림을 유지한다.
+            if (sprite == null)
+            {
+                sprite = _skillPanelDefault;
+            }
+            if (sprite != null)
+            {
+                image.sprite = sprite;
+            }
+        }
+
+        private Sprite GetSkillSprite(SkillData skill, Sprite defaultSprite, Sprite afterimage, Sprite imprint,
+            Sprite oblivion, Sprite special, Sprite ultimate)
+        {
+            if (_ultimateSkillIds != null && _ultimateSkillIds.Contains(skill.Id))
+            {
+                return ultimate;
+            }
+            if (_specialSkillIds != null && _specialSkillIds.Contains(skill.Id))
+            {
+                return special;
+            }
+            switch (skill.Element)
+            {
+                case BattleElement.Afterimage:
+                    return afterimage;
+                case BattleElement.Imprint:
+                    return imprint;
+                case BattleElement.Oblivion:
+                    return oblivion;
+                default:
+                    return defaultSprite;
+            }
         }
 
         private static void SetBar(Slider bar, int value, int maximum)

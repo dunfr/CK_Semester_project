@@ -199,6 +199,7 @@ namespace CK.SemesterProject.Tutorial
         }
 
         public bool IsInBattle => _session != null;
+        public int SkillStage => _battleSkillStage > 0 ? _battleSkillStage : TestSkillStage;
         public int TestSkillStage => _testSkillStage > 0 ? _testSkillStage
             : _enhancementRules?.GetStage(_playerState?.VictoryCount ?? 0) ?? 1;
 

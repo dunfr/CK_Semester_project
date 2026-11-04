@@ -159,6 +159,26 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [UnityTest, Category("BattleSkillMenu")]
+        public IEnumerator SkillViewShowsElementTagAndOptionalRange()
+        {
+            Assert.That(BeginBattle(), Is.True);
+            yield return new WaitForSeconds(1.1f);
+            _battle.GetType().GetMethod("SelectTarget").Invoke(_battle, new object[] { 0 });
+            yield return null;
+            _hud.GetType().GetMethod("ExecuteCommand").Invoke(_hud, new object[] { 3 });
+            GameObject details = (GameObject)_hud.GetType().GetField("_skillDetailsPanel", PrivateInstance).GetValue(_hud);
+            Assert.That(details.activeInHierarchy, Is.True);
+            Component type = (Component)_hud.GetType().GetField("_skillType", PrivateInstance).GetValue(_hud);
+            Assert.That(type, Is.Not.Null);
+            Assert.That((string)type.GetType().GetProperty("text").GetValue(type), Does.StartWith("속성 : "));
+            Component range = (Component)_hud.GetType().GetField("_skillRange", PrivateInstance).GetValue(_hud);
+            if (range != null)
+            {
+                Assert.That((string)range.GetType().GetProperty("text").GetValue(range), Is.EqualTo("단일").Or.EqualTo("전체"));
+            }
+        }
+
+        [UnityTest, Category("BattleSkillMenu")]
         public IEnumerator EnterKeepsUsingHighlightedSkillWithoutExtraConfirmation()
         {
             Assert.That(BeginBattle(), Is.True);
@@ -333,7 +353,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(_hud.GetType().GetProperty("HasSkillSelection").GetValue(_hud), Is.False);
             Assert.That(GameObject.Find("SkillPanel"), Is.Not.Null);
             Assert.That(GameObject.Find("MemoryThrowPanel"), Is.Not.Null);
-            Assert.That(GameObject.Find("EnemyCard"), Is.Not.Null);
+            Assert.That(GameObject.Find("EnemyCard"), Is.Null);
             _battle.GetType().GetMethod("CancelBattle").Invoke(_battle, null);
             yield return null;
             Assert.That(BeginBattle(false, false), Is.True);
