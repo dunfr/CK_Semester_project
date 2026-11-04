@@ -167,6 +167,8 @@ namespace CK.SemesterProject.Tutorial
         private PlayerRuntimeState _playerState;
         private int _investment;
         private float _elapsed;
+        private BattleActionResult _timedPresentation;
+        private float _presentationSeconds;
         private float _encounterCooldown;
         private float _nextFootstep;
         private Vector3 _lastPlayerPosition;
@@ -182,13 +184,29 @@ namespace CK.SemesterProject.Tutorial
             get
             {
                 BattleActionResult pending = _session?.PendingResult;
-                bool hasPlayerCharge = pending != null && pending.Request.ActorId == "player"
+                if (pending == null)
+                {
+                    _timedPresentation = null;
+                    return _actionSeconds;
+                }
+                if (ReferenceEquals(_timedPresentation, pending))
+                {
+                    return GetMotionAwareSeconds(pending, _presentationSeconds);
+                }
+                bool isPlayerSkill = pending != null && pending.Request.ActorId == "player"
                     && pending.Request.Kind == BattleActionKind.Skill && !pending.WasSkipped
-                    && !pending.IsTurnStartEffect && _basicSkillEnhancement != null
-                    && _basicSkillEnhancement.GetChargeEffect(pending.Request.SkillId) != null;
-                float seconds = hasPlayerCharge ? _actionSeconds * _basicSkillEnhancement.ChargeDurationScale : _actionSeconds;
-                return pending != null && pending.ActionId == _playerMotionActionId ? Mathf.Max(seconds, _playerMotionSeconds) : seconds;
+                    && !pending.IsTurnStartEffect && _basicSkillEnhancement != null;
+                _timedPresentation = pending;
+                _presentationSeconds = isPlayerSkill ? _basicSkillEnhancement.GetPresentationSeconds(pending.Request.SkillId,
+                    TestSkillStage, _actionSeconds) : _actionSeconds;
+                return GetMotionAwareSeconds(pending, _presentationSeconds);
             }
+        }
+
+        // 플레이어 행동 모션(궁극기 등)이 연출 시간보다 길면 모션이 끝날 때까지 기다린다.
+        private float GetMotionAwareSeconds(BattleActionResult pending, float seconds)
+        {
+            return pending != null && pending.ActionId == _playerMotionActionId ? Mathf.Max(seconds, _playerMotionSeconds) : seconds;
         }
 
         public event Action<BattleOutcome> FieldBattleEnded;
@@ -361,7 +379,7 @@ namespace CK.SemesterProject.Tutorial
                     if (pending.Request.ActorId == "player" && pending.Request.TargetId == GetMonsterId(i))
                     {
                         _presentations[i].Sample(pending, _elapsed / PresentationSeconds,
-                            pending.ActionId != _playerMotionActionId || _playerMotionApproaches);
+                            pending.ActionId != _playerMotionActionId || _playerMotionApproaches, PresentationSeconds);
                     }
                     else if (pending.Request.ActorId == GetMonsterId(i) && pending.Request.TargetId == "player")
                     {

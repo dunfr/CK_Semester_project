@@ -7891,7 +7891,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 298408656}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -13456,7 +13456,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 495618170}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -33037,6 +33037,68 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!1001 &1027705598
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1489619404}
+    m_Modifications:
+    - target: {fileID: 3832935461910147223, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_Name
+      value: DummyBattleBackground
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+--- !u!4 &1027705599 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 7678710566175184764, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+  m_PrefabInstance: {fileID: 1027705598}
+  m_PrefabAsset: {fileID: 0}
 --- !u!64 &1027796168
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -42503,7 +42565,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1322223505}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -44371,7 +44433,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1410888326}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -46313,7 +46375,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1450255637}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -47043,6 +47105,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1489619404}
+  - component: {fileID: 1489619405}
   m_Layer: 0
   m_Name: BattleArena
   m_TagString: Untagged
@@ -47069,8 +47132,28 @@ Transform:
   - {fileID: 495618171}
   - {fileID: 1450255638}
   - {fileID: 2061242935}
+  - {fileID: 1027705599}
   m_Father: {fileID: 829058809}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1489619405
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1489619403}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06e5479d3d1efa24897651ac6f37bbe4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.BattleArenaAtmosphere
+  _battle: {fileID: 1440850438}
+  _camera: {fileID: 1985736207}
+  _fieldLights:
+  - {fileID: 410087040}
+  _fogColor: {r: 0.354, g: 0.358, b: 0.459, a: 1}
+  _fogDensity: 0.045
+  _ambientColor: {r: 0.25, g: 0.296, b: 0.384, a: 1}
 --- !u!64 &1493919531
 MeshCollider:
   m_ObjectHideFlags: 0

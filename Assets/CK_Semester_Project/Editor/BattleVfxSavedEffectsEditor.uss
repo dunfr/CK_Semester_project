@@ -1,0 +1,60 @@
+.saved-effects {
+    padding-top: 4px;
+}
+
+.saved-effect-search {
+    flex-direction: row;
+    margin-bottom: 4px;
+}
+
+.saved-effect-search > TextField {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.saved-effect-pages {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 6px;
+}
+
+.saved-effect-pages > Button {
+    min-width: 54px;
+}
+
+.saved-effect-pages > Label {
+    flex-grow: 1;
+    -unity-text-align: middle-center;
+}
+
+.saved-effect-item {
+    white-space: normal;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    -unity-text-align: middle-left;
+    margin-top: 4px;
+}
+
+.saved-effect-item-selected {
+    border-width: 1px;
+    border-color: rgb(76, 161, 225);
+}
+
+.saved-effect-controls {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top-width: 1px;
+    border-top-color: rgb(100, 100, 100);
+}
+
+.saved-effect-selection {
+    white-space: normal;
+    -unity-font-style: bold;
+    margin-bottom: 6px;
+}
+
+.saved-effect-status {
+    white-space: normal;
+    margin-top: 6px;
+    margin-bottom: 6px;
+}
