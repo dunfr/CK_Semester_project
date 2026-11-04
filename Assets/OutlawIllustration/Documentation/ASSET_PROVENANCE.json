@@ -1,0 +1,12 @@
+{
+  "source": "User-provided illustration, original canvas 3840x2176",
+  "purpose": "Unity 6 UGUI animated illustration, v3 repair distribution",
+  "part_preparation": "See-through official demo decomposition, followed by source-visible RGB preservation and mask refinement. Current render layers and source-space rectangles are defined by Data/rig.json.",
+  "seethrough_source": "https://github.com/shitagaki-lab/see-through",
+  "generated_additions": "Built-in image_gen was used for a complete clean background plate, the extended coat inner lining, a closed-eye pose, and hidden garment material. These are inferred additions rather than recovered original pixels. The v3 background does not reuse the old blurred reconstruction collar or the stationary sword glow.",
+  "animation": "Custom procedural 2D mesh deformation. Shared character sway and breathing field, rigid sword/hand transform, weighted arm deformation, delayed hair and coat movement, timed blink.",
+  "texture_preparation": "RGBA textures cropped to visible bounds and stored at half source size for 1920px-wide UI; full source coordinates retained in Data/rig.json.",
+  "runtime_dependencies": "Unity 6000+ and com.unity.ugui; no external rigging plugin is required by this implementation.",
+  "verified": "See VERIFICATION_SCOPE.txt and the final local result record for checks performed on this v3 revision. Earlier v2 numeric records are not automatically treated as v3 validation.",
+  "not_verified": "Native Unity Editor import, Play Mode, target-device FPS and game build. No Unity Editor was found in the checked installation locations."
+}
