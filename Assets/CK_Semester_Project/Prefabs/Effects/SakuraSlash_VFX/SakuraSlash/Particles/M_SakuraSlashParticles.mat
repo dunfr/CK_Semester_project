@@ -90,16 +90,16 @@ Material:
     - _Alpha: 1
     - _AlphaClip: 0
     - _AlphaToMask: 0
-    - _Arc_Span: 0.66
-    - _Arc_Start: 0.08
+    - _Arc_Span: 0.68
+    - _Arc_Start: 0
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
-    - _BodyIntensity: 1
-    - _BodyWidth: 0.34
+    - _BodyIntensity: 6.78
+    - _BodyWidth: 0.25
     - _Body_Alpha: 1
     - _BumpScale: 1
-    - _BurnDarkIntensity: 1
-    - _BurnEdgeGlow: 0.15
+    - _BurnDarkIntensity: 0.743
+    - _BurnEdgeGlow: 0.16
     - _BurnEdgeWidth: 0.045
     - _BurnLeadWidth: 0.16
     - _BurnNoiseScale: 14
@@ -107,12 +107,12 @@ Material:
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _CoreAlpha: 1
-    - _CoreGlow: 1.11
+    - _CoreGlow: 4.85
     - _CoreIntensity: 3.8
     - _CoreOffset: 0.1
-    - _CorePower: 1.2
-    - _CoreRadius: 0.8
-    - _CoreWidth: 0.17
+    - _CorePower: 0.88
+    - _CoreRadius: 0.9
+    - _CoreWidth: 0.18
     - _Cull: 2
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
@@ -120,15 +120,15 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _Feather: 0.012
+    - _Feather: 0.045
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _HeadFeather: 0.18
-    - _HeadWidth: 0.3
+    - _HeadFeather: 0.1
+    - _HeadWidth: 0.2
     - _Head_Feather: 0.03
     - _Head_Width: 0.06
-    - _LightBandIntensity: 0
+    - _LightBandIntensity: 181.75
     - _Metallic: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.005
@@ -136,17 +136,17 @@ Material:
     - _QueueControl: 0
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _RibbonLength: 1.1
+    - _RibbonLength: 0.89
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
     - _Surface: 0
-    - _TailCoreWidth: 0.003
-    - _TailFeather: 0.16
+    - _TailCoreWidth: 0.01
+    - _TailFeather: 0.27
     - _TailProgress: -0.12
-    - _TaperLength: 0.72
+    - _TaperLength: 0.13
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
@@ -154,11 +154,11 @@ Material:
     - _Arc_Center: {r: 0.5, g: 0.5, b: 0, a: 0}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _CoreColor: {r: 3.2125819, g: 2.1922333, b: 2.5823665, a: 1}
-    - _DarkColor: {r: 1, g: 0, b: 0.5172415, a: 1}
+    - _CoreColor: {r: 2.1185472, g: 1.4456751, b: 1.7029498, a: 1}
+    - _DarkColor: {r: 1.4771848, g: 0, b: 0.76466, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _LightPinkColor: {r: 1, g: 0.21069163, b: 0.49804342, a: 1}
-    - _MainColor: {r: 4.2622075, g: 0.06701541, b: 1.2138422, a: 1}
+    - _LightPinkColor: {r: 1, g: 0, b: 0.36269426, a: 1}
+    - _MainColor: {r: 25.688938, g: 0, b: 12.930424, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
