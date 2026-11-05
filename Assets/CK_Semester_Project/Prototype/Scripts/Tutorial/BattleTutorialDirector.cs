@@ -106,6 +106,12 @@ namespace CK.SemesterProject.Tutorial
         public static int BattleCount => _battleCount;
         public bool IsOpen => _isOpen;
 
+        /// <summary>새 게임을 시작할 때 튜토리얼 진행(해금·완료·전투 횟수)을 처음으로 되돌린다.</summary>
+        public static void ResetForNewGame()
+        {
+            ResetSession();
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetSession()
         {

@@ -218,6 +218,9 @@ namespace CK.SemesterProject.UI
                 Debug.LogError($"씬 '{_nextSceneName}'을 Build Profiles의 Scene List에 추가하세요.", this);
                 yield break;
             }
+            // 새 게임: 지난 플레이의 HP·메모리·튜토리얼 진행을 지우고 처음부터 시작한다.
+            CK.SemesterProject.Tutorial.PlayerSessionState.ResetSession();
+            CK.SemesterProject.Tutorial.BattleTutorialDirector.ResetForNewGame();
             AsyncOperation load = SceneManager.LoadSceneAsync(_nextSceneName);
             load.allowSceneActivation = false;
             while (load.progress < .9f) yield return null;
