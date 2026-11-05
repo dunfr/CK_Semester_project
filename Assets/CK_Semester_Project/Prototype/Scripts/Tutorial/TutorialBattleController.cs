@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using CK.SemesterProject.Data;
+using CK.SemesterProject.SkillSequence;
 using Semester.Enemies;
 using TMPro;
 using Unity.Cinemachine;
@@ -118,6 +119,9 @@ namespace CK.SemesterProject.Tutorial
         [Header("Skill Cutscene")]
         [SerializeField, Tooltip("스킬별 완성 컷신(Timeline 프리팹) 재생을 맡는 컴포넌트. 비워 두면 같은 오브젝트에서 찾습니다")]
         private TutorialSkillCutscene _skillCutscene;
+        // 스킬 연출 스튜디오 시퀀스 재생기(선택). 연결된 스킬은 기존 임시 연출 대신 시퀀스를 재생한다.
+        private TutorialSkillSequenceRunner _sequenceRunner;
+        private long _sequenceActionId = -1;
 
         [Header("Cinematic Camera")]
         [SerializeField, Min(0f), Tooltip("스킬 연출 카메라(Ult_cam 등)를 시선 반대 방향으로 물리는 거리(m). 이펙트가 화면에 들어오도록 원본 카메라보다 멀리 잡습니다")]
@@ -310,6 +314,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 _skillCutscene = GetComponent<TutorialSkillCutscene>();
             }
+            _sequenceRunner = GetComponent<TutorialSkillSequenceRunner>();
             // 에디터에서 지운 적이 목록에 빈 칸으로 남아 있을 수 있으므로 빼고 쓴다.
             _enemies = _enemies == null ? Array.Empty<EnemyStateMachine>() : _enemies.Where(enemy => enemy != null).ToArray();
             if (_movement == null || _orbit == null || _camera == null || _brain == null || _characters == null
@@ -430,7 +435,9 @@ namespace CK.SemesterProject.Tutorial
             if (snapshot.Phase == BattlePhase.AwaitingPresentation)
             {
                 BattleActionResult pending = _session.PendingResult;
-                for (int i = 0; i < _presentations.Length; i++)
+                // 시퀀스가 재생 중인 행동은 시퀀스가 시전자 이동·포즈를 맡으므로 기존 연출을 건너뛴다.
+                int presentationCount = pending.ActionId == _sequenceActionId ? 0 : _presentations.Length;
+                for (int i = 0; i < presentationCount; i++)
                 {
                     if (pending.Request.ActorId == "player" && pending.Request.TargetId == GetMonsterId(i))
                     {
@@ -1132,6 +1139,9 @@ namespace CK.SemesterProject.Tutorial
             _elapsed = 0;
             bool startedCutscene = request.ActorId == "player" && request.Kind == BattleActionKind.Skill
                 && !result.WasSkipped && TryPlaySkillCutscene(request, result);
+            bool startedSequence = !startedCutscene && request.Kind == BattleActionKind.Skill
+                && !result.WasSkipped && !result.IsTurnStartEffect && TryPlaySkillSequence(request, result);
+            startedCutscene |= startedSequence;
             if (!startedCutscene && request.ActorId == "player" && request.Kind == BattleActionKind.Skill && !result.WasSkipped
                 && _battleAnimation != null)
             {
@@ -1180,6 +1190,62 @@ namespace CK.SemesterProject.Tutorial
             _playerMotionSeconds = seconds;
             _playerMotionActionId = result.ActionId;
             _playerMotionApproaches = false;
+            return true;
+        }
+
+        // 스튜디오에서 만든 스킬 시퀀스가 연결돼 있으면 재생한다. 플레이어 스킬은 스킬 ID, 몬스터 공격은 몬스터 정의·속성으로 찾는다.
+        private bool TryPlaySkillSequence(BattleActionRequest request, BattleActionResult result)
+        {
+            if (_sequenceRunner == null)
+            {
+                return false;
+            }
+            SkillSequenceAsset sequence;
+            Transform caster;
+            var targets = new List<Transform>();
+            int selected = 0;
+            if (request.ActorId == "player")
+            {
+                sequence = _sequenceRunner.FindPlayerSequence(request.SkillId);
+                if (sequence == null)
+                {
+                    return false;
+                }
+                caster = _movement.transform;
+                string targetId = string.IsNullOrEmpty(request.TargetId) ? _targetId : request.TargetId;
+                for (int i = 0; i < _encounterMembers.Length; i++)
+                {
+                    EnemyStateMachine member = _encounterMembers[i];
+                    if (member == null || !member.gameObject.activeInHierarchy)
+                    {
+                        continue;
+                    }
+                    if (GetMonsterId(i) == targetId)
+                    {
+                        selected = targets.Count;
+                    }
+                    targets.Add(member.transform);
+                }
+            }
+            else
+            {
+                if (!TryGetMonsterTransform(request.ActorId, out caster))
+                {
+                    return false;
+                }
+                TutorialMonster monster = caster.GetComponent<TutorialMonster>();
+                sequence = _sequenceRunner.FindMonsterSequence(monster != null ? monster.Definition : null);
+                if (sequence == null)
+                {
+                    return false;
+                }
+                targets.Add(_movement.transform);
+            }
+            // 시퀀스가 끝날 때까지 결과 연출(피해 반영·다음 행동)을 기다린다.
+            _playerMotionSeconds = _sequenceRunner.Play(sequence, caster, targets, selected);
+            _playerMotionActionId = result.ActionId;
+            _playerMotionApproaches = false;
+            _sequenceActionId = result.ActionId;
             return true;
         }
 
@@ -1416,6 +1482,11 @@ namespace CK.SemesterProject.Tutorial
             {
                 _skillCutscene.Abort();
             }
+            if (_sequenceRunner != null)
+            {
+                _sequenceRunner.Abort();
+            }
+            _sequenceActionId = -1;
             _debugBattleCamera = false;
             _isBattleCameraActive = false;
             // 필드에서는 HP를 보존하고 메모리만 최초값으로 회복한다.

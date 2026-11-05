@@ -582083,6 +582083,7 @@ GameObject:
   - component: {fileID: 1440850438}
   - component: {fileID: 1440850439}
   - component: {fileID: 1440850440}
+  - component: {fileID: 1440850441}
   m_Layer: 0
   m_Name: Tutorial Battle
   m_TagString: Untagged
@@ -582446,6 +582447,38 @@ MonoBehaviour:
   _hiddenRoot: {fileID: 1489619404}
   _keptRenderers:
   - {fileID: 501366399}
+--- !u!114 &1440850441
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1440850436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b5d6c6a2378f97548aaf8516d0caa17c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialSkillSequenceRunner
+  _playerSkills:
+  - SkillId: SK00
+    Sequence: {fileID: 11400000, guid: 8117d9dbd2be4eb4a93daa371614d044, type: 2}
+  - SkillId: SK03
+    Sequence: {fileID: 11400000, guid: 8117d9dbd2be4eb4a93daa371614d044, type: 2}
+  - SkillId: SK06
+    Sequence: {fileID: 11400000, guid: 8117d9dbd2be4eb4a93daa371614d044, type: 2}
+  - SkillId: SK01
+    Sequence: {fileID: 11400000, guid: 54497bd5c22134342861174e54f61d7e, type: 2}
+  - SkillId: SK04
+    Sequence: {fileID: 11400000, guid: 54497bd5c22134342861174e54f61d7e, type: 2}
+  - SkillId: SK07
+    Sequence: {fileID: 11400000, guid: 54497bd5c22134342861174e54f61d7e, type: 2}
+  - SkillId: SK02
+    Sequence: {fileID: 11400000, guid: 3dafc60939afd6945a23a32a1333cf1c, type: 2}
+  - SkillId: SK05
+    Sequence: {fileID: 11400000, guid: 3dafc60939afd6945a23a32a1333cf1c, type: 2}
+  - SkillId: SK08
+    Sequence: {fileID: 11400000, guid: 3dafc60939afd6945a23a32a1333cf1c, type: 2}
+  _monsterSkills: []
 --- !u!1 &1442149415
 GameObject:
   m_ObjectHideFlags: 0

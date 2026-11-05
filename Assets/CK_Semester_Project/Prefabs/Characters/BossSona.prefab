@@ -223,6 +223,10 @@ PrefabInstance:
       propertyPath: m_Radius
       value: 0.5
       objectReference: {fileID: 0}
+    - target: {fileID: 4694547828844563905, guid: a7b32d6837284774589a90433d5fabba, type: 3}
+      propertyPath: sightBlockingLayers.m_Bits
+      value: 55
+      objectReference: {fileID: 0}
     - target: {fileID: 6231839852173108322, guid: a7b32d6837284774589a90433d5fabba, type: 3}
       propertyPath: m_Enabled
       value: 0

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using CK.SemesterProject.SkillSequence;
 using UnityEditor;
 using UnityEngine;
@@ -676,14 +676,13 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
                 EditorGUI.DrawRect(new Rect(bar.x - 1f, bar.y - 1f, bar.width + 2f, bar.height + 2f), Color.white);
             }
             EditorGUI.DrawRect(bar, new Color(0.25f, 0.45f, 0.75f));
-            GUI.Label(bar, "  " + clip.name + $"  ({_sequence.ClipStart:0.00}s ~ {_sequence.ClipStart + clip.length:0.00}s)", EditorStyles.whiteMiniLabel);
+            GUI.Label(bar, "  " + clip.name + $"  ({_sequence.ClipStart:0.00}s ~ {_sequence.ClipStart + _sequence.CasterClip.length:0.00}s)", EditorStyles.whiteMiniLabel);
         }
 
         private Rect GetAnimationRect(Rect area, float viewDuration)
         {
             Rect row = GetTrackRow(area, 0);
-            float length = _sequence.CasterClip != null ? _sequence.CasterClip.length : 0f;
-            return GetSpanRect(row, _sequence.ClipStart, _sequence.ClipStart + length, viewDuration);
+            return GetSpanRect(row, _sequence.ClipStart, _sequence.ClipStart + _sequence.CasterClip.length, viewDuration);
         }
 
         private void DrawMovementRow(Rect area, float viewDuration)
@@ -1187,11 +1186,33 @@ namespace CK.SemesterProject.SkillSequence.EditorTools
             EditorGUILayout.PropertyField(vfxEvent.FindPropertyRelative("_name"), new GUIContent("이름"));
             EditorGUILayout.PropertyField(vfxEvent.FindPropertyRelative("_time"), new GUIContent("시점(초)"));
             EditorGUILayout.PropertyField(vfxEvent.FindPropertyRelative("_prefab"), new GUIContent("프리팹"));
+            bool hasWorldPose = false;
+            Vector3 worldPosition = Vector3.zero;
+            Quaternion worldRotation = Quaternion.identity;
+            if (_context != null && _sampler != null && index < _sequence.VfxEvents.Count)
+            {
+                SkillVfxEvent currentEvent = _sequence.VfxEvents[index];
+                _sampler.Sample(currentEvent.Time);
+                _context.GetSpawnPose(currentEvent, _context.SelectedTarget, out worldPosition, out worldRotation, out _);
+                _sampler.Sample(_time);
+                hasWorldPose = true;
+            }
+            EditorGUI.BeginChangeCheck();
             EditorGUILayout.PropertyField(anchor, new GUIContent("기준점"));
             SkillVfxAnchorPoint anchorPoint = (SkillVfxAnchorPoint)anchor.intValue;
             if (anchorPoint == SkillVfxAnchorPoint.CasterBone)
             {
                 EditorGUILayout.PropertyField(vfxEvent.FindPropertyRelative("_bone"), new GUIContent("본"));
+            }
+            if (EditorGUI.EndChangeCheck() && hasWorldPose)
+            {
+                serialized.ApplyModifiedProperties();
+                SkillVfxEvent updatedEvent = _sequence.VfxEvents[index];
+                _sampler.Sample(updatedEvent.Time);
+                _context.ConvertToOffsets(updatedEvent, _context.SelectedTarget, worldPosition, worldRotation, out Vector3 newPositionOffset, out Vector3 newRotationOffset);
+                _sampler.Sample(_time);
+                vfxEvent.FindPropertyRelative("_positionOffset").vector3Value = newPositionOffset;
+                vfxEvent.FindPropertyRelative("_rotationOffset").vector3Value = newRotationOffset;
             }
             if (anchorPoint == SkillVfxAnchorPoint.TargetCenter || anchorPoint == SkillVfxAnchorPoint.TargetFeet)
             {
