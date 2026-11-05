@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f183da8a8364df848ab98b082d884b5a, type: 3}
-  m_Name: Sample_BasicAttack
+  m_Name: Sample_BasicAttack_Blue_Slash
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.SkillSequence.SkillSequenceAsset
   _casterClip: {fileID: 7400000, guid: 93dd91c398124e948afc2d4c321ac904, type: 2}
-  _clipStart: 0.16666667
+  _clipStart: 0.13333334
   _duration: 3
   _frameRate: 30
   _isEnemySkill: 0
@@ -50,17 +50,29 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   _vfxEvents:
-  - _name: "\uC774\uD399\uD2B8 1"
+  - _name: "\uCC28\uC9D5_\uBE14\uB8E8"
     _time: 0.1
     _prefab: {fileID: 5329720332027559207, guid: 48ccbd52c19c0834892053abcbb6f424, type: 3}
     _anchor: 3
     _bone: 18
     _followAnchor: 0
     _targetMode: 0
-    _positionOffset: {x: 0.2340455, y: -1.4822862, z: -6.771915}
+    _positionOffset: {x: 0.43, y: -0.71, z: -6.98}
     _rotationOffset: {x: 0, y: 0, z: 0}
-    _scale: 0.41455653
-    _lifetime: 0
+    _scale: 0.3
+    _lifetime: 1.1666666
+    _playbackSpeed: 1
+  - _name: "\uC2AC\uB798\uC26C"
+    _time: 1.6666666
+    _prefab: {fileID: 8709136953253636189, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
+    _anchor: 3
+    _bone: 18
+    _followAnchor: 0
+    _targetMode: 0
+    _positionOffset: {x: -0.27, y: -0.78, z: -2.3}
+    _rotationOffset: {x: 53.77, y: 0.51, z: 0}
+    _scale: 1.8
+    _lifetime: 1.1666666
     _playbackSpeed: 1
   _hitTimes: []
   _shakeEvents: []
