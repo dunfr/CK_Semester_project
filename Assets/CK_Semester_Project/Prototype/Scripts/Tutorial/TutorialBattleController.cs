@@ -753,6 +753,11 @@ namespace CK.SemesterProject.Tutorial
             {
                 return false;
             }
+            // 조우 그룹(EncounterFollower)이 있으면 리더와 동료를 한 전투에 넣는다.
+            if (members == null)
+            {
+                members = CK.SemesterProject.LevelDesign.EncounterFollower.GetEncounterMembers(enemy);
+            }
             if (members != null && (members.Count < 1 || members.Count > 3 || members[0] != enemy
                 || members.Distinct().Count() != members.Count
                 || members.Any(member => member == null || !member.isActiveAndEnabled || !_enemies.Contains(member))))

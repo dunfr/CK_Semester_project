@@ -394,7 +394,7 @@ namespace CK.SemesterProject.Tutorial
                 var dots = new System.Text.StringBuilder();
                 for (int index = _pageStart; index < _pageEnd; index++)
                 {
-                    dots.Append(index == _page ? "<color=#FFFFFF>●</color>" : "<size=60%><color=#8FA2FF>●</color></size>");
+                    dots.Append(index == _page ? "<color=#73EDFF>●</color>" : "<size=60%><color=#7D8699>●</color></size>");
                     if (index + 1 < _pageEnd)
                     {
                         dots.Append("  ");
