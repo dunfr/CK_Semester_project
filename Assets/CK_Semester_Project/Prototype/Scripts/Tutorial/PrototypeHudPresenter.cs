@@ -438,9 +438,10 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            bool up = keyboard.wKey.wasPressedThisFrame || keyboard.upArrowKey.wasPressedThisFrame;
-            bool down = keyboard.sKey.wasPressedThisFrame || keyboard.downArrowKey.wasPressedThisFrame;
-            bool confirm = keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame;
+            // 조작 안내(로딩 화면)와 같게: W/S 선택, ENTER 확인, A 메모리 투자, ESC 뒤로
+            bool up = keyboard.wKey.wasPressedThisFrame;
+            bool down = keyboard.sKey.wasPressedThisFrame;
+            bool confirm = keyboard.enterKey.wasPressedThisFrame;
             if (up || down || confirm)
             {
                 // UI Submit과 별도 전투 입력이 같은 Enter를 이중 소비하지 않게 한다.
@@ -469,7 +470,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            if (HasCommandMenu && (keyboard.backspaceKey.wasPressedThisFrame || keyboard.escapeKey.wasPressedThisFrame))
+            if (HasCommandMenu && keyboard.escapeKey.wasPressedThisFrame)
             {
                 ReturnToCommands();
                 return;
@@ -478,7 +479,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 MoveSkillSelection(up ? -1 : 1);
             }
-            if (keyboard.aKey.wasPressedThisFrame || keyboard.fKey.wasPressedThisFrame)
+            if (keyboard.aKey.wasPressedThisFrame)
             {
                 _battle.CycleInvestment();
             }
@@ -1060,7 +1061,7 @@ namespace CK.SemesterProject.Tutorial
             _backHint.SetActive(!IsCommandPhase);
             _skillNavigationHint.text = IsCommandPhase
                 ? "W / S 행동 선택   ·   Enter 확인"
-                : "W / S 행동 선택   ·   Enter 확인   ·   A 메모리 투자   ·   Backspace 뒤로";
+                : "W / S 행동 선택   ·   Enter 확인   ·   A 메모리 투자   ·   Esc 뒤로";
             for (int index = 0; index < _commands.Length; index++)
             {
                 _commands[index].interactable = _couldChoose && _battle.HasSelectedBattleTarget

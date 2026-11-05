@@ -276,6 +276,47 @@ namespace CK.SemesterProject.Battle
             return true;
         }
 
+        // 테스트용 치트: 살아 있는 몬스터를 모두 쓰러뜨려 즉시 승리로 끝낸다. 행동 입력을 기다리는 중에만 쓸 수 있다.
+        public bool DebugWinBattle()
+        {
+            if (_phase != BattlePhase.AwaitingAction)
+            {
+                return false;
+            }
+            foreach (string id in _combatants.Keys.ToList())
+            {
+                CombatantState before = _combatants[id];
+                if (before.Data.Team != BattleTeam.Monster || before.IsDead)
+                {
+                    continue;
+                }
+                _combatants[id] = new CombatantState(before.InstanceId, before.Data, 0, before.Memory,
+                    before.SkippedTurns, before.IsDefending, before.RageEnergy, before.ChainStep, before.ImprintDamage,
+                    before.IsOverheated, before.HasMemoryLoss, before.DefenseDamageMultiplier, before.HasAfterimageRecovery);
+            }
+            _outcome = EvaluateOutcome();
+            _phase = BattlePhase.Finished;
+            _currentActorId = null;
+            _extraActorId = null;
+            _resumeActorAfterPresentation = false;
+            _remaining.Clear();
+            _turnOrder.Clear();
+            return true;
+        }
+
+        // 테스트용 치트: 지정한 참가자의 HP·메모리를 최대로 채운다.
+        public bool DebugRestore(string instanceId)
+        {
+            if (instanceId == null || !_combatants.TryGetValue(instanceId, out CombatantState before) || before.IsDead)
+            {
+                return false;
+            }
+            _combatants[instanceId] = new CombatantState(before.InstanceId, before.Data, before.Data.MaxHp, before.Data.MaxMemory,
+                before.SkippedTurns, before.IsDefending, before.RageEnergy, before.ChainStep, before.ImprintDamage,
+                before.IsOverheated, before.HasMemoryLoss, before.DefenseDamageMultiplier, before.HasAfterimageRecovery);
+            return true;
+        }
+
         public BattleActionError ValidateRequest(BattleActionRequest request)
         {
             if (_phase != BattlePhase.AwaitingAction)

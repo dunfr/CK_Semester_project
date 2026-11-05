@@ -215,7 +215,7 @@ namespace CK.SemesterProject.LevelDesign.WindPuzzle
                     ExitPuzzle();
                     return;
                 }
-                if (keyboard.zKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame)
+                if (keyboard.zKey.wasPressedThisFrame)
                 {
                     Undo();
                     return;

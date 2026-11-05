@@ -344,13 +344,10 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            if (keyboard.spaceKey.wasPressedThisFrame || keyboard.rightArrowKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
+            // 조작 안내와 같게 ENTER(확인)로 넘긴다. 이전 페이지는 화면의 < 버튼을 쓴다.
+            if (keyboard.enterKey.wasPressedThisFrame)
             {
                 Next();
-            }
-            else if (keyboard.leftArrowKey.wasPressedThisFrame)
-            {
-                Previous();
             }
         }
 

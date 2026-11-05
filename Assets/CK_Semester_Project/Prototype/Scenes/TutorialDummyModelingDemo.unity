@@ -78313,6 +78313,86 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -5325277050125873056, guid: 7cf8954c781d67744889d29f368aef3f, type: 3}
+--- !u!1 &179168772
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 179168773}
+  - component: {fileID: 179168775}
+  - component: {fileID: 179168774}
+  m_Layer: 2
+  m_Name: Zone06_Entry_Checkpoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &179168773
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 179168772}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 204.50009, y: -4.9401207, z: 7.1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1112393106}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &179168774
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 179168772}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1f22c7156c670549aae8b7150af817c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.LevelDesign.LevelTriggerZone
+  _progress: {fileID: 578325026}
+  _isOnce: 1
+  _message: 
+  _messageSeconds: 3
+  _objective: 
+  _areaName: "\uBCF4\uC2A4\uB8F8"
+  _areaNameEnglish: BOSS ROOM
+  _storyNumber: 
+  _storyTitle: 
+  _storyTitleEnglish: 
+  _isCheckpoint: 1
+  _entered:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!65 &179168775
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 179168772}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 4.4, y: 3, z: 3}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &180217891
 GameObject:
   m_ObjectHideFlags: 0
@@ -300599,7 +300679,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: SPACE
+  m_text: ENTER
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: ba8bd410a242b474fb101f53184014e5, type: 2}
   m_sharedMaterial: {fileID: -8466733660944346078, guid: ba8bd410a242b474fb101f53184014e5, type: 2}
@@ -431018,6 +431098,7 @@ Transform:
   - {fileID: 1882193856}
   - {fileID: 846338362}
   - {fileID: 2142579692}
+  - {fileID: 179168773}
   m_Father: {fileID: 829058809}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1112393107
@@ -583393,6 +583474,12 @@ MonoBehaviour:
   _enableCheats: 1
   _rageCheatKey: 102
   _rageCheatValue: 90
+  _winCheatKey: 103
+  _healCheatKey: 104
+  _restartCheatKey: 105
+  _bossWarpCheatKey: 101
+  _bossWarpPoint: {fileID: 0}
+  _checkpointCheatKey: 100
   _battleMouseSensitivity: 0.15
   _walkNoiseRadius: 3
   _sprintNoiseRadius: 8
@@ -729873,6 +729960,7 @@ Transform:
   - {fileID: 852752127}
   - {fileID: 1679041606}
   - {fileID: 338167410}
+  - {fileID: 1795712693}
   m_Father: {fileID: 947801323}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1791517612
@@ -730622,6 +730710,86 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Size: {x: 6.5, y: 3, z: 8}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!1 &1795712692
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1795712693}
+  - component: {fileID: 1795712695}
+  - component: {fileID: 1795712694}
+  m_Layer: 2
+  m_Name: Zone05_Entry_Checkpoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1795712693
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1795712692}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 30.7, y: -51.24826, z: -9.799999}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1789962158}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1795712694
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1795712692}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1f22c7156c670549aae8b7150af817c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.LevelDesign.LevelTriggerZone
+  _progress: {fileID: 578325026}
+  _isOnce: 1
+  _message: 
+  _messageSeconds: 3
+  _objective: 
+  _areaName: "\uBCF5\uB3C4 B"
+  _areaNameEnglish: CORRIDOR B
+  _storyNumber: 
+  _storyTitle: 
+  _storyTitleEnglish: 
+  _isCheckpoint: 1
+  _entered:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!65 &1795712695
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1795712692}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 8, y: 3, z: 3}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &1796511792
 GameObject:

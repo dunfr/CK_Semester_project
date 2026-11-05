@@ -127,7 +127,7 @@ namespace CK.SemesterProject.Tutorial
         private void Update()
         {
             bool isShiftHeld = Keyboard.current != null
-                && (Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed);
+                && Keyboard.current.leftShiftKey.isPressed;
             Move(ReadMovement(), isShiftHeld, ReadJumpPressed());
         }
 

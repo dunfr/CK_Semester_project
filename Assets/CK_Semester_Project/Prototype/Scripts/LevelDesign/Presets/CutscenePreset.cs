@@ -446,7 +446,7 @@ namespace CK.SemesterProject.LevelDesign
         private static bool WasAdvancePressed()
         {
             Keyboard keyboard = Keyboard.current;
-            return keyboard != null && (keyboard.fKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame);
+            return keyboard != null && keyboard.enterKey.wasPressedThisFrame;
         }
 
         private TMP_FontAsset GetFont()

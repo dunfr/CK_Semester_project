@@ -136,6 +136,18 @@ namespace CK.SemesterProject.Tutorial
         private Key _rageCheatKey = Key.F9;
         [SerializeField, Range(0, 90), Tooltip("치트로 채울 폭주 값. 91 이상은 폭주(과열)로 행동 불능이 되므로 90까지")]
         private int _rageCheatValue = 90;
+        [SerializeField, Tooltip("전투 중: 몬스터를 모두 쓰러뜨려 바로 승리합니다(행동 입력 차례일 때)")]
+        private Key _winCheatKey = Key.F10;
+        [SerializeField, Tooltip("필드·전투: 플레이어 HP·메모리를 최대로 채웁니다")]
+        private Key _healCheatKey = Key.F11;
+        [SerializeField, Tooltip("필드·전투: 게임을 처음(시작 연출)부터 다시 시작합니다. 플레이 상태도 초기화됩니다")]
+        private Key _restartCheatKey = Key.F12;
+        [SerializeField, Tooltip("필드: 보스방 입구(재시작 지점)로 순간이동합니다")]
+        private Key _bossWarpCheatKey = Key.F8;
+        [SerializeField, Tooltip("보스방 순간이동 위치. 비우면 이름이 Boss_RetryPoint인 오브젝트를 찾습니다")]
+        private Transform _bossWarpPoint;
+        [SerializeField, Tooltip("필드: 다음 중간 체크포인트로 순간이동합니다. Shift와 함께 누르면 이전 체크포인트로 갑니다")]
+        private Key _checkpointCheatKey = Key.F7;
 
         [SerializeField, Min(0.01f), Tooltip("전투 중 우클릭 드래그 회전 감도(도/픽셀)")]
         private float _battleMouseSensitivity = 0.15f;
@@ -386,6 +398,10 @@ namespace CK.SemesterProject.Tutorial
 
         private void Update()
         {
+            if (HandleCheatKeys())
+            {
+                return;
+            }
             if (!IsInBattle)
             {
                 UpdateCameraPreview();
@@ -420,25 +436,10 @@ namespace CK.SemesterProject.Tutorial
             BattleSnapshot snapshot = Snapshot;
             if (snapshot != null && snapshot.Phase == BattlePhase.Finished
                 && Keyboard.current != null && Application.isFocused
-                && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame))
+                && Keyboard.current.enterKey.wasPressedThisFrame)
             {
                 ReturnToExploration();
                 return;
-            }
-            if (CanInput(snapshot) && Keyboard.current != null && Application.isFocused)
-            {
-                if (Keyboard.current.digit1Key.wasPressedThisFrame)
-                {
-                    SelectTarget(0);
-                }
-                if (Keyboard.current.digit2Key.wasPressedThisFrame)
-                {
-                    SelectTarget(1);
-                }
-                if (Keyboard.current.digit3Key.wasPressedThisFrame)
-                {
-                    SelectTarget(2);
-                }
             }
             if (snapshot.Phase == BattlePhase.AwaitingPresentation)
             {
@@ -966,8 +967,151 @@ namespace CK.SemesterProject.Tutorial
             }
             _cachedSnapshot = null;
             RefreshUI();
-            _notice.text = "치트: 폭주 게이지 " + _rageCheatValue;
             return true;
+        }
+
+        // 테스트용 치트 키. 에디터와 Development 빌드에서만 동작한다. 씬을 다시 여는 경우 true를 돌려 이번 프레임을 끝낸다.
+        private CK.SemesterProject.LevelDesign.LevelTriggerZone[] _cheatCheckpoints;
+        private int _cheatCheckpointIndex = -1;
+
+        private bool HandleCheatKeys()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (!_enableCheats || !Debug.isDebugBuild || keyboard == null || !Application.isFocused)
+            {
+                return false;
+            }
+            if (keyboard[_restartCheatKey].wasPressedThisFrame)
+            {
+                DebugRestartGame();
+                return true;
+            }
+            if (keyboard[_healCheatKey].wasPressedThisFrame)
+            {
+                DebugRestorePlayer();
+            }
+            if (IsInBattle)
+            {
+                if (keyboard[_winCheatKey].wasPressedThisFrame)
+                {
+                    DebugWinBattle();
+                }
+            }
+            else if (keyboard[_bossWarpCheatKey].wasPressedThisFrame)
+            {
+                DebugWarpToBoss();
+            }
+            else if (keyboard[_checkpointCheatKey].wasPressedThisFrame)
+            {
+                DebugWarpToCheckpoint(keyboard.shiftKey.isPressed ? -1 : 1);
+            }
+            return false;
+        }
+
+        // 체크포인트 구역(LevelTriggerZone, 체크포인트 켜짐)을 하이어라키 순서(구역 진행 순서)로 돌며 순간이동한다.
+        // 구역 안으로 들어가므로 구역 진입 처리(위치 이름·목표·재시작 지점)도 그대로 실행된다.
+        public void DebugWarpToCheckpoint(int step)
+        {
+            if (!Debug.isDebugBuild || IsInBattle)
+            {
+                return;
+            }
+            if (_cheatCheckpoints == null)
+            {
+                _cheatCheckpoints = FindObjectsByType<CK.SemesterProject.LevelDesign.LevelTriggerZone>(FindObjectsInactive.Exclude, FindObjectsSortMode.None)
+                    .Where(zone => zone.IsCheckpoint)
+                    .OrderBy(zone => GetHierarchyOrder(zone.transform), StringComparer.Ordinal)
+                    .ToArray();
+            }
+            if (_cheatCheckpoints.Length == 0)
+            {
+                return;
+            }
+            int count = _cheatCheckpoints.Length;
+            _cheatCheckpointIndex = ((_cheatCheckpointIndex < 0 && step < 0 ? 0 : _cheatCheckpointIndex + step) % count + count) % count;
+            CK.SemesterProject.LevelDesign.LevelTriggerZone checkpoint = _cheatCheckpoints[_cheatCheckpointIndex];
+            Bounds bounds = checkpoint.GetComponent<Collider>().bounds;
+            Vector3 target = new Vector3(bounds.center.x, bounds.min.y + 0.1f, bounds.center.z);
+            if (NavMesh.SamplePosition(target, out NavMeshHit hit, 4f, NavMesh.AllAreas))
+            {
+                target = hit.position;
+            }
+            SetPlayerPose(target, _movement.transform.rotation);
+            Physics.SyncTransforms();
+        }
+
+        private static string GetHierarchyOrder(Transform transform)
+        {
+            var order = new System.Text.StringBuilder();
+            for (Transform current = transform; current != null; current = current.parent)
+            {
+                order.Insert(0, current.GetSiblingIndex().ToString("D4") + "/");
+            }
+            return order.ToString();
+        }
+
+        public bool DebugWinBattle()
+        {
+            if (!Debug.isDebugBuild || _session == null || _skillCutscene != null && _skillCutscene.IsPlaying || !_session.DebugWinBattle())
+            {
+                return false;
+            }
+            if (_sequenceRunner != null)
+            {
+                _sequenceRunner.Abort();
+            }
+            _cachedSnapshot = null;
+            _elapsed = 0f;
+            RefreshUI();
+            return true;
+        }
+
+        public void DebugRestorePlayer()
+        {
+            if (!Debug.isDebugBuild || _playerState == null)
+            {
+                return;
+            }
+            if (IsInBattle && _session != null && _session.DebugRestore("player"))
+            {
+                _cachedSnapshot = null;
+                RefreshUI();
+            }
+            _playerState.RestoreFull();
+        }
+
+        public void DebugWarpToBoss()
+        {
+            if (!Debug.isDebugBuild || IsInBattle)
+            {
+                return;
+            }
+            if (_bossWarpPoint == null)
+            {
+                GameObject point = GameObject.Find("Boss_RetryPoint");
+                _bossWarpPoint = point != null ? point.transform : null;
+            }
+            if (_bossWarpPoint == null)
+            {
+                return;
+            }
+            SetPlayerPose(_bossWarpPoint.position, _bossWarpPoint.rotation);
+            Physics.SyncTransforms();
+        }
+
+        public void DebugRestartGame()
+        {
+            if (!Debug.isDebugBuild)
+            {
+                return;
+            }
+            Time.timeScale = 1f;
+            string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (!CK.SemesterProject.UI.SceneFadeTransition.Run(scene, 0.4f, 0.6f, PlayerSessionState.ResetSession))
+            {
+                PlayerSessionState.ResetSession();
+                UnityEngine.SceneManagement.SceneManager.LoadScene(scene);
+            }
         }
 
         public void SelectTarget(int index)

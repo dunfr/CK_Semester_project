@@ -10,7 +10,7 @@ namespace CK.SemesterProject.LevelDesign
     /// <summary>
     /// 컷씬 대사창. 처음 쓸 때 화면 하단에 만들어지고 컷씬끼리 같이 쓴다.
     /// 대사의 첫 줄은 큰 본문, 줄바꿈 뒤는 작은 보조 설명으로 보인다.
-    /// AUTO(Q) 자동 넘김, SKIP(E) 빨리 넘김, LOG(L) 지난 대사 보기.
+    /// AUTO(Q) 자동 넘김, SKIP(E) 빨리 넘김, LOG(R) 지난 대사 보기. 대사 넘기기는 ENTER.
     /// </summary>
     public sealed class CutsceneDialogueView : MonoBehaviour
     {
@@ -158,7 +158,7 @@ namespace CK.SemesterProject.LevelDesign
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
             {
-                if (keyboard.lKey.wasPressedThisFrame || (IsLogOpen && keyboard.escapeKey.wasPressedThisFrame))
+                if (keyboard.rKey.wasPressedThisFrame)
                 {
                     ToggleLog();
                 }
@@ -313,7 +313,7 @@ namespace CK.SemesterProject.LevelDesign
 
             _autoButton = CreateButton("Auto Button", "AUTO [Q]", regular, 1371f, 56f, skin != null ? skin.AutoNormal : null, skin != null ? skin.AutoHover : null);
             _skipButton = CreateButton("Skip Button", "SKIP [E]", regular, 1535f, 70f, skin != null ? skin.SkipNormal : null, skin != null ? skin.SkipHover : null);
-            _logButton = CreateButton("Log Button", "LOG [L]", regular, 1699f, 70f, skin != null ? skin.LogNormal : null, skin != null ? skin.LogHover : null);
+            _logButton = CreateButton("Log Button", "LOG [R]", regular, 1699f, 70f, skin != null ? skin.LogNormal : null, skin != null ? skin.LogHover : null);
             _autoButton.Clicked += ToggleAuto;
             _skipButton.Clicked += () => SetSkip(!SkipMode);
             _logButton.Clicked += ToggleLog;
@@ -367,7 +367,7 @@ namespace CK.SemesterProject.LevelDesign
             close.rectTransform.sizeDelta = new Vector2(400f, 36f);
             close.rectTransform.anchoredPosition = new Vector2(-70f, 24f);
             close.alignment = TextAlignmentOptions.MidlineRight;
-            close.text = "L / Esc  닫기";
+            close.text = "R  닫기";
 
             _logPanel.SetActive(false);
         }

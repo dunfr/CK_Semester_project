@@ -32,6 +32,11 @@ namespace CK.SemesterProject.LevelDesign
 
         private bool _hasFired;
 
+        /// <summary>전투 패배 시 다시 시작하는 체크포인트인지(치트 이동 목록에도 쓴다).</summary>
+        public bool IsCheckpoint => _isCheckpoint;
+        /// <summary>진입 시 표시하는 한글 위치 이름(없으면 빈 문자열).</summary>
+        public string AreaName => _areaName ?? string.Empty;
+
         private void Awake()
         {
             GetComponent<Collider>().isTrigger = true;
