@@ -181409,6 +181409,11 @@ Transform:
   - {fileID: 156445308}
   m_Father: {fileID: 1755903954}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!23 &501366399 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 7722216250384626372, guid: 84ee946664795834ebc155e7aee050e5, type: 3}
+  m_PrefabInstance: {fileID: 1027705598}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &502663471
 GameObject:
   m_ObjectHideFlags: 0
@@ -565789,6 +565794,7 @@ GameObject:
   - component: {fileID: 1440850437}
   - component: {fileID: 1440850438}
   - component: {fileID: 1440850439}
+  - component: {fileID: 1440850440}
   m_Layer: 0
   m_Name: Tutorial Battle
   m_TagString: Untagged
@@ -565899,9 +565905,8 @@ MonoBehaviour:
   - {fileID: 367145893}
   - {fileID: 1948139918}
   - {fileID: 356646322}
-  _skillCinematics:
-  - SkillId: SK09
-    Cinematic: {fileID: 1190912374}
+  _skillCinematics: []
+  _skillCutscene: {fileID: 1440850440}
   _cinematicPullback: 1.5
   _cinematicFieldOfViewScale: 1.25
   _enableCheats: 1
@@ -566093,6 +566098,29 @@ MonoBehaviour:
   _areaBanner: {fileID: 1562890918}
   _bannerHoldSeconds: 2.5
   _bannerFadeSeconds: 1.2
+--- !u!114 &1440850440
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1440850436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f90ad0f39996d744fa3cdb34d6bc9a14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialSkillCutscene
+  _bindings:
+  - SkillId: SK09
+    Cutscene: {fileID: 11400000, guid: e4e9ed11bafb79841ad03f95fbf2813b, type: 2}
+    BackOffset: 4
+    LandingLocalOffset: {x: -1.03, y: 0, z: -2.38}
+  _fadeOutSeconds: 0.35
+  _fadeInSeconds: 0.5
+  _fadeColor: {r: 0, g: 0, b: 0, a: 1}
+  _hiddenRoot: {fileID: 1489619404}
+  _keptRenderers:
+  - {fileID: 501366399}
 --- !u!1 &1442149415
 GameObject:
   m_ObjectHideFlags: 0
