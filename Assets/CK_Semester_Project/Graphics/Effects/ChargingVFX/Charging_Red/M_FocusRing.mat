@@ -38,7 +38,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Emission: 3
+    - _Emission: 32.4
     - _Falloff: 3
     - _Opacity: 1
     - _QueueControl: 0
@@ -50,7 +50,7 @@ Material:
     - _StarSharpness: 0.43
     m_Colors:
     - _PrimaryColor: {r: 1, g: 0.66389984, b: 0.216981, a: 1}
-    - _SecondaryColor: {r: 1, g: 0.09898239, b: 0, a: 1}
+    - _SecondaryColor: {r: 1, g: 0, b: 0.32273293, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &1230121604076794074
