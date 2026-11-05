@@ -65,6 +65,10 @@ namespace CK.SemesterProject.UI
             PlayerPrefs.SetInt(WidthPreferenceKey, size.x);
             PlayerPrefs.SetInt(HeightPreferenceKey, size.y);
             ApplyDisplaySize();
+#if UNITY_EDITOR
+            // 에디터에서도 고르는 즉시 Game 뷰 해상도에 적용해 바로 확인할 수 있게 한다.
+            UnityEditor.PlayModeWindow.SetCustomRenderingResolution((uint)size.x, (uint)size.y, "Settings");
+#endif
         }
 
         public static int ClampIndex(int index) => Mathf.Clamp(index, 0, Options.Count - 1);
@@ -82,8 +86,8 @@ namespace CK.SemesterProject.UI
         {
 #if !UNITY_EDITOR
             Vector2Int size = Options[s_selectedIndex];
-            // Preserve the player's existing window/fullscreen mode.
-            Screen.SetResolution(size.x, size.y, Screen.fullScreenMode);
+            // 해상도만 바꾸고 전체 화면/창 모드는 지금 상태 그대로 둔다(창 모드로 바꾸지 않는다).
+            Screen.SetResolution(size.x, size.y, Screen.fullScreenMode, Screen.currentResolution.refreshRateRatio);
 #endif
         }
     }
