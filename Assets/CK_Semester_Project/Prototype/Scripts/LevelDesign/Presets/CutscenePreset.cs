@@ -21,6 +21,7 @@ namespace CK.SemesterProject.LevelDesign
         private const int CameraPriority = 1000;
         private const float ArrivalDistance = 0.1f;
         private const float MoveTimeout = 15f;
+        private const float SkipLineDelay = 0.12f;
 
         [Header("발동")]
         [SerializeField, Tooltip("플레이어가 들어오면 컷씬을 시작하는 영역. 비우면 다른 곳에서 Play()로만 시작합니다.")]
@@ -38,6 +39,12 @@ namespace CK.SemesterProject.LevelDesign
         private float _typingSpeed = 40f;
         [SerializeField, Tooltip("대사창 글꼴. 비우면 씬의 UI 글꼴을 씁니다.")]
         private TMP_FontAsset _dialogueFont;
+        [SerializeField, Tooltip("대사창 왼쪽 위 탭에 보일 분류 이름 (예: TUTORIAL, STORY)")]
+        private string _dialogueCategory = "TUTORIAL";
+        [SerializeField, Min(0f), Tooltip("AUTO 모드에서 대사가 다 나온 뒤 기본 대기 시간(초)")]
+        private float _autoDelayBase = 1.2f;
+        [SerializeField, Min(0f), Tooltip("AUTO 모드에서 글자 하나당 더 기다리는 시간(초)")]
+        private float _autoDelayPerCharacter = 0.04f;
         [SerializeField, Tooltip("이동 중 재생할 Animator 상태 이름")]
         private string _walkState = "Walk";
         [SerializeField, Tooltip("멈춰 있을 때 재생할 Animator 상태 이름")]
@@ -148,7 +155,7 @@ namespace CK.SemesterProject.LevelDesign
             {
                 _camera.gameObject.SetActive(false);
             }
-            CutsceneDialogueView.HideActive();
+            CutsceneDialogueView.EndSequence();
             if (_lockPlayer)
             {
                 LockPlayer(false);
@@ -185,14 +192,19 @@ namespace CK.SemesterProject.LevelDesign
         {
             CutsceneDialogueView view = CutsceneDialogueView.GetOrCreate(GetFont());
             bool waitsForInput = step.Duration <= 0f;
-            view.Show(step.Speaker, step.Text, waitsForInput);
-            int length = step.Text != null ? step.Text.Length : 0;
+            view.Show(step.Speaker, step.Text, _dialogueCategory);
+            int length = view.CharacterCount;
             float shown = 0f;
             // 첫 프레임의 키 입력(트리거 직전 F 등)으로 바로 넘어가지 않도록 한 프레임 쉰다.
             yield return null;
             while (shown < length)
             {
-                if (WasAdvancePressed())
+                if (view.IsLogOpen)
+                {
+                    yield return null;
+                    continue;
+                }
+                if (view.SkipMode || WasAdvancePressed())
                 {
                     shown = length;
                 }
@@ -204,18 +216,41 @@ namespace CK.SemesterProject.LevelDesign
                 yield return null;
             }
             view.SetVisibleCharacters(length);
-            if (waitsForInput)
+
+            // 입력 대기 대사: AUTO면 글자 수에 비례해 기다렸다 넘기고, SKIP이면 바로 넘긴다.
+            // 시간 대사: 정해진 시간만큼 보여 주되 SKIP이면 짧게 넘긴다.
+            float waitTime = waitsForInput ? Mathf.Clamp(_autoDelayBase + length * _autoDelayPerCharacter, 0.5f, 6f) : step.Duration;
+            float waited = 0f;
+            yield return null;
+            while (true)
             {
-                yield return null;
-                while (!WasAdvancePressed())
+                if (view.IsLogOpen)
                 {
+                    view.SetWaiting(false);
                     yield return null;
+                    continue;
                 }
+                bool automatic = !waitsForInput || view.AutoMode || view.SkipMode;
+                view.SetWaiting(waitsForInput && !automatic);
+                if (waitsForInput && WasAdvancePressed())
+                {
+                    break;
+                }
+                if (automatic)
+                {
+                    waited += Time.deltaTime;
+                    if (waited >= (view.SkipMode ? Mathf.Min(SkipLineDelay, waitTime) : waitTime))
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    waited = 0f;
+                }
+                yield return null;
             }
-            else
-            {
-                yield return new WaitForSeconds(step.Duration);
-            }
+            view.SetWaiting(false);
             view.Hide();
         }
 

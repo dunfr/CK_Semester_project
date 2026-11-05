@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae1be182af3c2294ba9cb9b7e9c7c61e, type: 3}
+  m_Name: CutsceneDialogueSkin
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.LevelDesign.CutsceneDialogueSkin
+  Frame: {fileID: 21300000, guid: 0203a03d1addac649aedd47344770509, type: 3}
+  CategoryIcon: {fileID: 21300000, guid: 56ce9c89c9f8a404e8b2122adf396ff2, type: 3}
+  NextArrow: {fileID: 21300000, guid: b8f2c7bd253907e478e63c4ce62b9a54, type: 3}
+  LogFrame: {fileID: 21300000, guid: 336ff37d8fea61240abebbe865a632f7, type: 3}
+  AutoNormal: {fileID: 21300000, guid: a396c25760d15fd4f8617960f43851c6, type: 3}
+  AutoHover: {fileID: 21300000, guid: 1c9a7a16187a1854281b1501afd850c2, type: 3}
+  SkipNormal: {fileID: 21300000, guid: dcb54fdf25ff7c44080a21549d86cf23, type: 3}
+  SkipHover: {fileID: 21300000, guid: e573572ec4f37954fa422bf32c7da83d, type: 3}
+  LogNormal: {fileID: 21300000, guid: 972b71e96e91fea4bb2756b4a0d23e6c, type: 3}
+  LogHover: {fileID: 21300000, guid: 7cfcc318a9ff1724691309f5869a3f49, type: 3}
+  RegularFont: {fileID: 11400000, guid: 9b9a5e02ddb06704bac269067fc76fcd, type: 2}
+  BoldFont: {fileID: 11400000, guid: ba8bd410a242b474fb101f53184014e5, type: 2}
+  ExtraBoldFont: {fileID: 11400000, guid: 84851867cbb82f44e8b81ad4d945a4bf, type: 2}
