@@ -1486,6 +1486,23 @@ namespace CK.SemesterProject.Tutorial
             _encounterCooldown = 0f;
         }
 
+        // 선택한 대상 몬스터의 발밑 링·하이라이트를 갱신한다. 전투 카메라가 자리 잡은 뒤, 컷신이 아닐 때만 보인다.
+        private void UpdateTargetHighlight()
+        {
+            Transform target = null;
+            BattleElement element = default;
+            if (!string.IsNullOrEmpty(_targetId) && TryGetMonsterTransform(_targetId, out target))
+            {
+                TutorialMonster monster = target.GetComponent<TutorialMonster>();
+                if (monster != null && monster.Definition != null)
+                {
+                    element = monster.Definition.Element;
+                }
+            }
+            bool visible = target != null && !IsSkillCutscenePlaying && _cameraTime >= _cameraEntrySeconds;
+            _targetHighlight.UpdateHighlight(target, element, visible, CanInput(Snapshot));
+        }
+
         private void RestoreExploration(bool respawn = false, bool defeated = false)
         {
             _targetHighlight.Clear();

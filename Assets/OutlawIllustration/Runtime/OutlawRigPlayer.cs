@@ -47,12 +47,51 @@ namespace OutlawIllustration
         private void Awake()
         {
             playing = playAutomatically;
-            Rebuild();
+            if (!ReconnectGeneratedLayers()) Rebuild();
         }
 
         private void OnEnable()
         {
-            if (rig == null && rigJson != null) Rebuild();
+            if (rig == null && rigJson != null && !ReconnectGeneratedLayers()) Rebuild();
+        }
+
+        // 프리팹 인스턴스의 자식은 편집 모드에서 지울 수 없다.
+        // 이미 만든 레이어가 리그와 같으면 다시 만들지 않고 연결만 해서 프리팹 안에서도 쓸 수 있게 한다.
+        private bool ReconnectGeneratedLayers()
+        {
+            if (rigJson == null || generatedLayers == null || generatedLayers.Count == 0) return false;
+            OutlawRigData data;
+            try { data = JsonUtility.FromJson<OutlawRigData>(rigJson.text); }
+            catch (Exception) { return false; }
+            if (data == null) return false;
+            data.Normalize();
+            Array.Sort(data.layers, delegate(OutlawLayerData a, OutlawLayerData b) { return a.z.CompareTo(b.z); });
+            var graphics = new List<OutlawMeshGraphic>();
+            var layers = new List<OutlawLayerData>();
+            var layerTextures = new List<Texture2D>();
+            for (int i = 0; i < data.layers.Length; i++)
+            {
+                Texture2D texture = FindTexture(data.layers[i].name);
+                if (texture == null) continue;
+                if (graphics.Count >= generatedLayers.Count) return false;
+                GameObject child = generatedLayers[graphics.Count];
+                if (child == null || child.transform.parent != transform || child.name != data.layers[i].name) return false;
+                OutlawMeshGraphic graphic = child.GetComponent<OutlawMeshGraphic>();
+                if (graphic == null) return false;
+                graphics.Add(graphic);
+                layers.Add(data.layers[i]);
+                layerTextures.Add(texture);
+            }
+            if (graphics.Count != generatedLayers.Count) return false;
+            rig = data;
+            uiLayers.Clear();
+            for (int i = 0; i < graphics.Count; i++)
+            {
+                graphics[i].Initialize(this, layers[i], layerTextures[i]);
+                uiLayers.Add(graphics[i]);
+            }
+            RefreshGeometry();
+            return true;
         }
 
         private void Update()
