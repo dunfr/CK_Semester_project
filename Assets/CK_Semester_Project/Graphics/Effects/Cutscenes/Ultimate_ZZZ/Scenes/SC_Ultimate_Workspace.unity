@@ -4093,6 +4093,10 @@ PrefabInstance:
       propertyPath: m_LocalRotation.z
       value: 0.04154128
       objectReference: {fileID: 0}
+    - target: {fileID: 5104460812294002405, guid: 59182d3a73c683a41a4b36015cef00b1, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5139694583905881309, guid: 59182d3a73c683a41a4b36015cef00b1, type: 3}
       propertyPath: m_LocalScale.x
       value: 1.0018421
@@ -5029,8 +5033,8 @@ MonoBehaviour:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1594382662}
   - {fileID: 759981567}
   - {fileID: 2019930844}
+  - {fileID: 1594382662}
   - {fileID: 911978015}
   - {fileID: 6127267473435059707}
