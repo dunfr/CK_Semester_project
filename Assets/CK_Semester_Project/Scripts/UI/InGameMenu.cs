@@ -174,19 +174,11 @@ namespace CK.SemesterProject.UI
             if (!_isOpen || _leaving) return;
             _leaving = true;
             if (_group != null) _group.interactable = false;
-            if (!SceneFadeTransition.Run(_mainSceneName, _fadeToBlackSeconds, _fadeFromBlackSeconds, PrepareMainScene))
+            if (!SceneFadeTransition.ReturnToMain(_mainSceneName, _fadeToBlackSeconds, _fadeFromBlackSeconds))
             {
                 _leaving = false;
                 if (_group != null) _group.interactable = true;
             }
-        }
-
-        private static void PrepareMainScene()
-        {
-            StartSceneFlow.StartAtPressAnyKeyOnNextLoad();
-            Time.timeScale = 1f;
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
         }
 
         private bool CanOpen()

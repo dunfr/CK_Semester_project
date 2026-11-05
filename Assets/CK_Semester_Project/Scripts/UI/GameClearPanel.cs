@@ -9,7 +9,8 @@ using UnityEngine.UI;
 namespace CK.SemesterProject.UI
 {
     // 게임 클리어 화면. Show()를 부르면 화면이 검게 덮였다가 걷히면서 배경이 나오고,
-    // 검은 화면이 걷히기 시작할 때 비네팅·QR·글자 묶음이 오른쪽에서 밀려 들어온다. Esc나 "창 닫기"로 닫힌다.
+    // 검은 화면이 걷히기 시작할 때 비네팅·QR·글자 묶음이 오른쪽에서 밀려 들어온다.
+    // Esc나 "창 닫기"를 누르면 검은 화면을 거쳐 메인 화면(Press Any Key)으로 돌아간다.
     // 떠 있는 동안 게임 시간을 멈추고 이동·상호작용을 잠근다. 씬에 켜 둔 채 두어도 시작할 때 스스로 숨는다.
     [DisallowMultipleComponent]
     [RequireComponent(typeof(CanvasGroup))]
@@ -32,7 +33,15 @@ namespace CK.SemesterProject.UI
         private float _slideDistance = 500f;
 
         [Header("닫기")]
-        [SerializeField, Min(0f), Tooltip("사라지는 시간(초)")]
+        [SerializeField, Tooltip("창 닫기(Esc)를 누르면 검은 화면을 거쳐 메인 화면(Press Any Key)으로 돌아갑니다. 끄면 게임으로 돌아갑니다.")]
+        private bool _returnToMain = true;
+        [SerializeField, Tooltip("Build Profiles의 Scene List에 등록된 메인 씬 이름")]
+        private string _mainSceneName = "Main";
+        [SerializeField, Min(0f), Tooltip("메인으로 갈 때 화면이 검게 덮이는 시간(초)")]
+        private float _toMainFadeOutSeconds = 0.8f;
+        [SerializeField, Min(0f), Tooltip("메인 화면에서 검은 화면이 걷히는 시간(초)")]
+        private float _toMainFadeInSeconds = 0.8f;
+        [SerializeField, Min(0f), Tooltip("게임으로 돌아갈 때 사라지는 시간(초)")]
         private float _fadeOutSeconds = 0.5f;
         [SerializeField, Tooltip("떠 있는 동안 게임 시간을 멈춥니다.")]
         private bool _pauseGame = true;
@@ -44,6 +53,8 @@ namespace CK.SemesterProject.UI
         private CanvasGroup _group;
         private Coroutine _routine;
         private bool _shown;
+        // 메인으로 가는 중이면 씬이 내려가며 꺼질 때 시간·커서를 게임 상태로 되돌리지 않는다.
+        private bool _leaving;
         // Show에서 멈춘 시간·커서·조작 잠금을 아직 돌려주지 않았다.
         private bool _holding;
         private float _savedTimeScale = 1f;
@@ -65,6 +76,8 @@ namespace CK.SemesterProject.UI
 
         private void Update()
         {
+            // 메인으로 가는 중에는 시간을 붙잡지 않는다(메인 화면은 시간 1로 시작해야 한다).
+            if (_leaving) return;
             if (_holding && _pauseGame) Time.timeScale = 0f;
             if (_shown && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) Close();
         }
@@ -103,7 +116,16 @@ namespace CK.SemesterProject.UI
 
         public void Close()
         {
-            if (!_shown) return;
+            if (!_shown || _leaving) return;
+            if (_returnToMain)
+            {
+                _leaving = true;
+                _group.interactable = false;
+                if (SceneFadeTransition.ReturnToMain(_mainSceneName, _toMainFadeOutSeconds, _toMainFadeInSeconds)) return;
+                // 메인 씬을 열 수 없으면 게임으로 돌아간다.
+                _leaving = false;
+                _group.interactable = true;
+            }
             _shown = false;
             _group.interactable = false;
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
@@ -202,6 +224,8 @@ namespace CK.SemesterProject.UI
         {
             if (!_holding) return;
             _holding = false;
+            // 메인으로 가는 중이면 시간·커서는 메인 화면 기준으로 이미 맞춰져 있다.
+            if (_leaving) return;
             if (_pauseGame) Time.timeScale = _savedTimeScale > 0f ? _savedTimeScale : 1f;
             if (_progress != null) _progress.UnlockControls(this);
             Cursor.lockState = _savedCursorLock;

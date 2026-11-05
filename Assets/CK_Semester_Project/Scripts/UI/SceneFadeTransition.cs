@@ -22,6 +22,20 @@ namespace CK.SemesterProject.UI
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetState() => IsRunning = false;
 
+        /// <summary>검은 화면으로 덮고 메인 씬을 로고 없이 Press Any Key 상태부터 연다. 시작하지 못하면 false.</summary>
+        public static bool ReturnToMain(string mainSceneName, float fadeOutSeconds, float fadeInSeconds)
+        {
+            return Run(mainSceneName, fadeOutSeconds, fadeInSeconds, PrepareMainScene);
+        }
+
+        private static void PrepareMainScene()
+        {
+            StartSceneFlow.StartAtPressAnyKeyOnNextLoad();
+            Time.timeScale = 1f;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
         /// <summary>검게 덮은 뒤 beforeLoad를 부르고 sceneName을 연다. 시작하지 못하면 false.</summary>
         public static bool Run(string sceneName, float fadeOutSeconds, float fadeInSeconds, Action beforeLoad)
         {

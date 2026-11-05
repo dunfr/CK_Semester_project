@@ -26,6 +26,9 @@ namespace CK.SemesterProject.UI
         [Tooltip("마지막 로고가 사라진 뒤 회색 배경만 유지하는 시간")]
         [SerializeField, Min(0f)] private float _introBackgroundHoldSeconds = 1f;
         [SerializeField, Min(0f)] private float _introBackgroundFadeOutSeconds = 1f;
+        [Header("Return from game")]
+        [Tooltip("인게임에서 메인으로 돌아온 뒤 Press Any Key 배너가 나타나 깜빡이기 시작할 때까지의 시간. 최소 1.5초입니다.")]
+        [SerializeField, Min(1.5f)] private float _returnBannerDelaySeconds = 1.5f;
         [Header("Intro references")]
         [SerializeField] private GameObject _introPanel;
         [SerializeField] private CanvasGroup _introGroup;
@@ -45,7 +48,7 @@ namespace CK.SemesterProject.UI
         [SerializeField, Min(0f)] private float _loadingFadeOutSeconds = .5f;
         [SerializeField] private UnityEngine.UI.RawImage _chibi;
         [SerializeField, Min(1f)] private float _framesPerSecond = 12f;
-        private bool _mainReady, _loading;
+        private bool _mainReady, _loading, _returnedFromGame;
         private float _animationTime;
         private static bool _startAtPressAnyKey;
 
@@ -71,18 +74,24 @@ namespace CK.SemesterProject.UI
             _loadingGroup.alpha = 0f;
             if (_startAtPressAnyKey)
             {
+                // 로고 없이 배경부터 보여 주고, 배너는 Start에서 잠시 뒤에 켠다.
                 _startAtPressAnyKey = false;
+                _returnedFromGame = true;
                 _introPanel.SetActive(false);
                 _background.SetActive(true);
-                _banner.SetActive(true);
-                _mainReady = true;
             }
         }
 
         private IEnumerator Start()
         {
-            // "메인으로"로 돌아온 경우 Awake에서 이미 Press Any Key 상태다.
-            if (_mainReady) yield break;
+            if (_returnedFromGame)
+            {
+                // "메인으로"로 돌아온 경우: 화면이 자리 잡은 뒤 배너가 나타나 깜빡이고, 그때부터 아무 키 입력을 받는다.
+                yield return new WaitForSecondsRealtime(Mathf.Max(1.5f, _returnBannerDelaySeconds));
+                _banner.SetActive(true);
+                _mainReady = true;
+                yield break;
+            }
             // Let the first rendered frame settle before starting the timed fades.
             yield return null;
             yield return FadeLogo(_schoolLogo, _schoolFadeInSeconds, _schoolHoldSeconds, _schoolFadeOutSeconds);
