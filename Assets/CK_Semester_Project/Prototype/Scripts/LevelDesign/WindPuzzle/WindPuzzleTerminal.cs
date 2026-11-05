@@ -76,6 +76,8 @@ namespace CK.SemesterProject.LevelDesign.WindPuzzle
 
         public override bool CanInteract => !_isActive && !(_isSolved && _lockAfterSolved);
         public bool IsSolved => _isSolved;
+        // 퍼즐 화면을 조작 중이면 Esc는 퍼즐 나가기라서 인게임 메뉴가 열리지 않는다.
+        public bool IsActive => _isActive;
 
         protected override void Awake()
         {

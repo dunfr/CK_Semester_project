@@ -47,6 +47,13 @@ namespace CK.SemesterProject.UI
         [SerializeField, Min(1f)] private float _framesPerSecond = 12f;
         private bool _mainReady, _loading;
         private float _animationTime;
+        private static bool _startAtPressAnyKey;
+
+        // 인게임 메뉴의 "메인으로"가 부른다. 다음에 이 씬을 열 때 로고 연출 없이 Press Any Key 화면부터 시작한다.
+        public static void StartAtPressAnyKeyOnNextLoad() => _startAtPressAnyKey = true;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStartRequest() => _startAtPressAnyKey = false;
 
         private void Awake()
         {
@@ -62,10 +69,20 @@ namespace CK.SemesterProject.UI
             _settingsPanel.SetActive(false);
             _loadingPanel.SetActive(false);
             _loadingGroup.alpha = 0f;
+            if (_startAtPressAnyKey)
+            {
+                _startAtPressAnyKey = false;
+                _introPanel.SetActive(false);
+                _background.SetActive(true);
+                _banner.SetActive(true);
+                _mainReady = true;
+            }
         }
 
         private IEnumerator Start()
         {
+            // "메인으로"로 돌아온 경우 Awake에서 이미 Press Any Key 상태다.
+            if (_mainReady) yield break;
             // Let the first rendered frame settle before starting the timed fades.
             yield return null;
             yield return FadeLogo(_schoolLogo, _schoolFadeInSeconds, _schoolHoldSeconds, _schoolFadeOutSeconds);
