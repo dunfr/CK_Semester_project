@@ -115,6 +115,10 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("스킬별 타임라인 연출(이펙터 시네머신 연출). 지정하면 사용 시 연출 카메라로 넘겨 재생합니다")]
         private SkillCinematicBinding[] _skillCinematics = Array.Empty<SkillCinematicBinding>();
 
+        [Header("Skill Cutscene")]
+        [SerializeField, Tooltip("스킬별 완성 컷신(Timeline 프리팹) 재생을 맡는 컴포넌트. 비워 두면 같은 오브젝트에서 찾습니다")]
+        private TutorialSkillCutscene _skillCutscene;
+
         [Header("Cinematic Camera")]
         [SerializeField, Min(0f), Tooltip("스킬 연출 카메라(Ult_cam 등)를 시선 반대 방향으로 물리는 거리(m). 이펙트가 화면에 들어오도록 원본 카메라보다 멀리 잡습니다")]
         private float _cinematicPullback = 1.5f;
@@ -242,6 +246,24 @@ namespace CK.SemesterProject.Tutorial
         }
 
         public bool IsInBattle => _session != null;
+
+        // TutorialSkillCutscene이 컷신 동안 카메라·플레이어·적을 다루기 위한 최소한의 접근.
+        public Camera BattleCamera => _camera;
+        public CinemachineBrain BattleBrain => _brain;
+        public Transform PlayerRoot => _movement.transform;
+        public IReadOnlyList<EnemyStateMachine> EncounterMembers => _encounterMembers;
+        public void PlacePlayer(Vector3 position, Quaternion rotation) => SetPlayerPose(position, rotation);
+
+        public void SetBattleUiVisible(bool visible)
+        {
+            _battleUI.SetActive(visible);
+            if (visible && IsInBattle)
+            {
+                RefreshUI();
+            }
+        }
+
+        private bool IsSkillCutscenePlaying => _skillCutscene != null && _skillCutscene.IsPlaying;
         public int SkillStage => _battleSkillStage > 0 ? _battleSkillStage : TestSkillStage;
         public int TestSkillStage => _testSkillStage > 0 ? _testSkillStage
             : _enhancementRules?.GetStage(_playerState?.VictoryCount ?? 0) ?? 1;
@@ -284,6 +306,10 @@ namespace CK.SemesterProject.Tutorial
         private void Awake()
         {
             MigrateCameraSettings();
+            if (_skillCutscene == null)
+            {
+                _skillCutscene = GetComponent<TutorialSkillCutscene>();
+            }
             // 에디터에서 지운 적이 목록에 빈 칸으로 남아 있을 수 있으므로 빼고 쓴다.
             _enemies = _enemies == null ? Array.Empty<EnemyStateMachine>() : _enemies.Where(enemy => enemy != null).ToArray();
             if (_movement == null || _orbit == null || _camera == null || _brain == null || _characters == null
@@ -417,7 +443,8 @@ namespace CK.SemesterProject.Tutorial
                     }
                 }
             }
-            if (_elapsed >= PresentationSeconds && snapshot.Phase == BattlePhase.AwaitingPresentation)
+            // 컷신이 끝나기 전에는 결과 연출을 끝내지 않는다(컷신 길이와 연출 시간이 달라도 컷신이 잘리지 않게).
+            if (_elapsed >= PresentationSeconds && snapshot.Phase == BattlePhase.AwaitingPresentation && !IsSkillCutscenePlaying)
             {
                 _session.CompletePresentation(_session.PendingResult.ActionId);
                 _cachedSnapshot = null;
@@ -445,7 +472,8 @@ namespace CK.SemesterProject.Tutorial
                 RefreshUI();
             }
             SetBattleCameraActive(_debugBattleCamera);
-            if (!_isBattleCameraActive || UpdateCinematicCamera())
+            // 컷신 재생 중에는 Cinemachine Brain이 카메라를 쥐고 있으므로 전투 카메라를 움직이지 않는다.
+            if (IsSkillCutscenePlaying || !_isBattleCameraActive || UpdateCinematicCamera())
             {
                 return;
             }
@@ -993,7 +1021,7 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
-        private static void WarpEnemy(EnemyStateMachine enemy, Vector3 position, Quaternion rotation)
+        internal static void WarpEnemy(EnemyStateMachine enemy, Vector3 position, Quaternion rotation)
         {
             NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
             if (agent != null && agent.enabled && agent.isOnNavMesh)
@@ -1097,13 +1125,15 @@ namespace CK.SemesterProject.Tutorial
             }
             _cachedSnapshot = null;
             _elapsed = 0;
-            if (request.ActorId == "player" && request.Kind == BattleActionKind.Skill && !result.WasSkipped
+            bool startedCutscene = request.ActorId == "player" && request.Kind == BattleActionKind.Skill
+                && !result.WasSkipped && TryPlaySkillCutscene(request, result);
+            if (!startedCutscene && request.ActorId == "player" && request.Kind == BattleActionKind.Skill && !result.WasSkipped
                 && _battleAnimation != null)
             {
                 _playerMotionSeconds = _battleAnimation.PlaySkill(request.SkillId, out _playerMotionApproaches);
                 _playerMotionActionId = _playerMotionSeconds > 0f ? result.ActionId : -1;
             }
-            if (request.ActorId == "player" && request.Kind == BattleActionKind.Skill && !result.WasSkipped)
+            if (!startedCutscene && request.ActorId == "player" && request.Kind == BattleActionKind.Skill && !result.WasSkipped)
             {
                 foreach (SkillCinematicBinding binding in _skillCinematics)
                 {
@@ -1127,6 +1157,25 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             RefreshUI();
+        }
+
+        // 스킬에 완성 컷신이 지정돼 있으면 컷신 컴포넌트가 재생한다. 컷신이 카메라·플레이어를 쥐므로 기존 접근·모션은 쓰지 않는다.
+        private bool TryPlaySkillCutscene(BattleActionRequest request, BattleActionResult result)
+        {
+            if (_skillCutscene == null)
+            {
+                return false;
+            }
+            TryGetMonsterTransform(string.IsNullOrEmpty(request.TargetId) ? _targetId : request.TargetId, out Transform target);
+            if (!_skillCutscene.TryPlay(request.SkillId, target, out float seconds))
+            {
+                return false;
+            }
+            // 컷신이 끝날 때까지 결과 연출(피해 반영·다음 행동)을 기다린다.
+            _playerMotionSeconds = seconds;
+            _playerMotionActionId = result.ActionId;
+            _playerMotionApproaches = false;
+            return true;
         }
 
         private bool CanInput(BattleSnapshot state)
@@ -1358,6 +1407,10 @@ namespace CK.SemesterProject.Tutorial
 
         private void RestoreExploration(bool respawn = false, bool defeated = false)
         {
+            if (_skillCutscene != null)
+            {
+                _skillCutscene.Abort();
+            }
             _debugBattleCamera = false;
             _isBattleCameraActive = false;
             // 필드에서는 HP를 보존하고 메모리만 최초값으로 회복한다.
