@@ -180,6 +180,10 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private Slider _playerHp;
         [SerializeField] private Slider _playerMemory;
         [SerializeField] private TMP_Text _playerVitals;
+        [SerializeField, Tooltip("전투 화면 하단 '보유 메모리 : n / 폭주 : n' 표시. 비어 있으면 건너뛴다.")]
+        private TMP_Text _battleResourceText;
+        [SerializeField, Min(0f), Tooltip("조작 안내 문구 왼쪽 끝과 메모리·폭주 표시 사이 간격(px)")]
+        private float _battleResourceGap = 24f;
         [SerializeField] private TMP_Text _memoryCurrent;
         [SerializeField] private TMP_Text _memoryCapacity;
         [SerializeField] private TMP_Text _skillMemory;
@@ -887,6 +891,10 @@ namespace CK.SemesterProject.Tutorial
                 _playerVitals.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
                     + "  폭주 " + player.RageEnergy;
             }
+            if (_battleResourceText != null)
+            {
+                _battleResourceText.text = "보유 메모리 : " + player.Memory + "  /  폭주 : " + player.RageEnergy;
+            }
             if (_memoryCurrent != null)
             {
                 _memoryCurrent.text = player.Memory.ToString();
@@ -1071,6 +1079,7 @@ namespace CK.SemesterProject.Tutorial
             _skillNavigationHint.text = IsCommandPhase
                 ? "↑ ↓ 커맨드 선택   ·   Enter 결정"
                 : "↑ ↓ 스킬 선택   ·   Enter 사용   ·   F 투자   ·   Backspace 뒤로";
+            PlaceBattleResourceText();
             for (int index = 0; index < _commands.Length; index++)
             {
                 _commands[index].interactable = _couldChoose && _battle.HasSelectedBattleTarget
@@ -1080,6 +1089,20 @@ namespace CK.SemesterProject.Tutorial
                 float scale = index == _selectedCommand ? _selectedCommandScale : _normalCommandScale;
                 _commands[index].transform.localScale = Vector3.one * scale;
             }
+        }
+
+        // 안내 문구는 오른쪽 정렬이라 단계마다 왼쪽 끝이 달라진다. 메모리·폭주 표시를 그 왼쪽 끝에 붙인다.
+        private void PlaceBattleResourceText()
+        {
+            if (_battleResourceText == null)
+            {
+                return;
+            }
+            RectTransform hint = _skillNavigationHint.rectTransform;
+            RectTransform label = _battleResourceText.rectTransform;
+            float hintRight = hint.anchoredPosition.x + hint.sizeDelta.x * (1f - hint.pivot.x);
+            float labelRight = hintRight - _skillNavigationHint.preferredWidth - _battleResourceGap;
+            label.anchoredPosition = new Vector2(labelRight + label.sizeDelta.x * (label.pivot.x - 1f), label.anchoredPosition.y);
         }
 
         private void RefreshSkillDetails(SkillData skill)
