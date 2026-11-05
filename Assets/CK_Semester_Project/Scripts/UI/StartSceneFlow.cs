@@ -22,8 +22,13 @@ namespace CK.SemesterProject.UI
         [SerializeField, Min(0f)] private float _teamFadeInSeconds = 1f;
         [SerializeField, Min(0f)] private float _teamHoldSeconds = 1.5f;
         [SerializeField, Min(0f)] private float _teamFadeOutSeconds = 1f;
+        [Header("Reveal main screen")]
+        [Tooltip("마지막 로고가 사라진 뒤 회색 배경만 유지하는 시간")]
+        [SerializeField, Min(0f)] private float _introBackgroundHoldSeconds = 1f;
+        [SerializeField, Min(0f)] private float _introBackgroundFadeOutSeconds = 1f;
         [Header("Intro references")]
         [SerializeField] private GameObject _introPanel;
+        [SerializeField] private CanvasGroup _introGroup;
         [SerializeField] private CanvasGroup _schoolLogo;
         [SerializeField] private CanvasGroup _teamLogo;
         [Header("Existing main UI")]
@@ -45,6 +50,7 @@ namespace CK.SemesterProject.UI
 
         private void Awake()
         {
+            _introGroup.alpha = 1f;
             _introPanel.SetActive(true);
             _schoolLogo.gameObject.SetActive(false);
             _teamLogo.gameObject.SetActive(false);
@@ -64,7 +70,10 @@ namespace CK.SemesterProject.UI
             yield return null;
             yield return FadeLogo(_schoolLogo, _schoolFadeInSeconds, _schoolHoldSeconds, _schoolFadeOutSeconds);
             yield return FadeLogo(_teamLogo, _teamFadeInSeconds, _teamHoldSeconds, _teamFadeOutSeconds);
+            if (_introBackgroundHoldSeconds > 0f)
+                yield return new WaitForSecondsRealtime(_introBackgroundHoldSeconds);
             _background.SetActive(true);
+            yield return Fade(_introGroup, 1f, 0f, _introBackgroundFadeOutSeconds);
             _introPanel.SetActive(false);
             _banner.SetActive(true);
             _mainReady = true;
@@ -109,16 +118,34 @@ namespace CK.SemesterProject.UI
         public void ShowPanels()
         {
             if (!_mainReady || _loading) return;
-            _teamPanel.SetActive(true);
-            _settingsPanel.SetActive(true);
+            OpenPanel(_teamPanel);
+            OpenPanel(_settingsPanel);
             _teamPanel.transform.SetAsLastSibling();
             _settingsPanel.transform.SetAsLastSibling();
         }
 
         public void ClosePanels()
         {
-            _teamPanel.SetActive(false);
-            _settingsPanel.SetActive(false);
+            ClosePanel(_teamPanel);
+            ClosePanel(_settingsPanel);
+        }
+
+        private static void OpenPanel(GameObject panel)
+        {
+            UIAnimationPlayer animation = panel.GetComponent<UIAnimationPlayer>();
+            if (animation != null && animation.enabled && animation.Preset != null)
+                animation.Open();
+            else
+                panel.SetActive(true);
+        }
+
+        private static void ClosePanel(GameObject panel)
+        {
+            UIAnimationPlayer animation = panel.GetComponent<UIAnimationPlayer>();
+            if (animation != null && animation.enabled && animation.Preset != null)
+                animation.Close();
+            else
+                panel.SetActive(false);
         }
 
         public void StartGame()
@@ -150,6 +177,7 @@ namespace CK.SemesterProject.UI
             load.allowSceneActivation = false;
             while (load.progress < .9f) yield return null;
             // Fade onto the same dark backdrop, then reveal the destination scene.
+            _introGroup.alpha = 1f;
             _introPanel.SetActive(true);
             _introPanel.transform.SetSiblingIndex(_loadingPanel.transform.GetSiblingIndex());
             _loadingPanel.transform.SetAsLastSibling();
