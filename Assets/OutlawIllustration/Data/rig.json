@@ -1,0 +1,243 @@
+{
+  "version": 3,
+  "width": 3840,
+  "height": 2176,
+  "duration": 8,
+  "fps": 30,
+  "title": "Outlaw corrected illustration v3",
+  "defaultIntensity": 1.0,
+  "defaultSpeed": 1.0,
+  "blink": {
+    "at": [
+      2.1,
+      5.9
+    ],
+    "duration": 0.14
+  },
+  "motion": {
+    "swayX": 10,
+    "headBobY": 10,
+    "headLagX": 8,
+    "rotationDeg": 1.0,
+    "breathX": 0.0035,
+    "breathY": 0.006,
+    "handSwayX": 12,
+    "handSwayY": 4,
+    "handRotationDeg": 0.4,
+    "handPhase": -0.45,
+    "handAnchor": [
+      1080,
+      700
+    ],
+    "armWeightStartX": 1120,
+    "armWeightEndX": 1680
+  },
+  "layers": [
+    {
+      "id": "background",
+      "name": "복원 배경",
+      "path": "../Textures/background.png",
+      "rect": [
+        0,
+        0,
+        3840,
+        2176
+      ],
+      "z": 0,
+      "role": "background",
+      "blink": false,
+      "meshCols": 60,
+      "meshRows": 34
+    },
+    {
+      "id": "coat_tail",
+      "name": "코트 자락",
+      "path": "../Textures/coat_tail.png",
+      "rect": [
+        0,
+        1032,
+        2479,
+        1144
+      ],
+      "z": 1,
+      "role": "coat",
+      "blink": false,
+      "meshCols": 39,
+      "meshRows": 18,
+      "extra": {
+        "dx": 14,
+        "dy": 3,
+        "rotationDeg": 0,
+        "phase": -0.8,
+        "harmonic": 1,
+        "axis": "y",
+        "weightStart": 1050,
+        "weightEnd": 1750,
+        "axis2": "x",
+        "weightStart2": 1100,
+        "weightEnd2": 1450,
+        "invert2": true,
+        "pivot": [
+          1000,
+          1100
+        ]
+      }
+    },
+    {
+      "id": "body",
+      "name": "몸통·옷·하체",
+      "path": "../Textures/body.png",
+      "rect": [
+        0,
+        232,
+        2549,
+        1944
+      ],
+      "z": 2,
+      "role": "body",
+      "blink": false,
+      "meshCols": 40,
+      "meshRows": 30
+    },
+    {
+      "id": "back_hair",
+      "name": "뒷머리",
+      "path": "../Textures/back_hair.png",
+      "rect": [
+        1852,
+        0,
+        996,
+        977
+      ],
+      "z": 3,
+      "role": "hair",
+      "blink": false,
+      "meshCols": 16,
+      "meshRows": 15,
+      "extra": {
+        "dx": 14,
+        "dy": 4,
+        "rotationDeg": 0,
+        "phase": -0.65,
+        "harmonic": 1,
+        "axis": "y",
+        "weightStart": 650,
+        "weightEnd": 950,
+        "pivot": [
+          2450,
+          500
+        ]
+      }
+    },
+    {
+      "id": "head",
+      "name": "얼굴·목·안경",
+      "path": "../Textures/head.png",
+      "rect": [
+        2032,
+        104,
+        712,
+        712
+      ],
+      "z": 4,
+      "role": "head",
+      "blink": false,
+      "meshCols": 11,
+      "meshRows": 11
+    },
+    {
+      "id": "blink",
+      "name": "눈 깜빡임",
+      "path": "../Textures/blink.png",
+      "rect": [
+        2220,
+        296,
+        357,
+        359
+      ],
+      "z": 5,
+      "role": "blink",
+      "blink": true,
+      "meshCols": 8,
+      "meshRows": 8
+    },
+    {
+      "id": "front_hair",
+      "name": "앞머리·핀",
+      "path": "../Textures/front_hair.png",
+      "rect": [
+        2132,
+        0,
+        1202,
+        762
+      ],
+      "z": 6,
+      "role": "hair",
+      "blink": false,
+      "meshCols": 19,
+      "meshRows": 12,
+      "extra": {
+        "dx": 8,
+        "dy": 2,
+        "rotationDeg": 0,
+        "phase": -0.6,
+        "harmonic": 1,
+        "axis": "x",
+        "weightStart": 2700,
+        "weightEnd": 2850,
+        "pivot": [
+          2550,
+          400
+        ]
+      }
+    },
+    {
+      "id": "left_arm",
+      "name": "칼을 쥔 팔·손",
+      "path": "../Textures/left_arm.png",
+      "rect": [
+        726,
+        325,
+        1127,
+        621
+      ],
+      "z": 7,
+      "role": "left_arm",
+      "blink": false,
+      "meshCols": 18,
+      "meshRows": 10
+    },
+    {
+      "id": "right_arm",
+      "name": "안경 쪽 팔·손",
+      "path": "../Textures/right_arm.png",
+      "rect": [
+        2202,
+        495,
+        1117,
+        1001
+      ],
+      "z": 8,
+      "role": "arm",
+      "blink": false,
+      "meshCols": 17,
+      "meshRows": 16
+    },
+    {
+      "id": "weapon",
+      "name": "칼",
+      "path": "../Textures/weapon.png",
+      "rect": [
+        218,
+        387,
+        3534,
+        1478
+      ],
+      "z": 9,
+      "role": "weapon",
+      "blink": false,
+      "meshCols": 55,
+      "meshRows": 23
+    }
+  ]
+}
