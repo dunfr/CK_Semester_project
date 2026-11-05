@@ -59,26 +59,32 @@ namespace CK.SemesterProject.Tutorial
 
         public SkillSequenceAsset FindMonsterSequence(MonsterBattleDefinition definition)
         {
-            if (definition == null)
+            if (definition != null)
             {
-                return null;
+                foreach (MonsterSkillBinding binding in _monsterSkills)
+                {
+                    if (binding != null && binding.Sequence != null && binding.Definition == definition)
+                    {
+                        return binding.Sequence;
+                    }
+                }
+                BattleElement element = definition.Element;
+                foreach (MonsterSkillBinding binding in _monsterSkills)
+                {
+                    if (binding != null && binding.Sequence != null && binding.Definition == null && binding.Element == element)
+                    {
+                        return binding.Sequence;
+                    }
+                }
             }
             foreach (MonsterSkillBinding binding in _monsterSkills)
             {
-                if (binding != null && binding.Sequence != null && binding.Definition == definition)
+                if (binding != null && binding.Sequence != null)
                 {
                     return binding.Sequence;
                 }
             }
-            BattleElement element = definition.Element;
-            foreach (MonsterSkillBinding binding in _monsterSkills)
-            {
-                if (binding != null && binding.Sequence != null && binding.Definition == null && binding.Element == element)
-                {
-                    return binding.Sequence;
-                }
-            }
-            return null;
+            return FindPlayerSequence("SK00") ?? FindPlayerSequence("SK02") ?? FindPlayerSequence("SK01");
         }
 
         /// <summary>시퀀스를 재생하고 길이(초)를 돌려준다. 이미 재생 중이면 끊고 새로 시작한다.</summary>

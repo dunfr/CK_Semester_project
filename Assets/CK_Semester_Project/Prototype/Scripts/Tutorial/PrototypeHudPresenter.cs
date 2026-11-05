@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using TMPro;
@@ -30,6 +31,11 @@ namespace CK.SemesterProject.Tutorial
 
             public Vector3 GetWorldPosition(Transform monster, float height)
             {
+                if (monster == null)
+                {
+                    return Vector3.zero;
+                }
+
                 if (_monster != monster || _renderers == null || _colliders == null)
                 {
                     _monster = monster;
@@ -37,24 +43,55 @@ namespace CK.SemesterProject.Tutorial
                     _renderers = monster.GetComponentsInChildren<Renderer>(true);
                     _colliders = monster.GetComponentsInChildren<Collider>(true);
                 }
+
+                Vector3 rootPos = monster.position;
+                float defaultHeight = 1.8f;
+
+                // NavMeshAgent 또는 CapsuleCollider로부터 표준 신장 파악
+                UnityEngine.AI.NavMeshAgent agent = monster.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                if (agent != null && agent.height > 0.5f && agent.height < 3.5f)
+                {
+                    defaultHeight = agent.height;
+                }
+                else
+                {
+                    CapsuleCollider cap = monster.GetComponent<CapsuleCollider>();
+                    if (cap != null && cap.height > 0.5f && cap.height < 3.5f)
+                    {
+                        defaultHeight = cap.center.y + cap.height * 0.5f;
+                    }
+                }
+
                 Bounds bounds = default;
                 bool hasBounds = false;
+
+                // 몬스터 루트를 기준으로 정상적인 높이(0.2m~2.5m) 및 반경(2m 이내)의 콜라이더만 선별
                 foreach (Collider collider in _colliders)
                 {
                     if (collider == null || !collider.enabled || collider.isTrigger || !collider.gameObject.activeInHierarchy)
                     {
                         continue;
                     }
+
+                    Bounds b = collider.bounds;
+                    float relY = b.max.y - rootPos.y;
+                    float horizDistSq = (b.center.x - rootPos.x) * (b.center.x - rootPos.x) + (b.center.z - rootPos.z) * (b.center.z - rootPos.z);
+                    if (relY < 0.2f || relY > 2.5f || horizDistSq > 4.0f)
+                    {
+                        continue;
+                    }
+
                     if (hasBounds)
                     {
-                        bounds.Encapsulate(collider.bounds);
+                        bounds.Encapsulate(b);
                     }
                     else
                     {
-                        bounds = collider.bounds;
+                        bounds = b;
                         hasBounds = true;
                     }
                 }
+
                 if (!hasBounds)
                 {
                     foreach (Renderer renderer in _renderers)
@@ -63,19 +100,50 @@ namespace CK.SemesterProject.Tutorial
                         {
                             continue;
                         }
+
+                        // 파티클, 트레일 등 시각 이펙트는 체형 바운드에서 제외
+                        if (renderer is ParticleSystemRenderer || renderer is TrailRenderer || renderer is LineRenderer)
+                        {
+                            continue;
+                        }
+
+                        Bounds b = renderer.bounds;
+                        float relY = b.max.y - rootPos.y;
+                        float horizDistSq = (b.center.x - rootPos.x) * (b.center.x - rootPos.x) + (b.center.z - rootPos.z) * (b.center.z - rootPos.z);
+                        if (relY < 0.2f || relY > 2.5f || horizDistSq > 4.0f)
+                        {
+                            continue;
+                        }
+
                         if (hasBounds)
                         {
-                            bounds.Encapsulate(renderer.bounds);
+                            bounds.Encapsulate(b);
                         }
                         else
                         {
-                            bounds = renderer.bounds;
+                            bounds = b;
                             hasBounds = true;
                         }
                     }
                 }
-                return hasBounds ? new Vector3(bounds.center.x, bounds.max.y + height, bounds.center.z)
-                    : monster.position + Vector3.up * 2f;
+
+                float headY;
+                float headX = rootPos.x;
+                float headZ = rootPos.z;
+
+                if (hasBounds)
+                {
+                    // 몬스터 머리 높이가 비정상적으로 치솟지 않도록 클램프
+                    headY = Mathf.Clamp(bounds.max.y, rootPos.y + 1.2f, rootPos.y + 2.2f);
+                    if (Mathf.Abs(bounds.center.x - rootPos.x) < 0.8f) headX = bounds.center.x;
+                    if (Mathf.Abs(bounds.center.z - rootPos.z) < 0.8f) headZ = bounds.center.z;
+                }
+                else
+                {
+                    headY = rootPos.y + Mathf.Clamp(defaultHeight, 1.2f, 2.2f);
+                }
+
+                return new Vector3(headX, headY + height, headZ);
             }
         }
 
@@ -957,7 +1025,43 @@ namespace CK.SemesterProject.Tutorial
                     }
                 }
             }
-            // 슬롯은 플레이어, 몬스터 순서로 고정하고 행동 강조만 옮긴다.
+            // 속도(Memory)와 행동 순서(TurnOrder)를 기반으로 다음 차례 큐를 구성한다.
+            var turnOrderUnits = new List<CombatantState>();
+            Dictionary<string, CombatantState> combatantMap = state.Combatants.ToDictionary(c => c.InstanceId);
+
+            // 1) 현재 행동 중인 유닛 (가장 앞)
+            CombatantState currentActor;
+            if (!string.IsNullOrEmpty(state.CurrentActorId) && combatantMap.TryGetValue(state.CurrentActorId, out currentActor) && currentActor != null && !currentActor.IsDead)
+            {
+                turnOrderUnits.Add(currentActor);
+            }
+
+            // 2) 이번 라운드에 남은 턴 순서 (TurnOrder 중 아직 행동 안 한 유닛들)
+            if (state.TurnOrder != null)
+            {
+                foreach (string id in state.TurnOrder)
+                {
+                    CombatantState nextUnit;
+                    if (id != state.CurrentActorId && combatantMap.TryGetValue(id, out nextUnit) && nextUnit != null && !nextUnit.IsDead)
+                    {
+                        turnOrderUnits.Add(nextUnit);
+                    }
+                }
+            }
+
+            // 3) 슬롯이 남으면 다음 라운드 순서 (생존 유닛들을 속도(Memory) 내림차순 정렬)로 이어서 채운다.
+            var roundOrder = state.Combatants.Where(c => !c.IsDead)
+                .OrderByDescending(c => c.Memory)
+                .ThenBy(c => c.Data.Team == BattleTeam.Player ? 0 : 1)
+                .ToList();
+
+            int nextRoundIndex = 0;
+            while (turnOrderUnits.Count < _turnSlots.Length && roundOrder.Count > 0)
+            {
+                turnOrderUnits.Add(roundOrder[nextRoundIndex % roundOrder.Count]);
+                nextRoundIndex++;
+            }
+
             for (int index = 0; index < _turnSlots.Length; index++)
             {
                 TurnSlot slot = _turnSlots[index];
@@ -965,8 +1069,8 @@ namespace CK.SemesterProject.Tutorial
                 {
                     continue;
                 }
-                CombatantState unit = index == 0 ? player : index - 1 < enemies.Length ? enemies[index - 1] : null;
-                bool highlighted = unit != null && unit.InstanceId == state.CurrentActorId;
+                CombatantState unit = index < turnOrderUnits.Count ? turnOrderUnits[index] : null;
+                bool highlighted = index == 0 && unit != null;
                 if (slot.Root != null)
                 {
                     slot.Root.SetActive(unit != null);
@@ -999,7 +1103,7 @@ namespace CK.SemesterProject.Tutorial
                     }
                     if (slot.Portrait != null)
                     {
-                        Sprite portrait = GetTurnPortrait(unit, index == 0);
+                        Sprite portrait = GetTurnPortrait(unit, unit.Data.Team == BattleTeam.Player);
                         slot.Portrait.sprite = portrait;
                         slot.Portrait.enabled = portrait != null;
                     }

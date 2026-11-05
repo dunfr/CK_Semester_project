@@ -13,6 +13,7 @@ namespace CK.SemesterProject.LevelDesign
     [RequireComponent(typeof(Animator))]
     public sealed class MonsterAnimationDriver : MonoBehaviour
     {
+        public bool IsCutsceneControlled { get; set; }
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int AttackHash = Animator.StringToHash("Attack");
         private static readonly int InBattleHash = Animator.StringToHash("InBattle");
@@ -65,6 +66,11 @@ namespace CK.SemesterProject.LevelDesign
 
         private void LateUpdate()
         {
+            if (IsCutsceneControlled)
+            {
+                if (_body != null) _lastPosition = _body.position;
+                return;
+            }
             Vector3 position = _body.position;
             Vector3 delta = position - _lastPosition;
             _lastPosition = position;

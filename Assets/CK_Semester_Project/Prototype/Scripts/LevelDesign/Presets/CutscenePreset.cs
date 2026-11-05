@@ -62,6 +62,9 @@ namespace CK.SemesterProject.LevelDesign
         private bool _hasPlayed;
         private Coroutine _routine;
 
+        private static int _activeCutsceneCount;
+        public static bool IsAnyCutscenePlaying => _activeCutsceneCount > 0;
+
         public bool IsPlaying => _routine != null;
         public PresetTriggerZone Trigger => _trigger;
         public IReadOnlyList<CutsceneStep> Steps => _steps;
@@ -120,6 +123,11 @@ namespace CK.SemesterProject.LevelDesign
 
         private IEnumerator PlayRoutine()
         {
+            _activeCutsceneCount++;
+            if (_progress != null && _progress.Battle != null)
+            {
+                _progress.Battle.SetEnemiesCutscenePaused(true);
+            }
             if (_lockPlayer)
             {
                 LockPlayer(true);
@@ -151,6 +159,11 @@ namespace CK.SemesterProject.LevelDesign
 
         private void Finish()
         {
+            _activeCutsceneCount = Mathf.Max(0, _activeCutsceneCount - 1);
+            if (_activeCutsceneCount == 0 && _progress != null && _progress.Battle != null)
+            {
+                _progress.Battle.SetEnemiesCutscenePaused(false);
+            }
             if (_camera != null)
             {
                 _camera.gameObject.SetActive(false);
@@ -262,6 +275,13 @@ namespace CK.SemesterProject.LevelDesign
                 yield break;
             }
             Animator animator = actor.GetComponentInChildren<Animator>();
+            MonsterAnimationDriver driver = actor.GetComponentInChildren<MonsterAnimationDriver>();
+            if (driver != null) driver.IsCutsceneControlled = true;
+            if (animator != null)
+            {
+                animator.SetBool("InBattle", false);
+                animator.SetFloat("Speed", Mathf.Max(1.6f, step.MoveSpeed));
+            }
             PlayAnimatorState(animator, _walkState);
             Vector3 destination = step.Destination.position;
             NavMeshAgent agent = actor.GetComponent<NavMeshAgent>();
@@ -277,6 +297,12 @@ namespace CK.SemesterProject.LevelDesign
             {
                 yield return RotateTo(actor, Quaternion.Euler(0f, step.Destination.eulerAngles.y, 0f));
             }
+            if (animator != null)
+            {
+                animator.SetFloat("Speed", 0f);
+            }
+            MonsterAnimationDriver driverEnd = actor.GetComponentInChildren<MonsterAnimationDriver>();
+            if (driverEnd != null) driverEnd.IsCutsceneControlled = false;
             PlayAnimatorState(animator, _idleState);
         }
 
@@ -387,6 +413,11 @@ namespace CK.SemesterProject.LevelDesign
         // 컷씬 전용 Cinemachine 카메라. 켜져 있는 동안 우선순위가 가장 높아 화면을 가져오고, 끄면 원래 카메라로 블렌드된다.
         private CinemachineCamera GetCamera()
         {
+            _activeCutsceneCount = Mathf.Max(0, _activeCutsceneCount - 1);
+            if (_activeCutsceneCount == 0 && _progress != null && _progress.Battle != null)
+            {
+                _progress.Battle.SetEnemiesCutscenePaused(false);
+            }
             if (_camera != null)
             {
                 return _camera;

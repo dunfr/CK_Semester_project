@@ -101,7 +101,7 @@ namespace CK.SemesterProject.Tutorial
         }
 
         // approachTarget이 false면 대상 앞까지 다가갔다 돌아오지 않고 제자리에서 대상을 바라본다(동작이 모션 안에 다 들어 있는 궁극기 등).
-        public void Sample(BattleActionResult result, float progress, bool approachTarget = true, float presentationSeconds = 1.2f)
+        public void Sample(BattleActionResult result, float progress, bool approachTarget = true, float presentationSeconds = 1.2f, bool playAnimation = true)
         {
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == _actorId
@@ -123,11 +123,15 @@ namespace CK.SemesterProject.Tutorial
                 }
                 _actionId = result.ActionId;
                 _animation = _enhancement != null ? _enhancement.GetAnimation(result.Request.SkillId, _skillStage) : null;
+                if (_animation == null && _enhancement != null)
+                {
+                    _animation = _enhancement.GetAnimation("SK00", _skillStage);
+                }
                 _effectPrefab = _enhancement != null ? _enhancement.GetEffect(result.Request.SkillId, _skillStage) : null;
                 _hasSpawnedEffect = false;
                 // TODO: 슬래시 이펙트 재제작 후 SocketSlashEffect 기반 칼날 궤적·타격 분리 연출을 다시 연결한다.
                 _isSocketSlash = _effectPrefab != null && _effectPrefab.GetComponent<TutorialSlashVfxPlacement>() != null;
-                if (_movesActor)
+                if (_movesActor && playAnimation)
                 {
                     BeginAnimation();
                 }
@@ -137,7 +141,7 @@ namespace CK.SemesterProject.Tutorial
                 _impactTime = _enhancement != null ? _enhancement.GetImpactFraction(result.Request.SkillId, _skillStage) : .35f;
                 _returnTime = Mathf.Min(.98f, Mathf.Max(.55f, _impactTime + .15f));
                 _slashStartTime = Mathf.Max(0f, _impactTime - DefaultSlashLeadFraction);
-                if (chargePrefab != null && progress < _chargeFraction)
+                if (playAnimation && chargePrefab != null && progress < _chargeFraction)
                 {
                     _chargeInstance = Object.Instantiate(chargePrefab, _actor);
                     _chargeInstance.transform.localPosition = Vector3.zero;
@@ -165,7 +169,7 @@ namespace CK.SemesterProject.Tutorial
             }
             // 차징 동안 원래 자리에서 대기하고 이후에만 기존 접근·베기·복귀 연출을 진행한다.
             progress = Mathf.Clamp01((progress - _chargeFraction) / (1f - _chargeFraction));
-            if (_animationGraph.IsValid())
+            if (playAnimation && _animationGraph.IsValid())
             {
                 _animationPlayable.SetTime(progress * _animation.length);
                 _animationGraph.Evaluate(0f);
@@ -183,7 +187,7 @@ namespace CK.SemesterProject.Tutorial
                 _actor.rotation = Quaternion.LookRotation(facing);
             }
             float effectStartTime = _isSocketSlash ? _slashStartTime : _impactTime;
-            if (!_hasSpawnedEffect && !isCharging && progress >= effectStartTime)
+            if (playAnimation && !_hasSpawnedEffect && !isCharging && progress >= effectStartTime)
             {
                 _hasSpawnedEffect = true;
                 if (_effectPrefab != null)
@@ -235,7 +239,7 @@ namespace CK.SemesterProject.Tutorial
                 }
                 if (strength > 0f)
                 {
-                    Color flash = Color.Lerp(_baseColors[i], new Color(1f, 0.3f, 0.2f), strength);
+                    Color flash = Color.Lerp(_baseColors[i], new Color(1f, 0.15f, 0.15f), strength);
                     _flashBlocks[i].SetColor(_baseColorId, flash);
                     _flashBlocks[i].SetColor(_colorId, flash);
                     _renderers[i].SetPropertyBlock(_flashBlocks[i]);
@@ -244,6 +248,16 @@ namespace CK.SemesterProject.Tutorial
                 {
                     _renderers[i].SetPropertyBlock(_originalBlocks[i]);
                 }
+            }
+            if (_targetId == "player" && reacts && strength > 0f)
+            {
+                float shakeAmp = strength * 0.08f;
+                Vector3 shakeOffset = new Vector3(
+                    Mathf.Sin(reaction * Mathf.PI * 16f) * shakeAmp,
+                    Mathf.Cos(reaction * Mathf.PI * 20f) * shakeAmp * 0.5f,
+                    0f
+                );
+                CK.SemesterProject.SkillSequence.SkillCameraShake.SetOffset(Camera.main, shakeOffset, Vector3.zero);
             }
         }
 
@@ -327,6 +341,10 @@ namespace CK.SemesterProject.Tutorial
             _hasSpawnedEffect = false;
             _isSocketSlash = false;
             _chargeFraction = 0f;
+            if (_targetId == "player")
+            {
+                CK.SemesterProject.SkillSequence.SkillCameraShake.Clear();
+            }
         }
 
         private void SpawnSocketSlash(SkillVfxPlacement settings)

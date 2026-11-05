@@ -22,7 +22,9 @@ namespace CK.SemesterProject.LevelDesign
         // 원본 크기(1920x1080 기준 화면 가로 대부분)는 필드에서 너무 커서 전체를 줄여 쓴다.
         private const float PanelScale = 0.75f;
         // 창 아래에 AUTO/SKIP/LOG 버튼(원본 기준 60px)이 붙으므로 그만큼 띄운다.
-        private const float FrameBottom = 61f;
+        private const float FrameBottom = 150f;
+        // 좌측 하단 미니맵과 겹치지 않도록 오른쪽으로 이동
+        private const float FrameX = 140f;
         private const float ArrowBob = 4f;
 
         private static readonly Color CategoryColor = new Color(0.91f, 0.93f, 0.96f);
@@ -58,6 +60,8 @@ namespace CK.SemesterProject.LevelDesign
         /// <summary>타자 효과로 보여 줄 전체 글자 수(본문+보조).</summary>
         public int CharacterCount => _mainCount + _subCount;
 
+        public static bool IsShowing => _instance != null && _instance._panel != null && _instance._panel.activeSelf;
+
         public static CutsceneDialogueView GetOrCreate(TMP_FontAsset font)
         {
             if (_instance != null)
@@ -87,6 +91,8 @@ namespace CK.SemesterProject.LevelDesign
             _speakerText.text = string.IsNullOrEmpty(speaker) ? DefaultSpeaker : speaker;
 
             string main = text ?? string.Empty;
+            if (main.StartsWith("(임시) ")) main = main.Substring(5).TrimStart();
+            else if (main.StartsWith("(임시)")) main = main.Substring(4).TrimStart();
             string sub = string.Empty;
             int lineBreak = main.IndexOf('\n');
             if (lineBreak >= 0)
@@ -251,7 +257,7 @@ namespace CK.SemesterProject.LevelDesign
             panelRect.anchorMax = new Vector2(0.5f, 0f);
             panelRect.pivot = new Vector2(0.5f, 0f);
             panelRect.sizeDelta = FrameSize;
-            panelRect.anchoredPosition = new Vector2(0f, FrameBottom);
+            panelRect.anchoredPosition = new Vector2(FrameX, FrameBottom);
             panelRect.localScale = Vector3.one * PanelScale;
 
             Image frame = CreateImage("Frame", _panel.transform, skin != null ? skin.Frame : null);

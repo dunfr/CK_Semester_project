@@ -275,6 +275,10 @@ namespace CK.SemesterProject.LevelDesign
                 return;
             }
             _movement.enabled = !IsControlLocked;
+            if (_battle != null)
+            {
+                _battle.SetEnemiesCutscenePaused(IsControlLocked);
+            }
         }
 
         private void UpdateInteraction()

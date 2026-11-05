@@ -102,6 +102,8 @@ namespace CK.SemesterProject.LevelDesign
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
         private NavMeshAgent _guardAgent;
+        private Animator _guardAnimator;
+        private MonsterAnimationDriver _guardDriver;
         private float _waitElapsed;
         private bool _isWaitingForAttack;
         private bool _hasRaisedCardKey;
@@ -124,6 +126,8 @@ namespace CK.SemesterProject.LevelDesign
                 return;
             }
             _guardAgent = _guard != null ? _guard.GetComponent<NavMeshAgent>() : null;
+            _guardAnimator = _guard != null ? _guard.GetComponentInChildren<Animator>() : null;
+            _guardDriver = _guard != null ? _guard.GetComponentInChildren<MonsterAnimationDriver>() : null;
             foreach (ParticleSystem gas in _gasVents)
             {
                 if (gas != null)
@@ -365,6 +369,12 @@ namespace CK.SemesterProject.LevelDesign
         private IEnumerator WalkGuardToButton()
         {
             Vector3 destination = _guardButtonPoint.position;
+            if (_guardDriver != null) _guardDriver.IsCutsceneControlled = true;
+            if (_guardAnimator != null)
+            {
+                _guardAnimator.SetBool("InBattle", false);
+                _guardAnimator.SetFloat("Speed", 1.8f);
+            }
             bool canWalk = _guardAgent != null && _guardAgent.isOnNavMesh;
             if (canWalk)
             {
@@ -392,6 +402,11 @@ namespace CK.SemesterProject.LevelDesign
                 _guard.transform.position = destination;
             }
             _guard.transform.rotation = Quaternion.Euler(0f, _guardButtonPoint.eulerAngles.y, 0f);
+            if (_guardAnimator != null)
+            {
+                _guardAnimator.SetFloat("Speed", 0f);
+            }
+            if (_guardDriver != null) _guardDriver.IsCutsceneControlled = false;
         }
 
         private IEnumerator FadeOverlay(float from, float to, float seconds)

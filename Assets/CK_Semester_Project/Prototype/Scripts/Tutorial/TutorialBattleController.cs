@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CK.SemesterProject.Battle;
@@ -23,16 +23,16 @@ namespace CK.SemesterProject.Tutorial
         private static readonly float[] FallbackSpacingScales = { 1f, 0.75f, 0.55f };
 
         [SerializeField, Min(2f), Tooltip("전투 진입 시 플레이어와 몬스터 사이의 목표 간격(m)")]
-        private float _battleSpacing = 9f;
+        private float _battleSpacing = 7.5f;
         // 기존 씬의 Vector3 설정을 새 XY / Distance 필드로 한 번 이전한다.
         [SerializeField, HideInInspector]
-        private Vector3 _battleCameraOffset = new Vector3(2.2f, 1.3f, -2.3f);
+        private Vector3 _battleCameraOffset = new Vector3(2.5f, 1.25f, -1.75f);
         [SerializeField, HideInInspector] private bool _cameraSettingsMigrated;
         [Header("Battle Camera")]
         [SerializeField, Tooltip("플레이어 기준 X: 오른쪽, Y: 높이(m). 전투 간격에 따라 확대되며 실제 전투에서는 장애물/화면 보정을 적용합니다.")]
-        private Vector2 _battleCameraOffsetXY = new Vector2(2.2f, 1.3f);
+        private Vector2 _battleCameraOffsetXY = new Vector2(2.5f, 1.25f);
         [SerializeField, Min(0.1f), Tooltip("플레이어 뒤쪽으로 떨어지는 기본 거리(m). 양수일수록 멀어집니다.")]
-        private float _battleCameraDistance = 2.3f;
+        private float _battleCameraDistance = 1.75f;
         [SerializeField, Tooltip("Play 모드 디버그: true = 전투 구도, false = 탐색 구도. 비전투에서는 카메라만 미리 봅니다. 실제 전투 진입/종료 시 자동 전환됩니다.")]
         private bool _debugBattleCamera;
         [SerializeField, Tooltip("비전투 카메라 미리보기의 대상(선택). 비어 있으면 플레이어 전방 Battle Spacing 지점을 바라봅니다.")]
@@ -434,9 +434,7 @@ namespace CK.SemesterProject.Tutorial
             }
             _elapsed += Time.deltaTime;
             BattleSnapshot snapshot = Snapshot;
-            if (snapshot != null && snapshot.Phase == BattlePhase.Finished
-                && Keyboard.current != null && Application.isFocused
-                && Keyboard.current.enterKey.wasPressedThisFrame)
+            if (snapshot != null && snapshot.Phase == BattlePhase.Finished)
             {
                 ReturnToExploration();
                 return;
@@ -444,18 +442,20 @@ namespace CK.SemesterProject.Tutorial
             if (snapshot.Phase == BattlePhase.AwaitingPresentation)
             {
                 BattleActionResult pending = _session.PendingResult;
-                // 시퀀스가 재생 중인 행동은 시퀀스가 시전자 이동·포즈를 맡으므로 기존 연출을 건너뛴다.
-                int presentationCount = pending.ActionId == _sequenceActionId ? 0 : _presentations.Length;
-                for (int i = 0; i < presentationCount; i++)
+                // 시퀀스가 재생 중인 행동은 시퀀스가 시전자 이동·포즈를 맡고, 피격 대상 리액션은 계속 재생한다.
+                bool isSequence = pending.ActionId == _sequenceActionId;
+                for (int i = 0; i < _presentations.Length; i++)
                 {
                     if (pending.Request.ActorId == "player" && pending.Request.TargetId == GetMonsterId(i))
                     {
+                        bool approach = !isSequence && (pending.ActionId != _playerMotionActionId || _playerMotionApproaches);
                         _presentations[i].Sample(pending, _elapsed / PresentationSeconds,
-                            pending.ActionId != _playerMotionActionId || _playerMotionApproaches, PresentationSeconds);
+                            approach, PresentationSeconds, playAnimation: !isSequence);
                     }
                     else if (pending.Request.ActorId == GetMonsterId(i) && pending.Request.TargetId == "player")
                     {
-                        _monsterPresentations[i].Sample(pending, _elapsed / PresentationSeconds);
+                        _monsterPresentations[i].Sample(pending, _elapsed / PresentationSeconds,
+                            approachTarget: !isSequence, presentationSeconds: PresentationSeconds, playAnimation: !isSequence);
                     }
                 }
             }
@@ -732,7 +732,7 @@ namespace CK.SemesterProject.Tutorial
 
         private EnemyStateMachine FindNearbyFieldEnemy(float range)
         {
-            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown)
+            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown || LevelDesign.CutsceneDialogueView.IsShowing || LevelDesign.CutscenePreset.IsAnyCutscenePlaying || (_playerState != null && FindFirstObjectByType<LevelDesign.LevelProgress>() != null && FindFirstObjectByType<LevelDesign.LevelProgress>().IsControlLocked))
             {
                 return null;
             }
@@ -767,7 +767,8 @@ namespace CK.SemesterProject.Tutorial
             IReadOnlyList<EnemyStateMachine> members = null)
         {
             if (!enabled || _playerData == null || IsInBattle || Time.time < _encounterCooldown
-                || enemy == null || !enemy.isActiveAndEnabled || !_enemies.Contains(enemy))
+                || enemy == null || !enemy.isActiveAndEnabled || !_enemies.Contains(enemy)
+                || LevelDesign.CutsceneDialogueView.IsShowing || LevelDesign.CutscenePreset.IsAnyCutscenePlaying)
             {
                 return false;
             }
@@ -837,7 +838,8 @@ namespace CK.SemesterProject.Tutorial
                 new TutorialBattleActionPresentation(_movement.transform, member.transform, 1.6f, GetMonsterId(index),
                     enhancement: _basicSkillEnhancement, skillStage: _battleSkillStage)).ToArray();
             _monsterPresentations = _encounterMembers.Select((member, index) =>
-                new TutorialBattleActionPresentation(member.transform, _movement.transform, 1.6f, "player", GetMonsterId(index))).ToArray();
+                new TutorialBattleActionPresentation(member.transform, _movement.transform, 1.6f, "player", GetMonsterId(index),
+                    enhancement: _basicSkillEnhancement, skillStage: _battleSkillStage)).ToArray();
             _playerHome = _movement.transform.position;
             _enemyCenter = Vector3.zero;
             foreach (Vector3 slot in formation.EnemySlots)
@@ -1291,6 +1293,7 @@ namespace CK.SemesterProject.Tutorial
             }
             _cachedSnapshot = null;
             _elapsed = 0;
+            RefreshUI();
             bool startedCutscene = request.ActorId == "player" && request.Kind == BattleActionKind.Skill
                 && !result.WasSkipped && TryPlaySkillCutscene(request, result);
             bool startedSequence = !startedCutscene && request.Kind == BattleActionKind.Skill
@@ -1477,7 +1480,7 @@ namespace CK.SemesterProject.Tutorial
             }
             _investmentButton.interactable = CanInput(state);
             _defendButton.interactable = CanInput(state);
-            _continueButton.gameObject.SetActive(state.Phase == BattlePhase.Finished);
+            _continueButton.gameObject.SetActive(false);
             if (state.Phase == BattlePhase.Finished)
             {
                 if (!_hasRecordedBattleResult)
@@ -1582,6 +1585,19 @@ namespace CK.SemesterProject.Tutorial
             int min = hits.Min(hit => hit.Damage);
             int max = hits.Max(hit => hit.Damage);
             return min == max ? min.ToString() : min + "~" + max;
+        }
+
+        public void SetEnemiesCutscenePaused(bool isPaused)
+        {
+            if (IsInBattle)
+            {
+                return;
+            }
+            SetEnemiesPaused(isPaused);
+            if (isPaused)
+            {
+                _encounterCooldown = Time.time + 1.5f;
+            }
         }
 
         public void ReturnToExploration()
