@@ -86,11 +86,14 @@ namespace CK.SemesterProject.Tutorial
             [SerializeField] private GameObject _highlight;
             [SerializeField] private Slider _hp;
             [SerializeField] private TMP_Text _name;
+            [SerializeField, Tooltip("슬롯 창에 보일 초상화. 유닛에 맞는 이미지로 바뀐다.")]
+            private Image _portrait;
 
             public GameObject Root => _root;
             public GameObject Highlight => _highlight;
             public Slider Hp => _hp;
             public TMP_Text Name => _name;
+            public Image Portrait => _portrait;
 
             private RectTransform _rect;
             private Vector2 _originalPosition;
@@ -286,6 +289,12 @@ namespace CK.SemesterProject.Tutorial
         private float _turnSlotMoveSeconds = 0.12f;
         [SerializeField, Range(0f, 1f), Tooltip("죽은 유닛 슬롯의 투명도. 루트에 CanvasGroup이 있을 때 적용한다.")]
         private float _deadTurnSlotAlpha = 0.4f;
+        [Header("Turn Order Portraits")]
+        [SerializeField, Tooltip("플레이어(푸시아) 초상화")] private Sprite _playerTurnPortrait;
+        [SerializeField, Tooltip("보스 초상화")] private Sprite _bossTurnPortrait;
+        [SerializeField, Tooltip("각인 몬스터(빨강) 초상화")] private Sprite _imprintTurnPortrait;
+        [SerializeField, Tooltip("잔상 몬스터(파랑) 초상화")] private Sprite _afterimageTurnPortrait;
+        [SerializeField, Tooltip("망각 몬스터(보라) 초상화")] private Sprite _oblivionTurnPortrait;
 
         [SerializeField] private PlayerMovement _movement;
         [SerializeField] private Button _sprint;
@@ -510,6 +519,26 @@ namespace CK.SemesterProject.Tutorial
             }
             RefreshBattleIfChanged();
             UpdateTurnSlotPositions(_battle.Snapshot == null);
+        }
+
+        // 플레이어는 푸시아, 보스는 보스, 나머지는 속성(각인 빨강·잔상 파랑·망각 보라) 초상화.
+        private Sprite GetTurnPortrait(CombatantState unit, bool isPlayer)
+        {
+            if (isPlayer)
+            {
+                return _playerTurnPortrait;
+            }
+            if (unit.Data.BossProfile != null)
+            {
+                return _bossTurnPortrait;
+            }
+            switch (unit.Data.Element)
+            {
+                case BattleElement.Imprint: return _imprintTurnPortrait;
+                case BattleElement.Afterimage: return _afterimageTurnPortrait;
+                case BattleElement.Oblivion: return _oblivionTurnPortrait;
+                default: return null;
+            }
         }
 
         private void UpdateTurnSlotPositions(bool reset)
@@ -964,6 +993,12 @@ namespace CK.SemesterProject.Tutorial
                     if (slot.Hp != null)
                     {
                         SetBar(slot.Hp, unit.Hp, unit.Data.MaxHp);
+                    }
+                    if (slot.Portrait != null)
+                    {
+                        Sprite portrait = GetTurnPortrait(unit, index == 0);
+                        slot.Portrait.sprite = portrait;
+                        slot.Portrait.enabled = portrait != null;
                     }
                 }
             }
