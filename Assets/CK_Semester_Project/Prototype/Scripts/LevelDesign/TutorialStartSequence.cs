@@ -57,6 +57,8 @@ namespace CK.SemesterProject.LevelDesign
         private Transform _deskView;
         [SerializeField, Tooltip("카메라가 바라볼 데스크 지점")]
         private Transform _deskFocus;
+        [SerializeField, Tooltip("'경비병을 처치하거나 출입문 확인' 목표 때 미니맵이 안내할 곳(출입문). 비우면 안내선을 숨깁니다.")]
+        private Transform _exitDoorTarget;
         [SerializeField, Tooltip("캡슐 안 1인칭 시점 카메라. 시작할 때 켜고, 연출이 끝나면 꺼서 3인칭 카메라로 블렌드합니다.")]
         private CinemachineCamera _firstPersonCamera;
         [SerializeField, Tooltip("1인칭 카메라 위치(캡슐 안 눈높이). 머리 뼈가 지정되면 머리 뼈를 따라갑니다.")]
@@ -206,7 +208,7 @@ namespace CK.SemesterProject.LevelDesign
                 yield return RaiseCardKey();
                 yield break;
             }
-            _progress.SetObjective("경비병을 처치하거나 출입문 확인");
+            _progress.SetObjective("경비병을 처치하거나 출입문 확인", _exitDoorTarget);
             _guard.enabled = true;
             _isWaitingForAttack = true;
         }
@@ -644,7 +646,7 @@ namespace CK.SemesterProject.LevelDesign
             yield return _desk.Raise();
             yield return new WaitForSeconds(Mathf.Max(0f, _cardFocusSeconds - 0.5f));
             _progress.UnlockControls(this);
-            _progress.SetObjective("콘솔 데스크에서 카드 키 획득");
+            _progress.SetObjective("콘솔 데스크에서 카드 키 획득", _desk.transform);
         }
 
         private void SetAlarm(bool isOn)

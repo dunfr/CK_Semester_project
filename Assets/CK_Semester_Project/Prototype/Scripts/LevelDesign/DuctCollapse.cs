@@ -29,6 +29,8 @@ namespace CK.SemesterProject.LevelDesign
         [SerializeField] private NoisePulse _pulse;
         [SerializeField, Tooltip("붕괴 소리가 났을 때. 적 이동 프리셋의 React()를 연결하면 낙하 지점 확인 반응을 프리셋으로 정할 수 있습니다.")]
         private UnityEvent _collapsed = new UnityEvent();
+        [SerializeField, Tooltip("붕괴 후 목표(출구로 이동)를 미니맵이 안내할 곳. 비우면 안내선을 숨깁니다.")]
+        private Transform _objectiveTarget;
 
         private bool _hasCollapsed;
 
@@ -91,7 +93,7 @@ namespace CK.SemesterProject.LevelDesign
                 }
             }
             _collapsed.Invoke();
-            _progress.SetObjective("적을 피하거나 처치하고 출구로 이동");
+            _progress.SetObjective("적을 피하거나 처치하고 출구로 이동", _objectiveTarget);
         }
 
         private void SetDrop(Vector3[] starts, float progress)

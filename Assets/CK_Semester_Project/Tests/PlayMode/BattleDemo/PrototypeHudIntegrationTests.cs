@@ -303,23 +303,44 @@ namespace CK.SemesterProject.Battle.Tests
         }
 
         [UnityTest]
-        public IEnumerator MinimapLimitsRenderingAndStopsInBattle()
+        public IEnumerator MinimapDrawsFloorPlanAndStopsInBattle()
         {
-            Camera map = GameObject.Find("Field Minimap Camera").GetComponent<Camera>();
-            int renders = 0;
+            // 청사진 미니맵은 위에서 찍는 카메라 없이 NavMesh로 평면도를 굽는다.
+            Assert.That(GameObject.Find("Field Minimap Camera"), Is.Null);
+            Component map = GameObject.Find("Runtime Minimap").GetComponent("RawImage");
+            Component blueprint = map.GetComponent("FieldMinimapBlueprint");
+            Assert.That(blueprint, Is.Not.Null);
+            PropertyInfo hasFloorPlan = blueprint.GetType().GetProperty("HasFloorPlan");
             float start = Time.unscaledTime;
-            while (Time.unscaledTime - start < 1f)
+            while (!(bool)hasFloorPlan.GetValue(blueprint) && Time.unscaledTime - start < 5f)
             {
-                yield return new WaitForEndOfFrame();
-                if (map.enabled)
-                {
-                    renders++;
-                }
+                yield return null;
             }
-            Assert.That(renders, Is.InRange(1, 11));
+            Assert.That(hasFloorPlan.GetValue(blueprint), Is.True);
+            Assert.That(map.GetType().GetProperty("texture").GetValue(map), Is.Not.Null);
             Assert.That(BeginBattle(), Is.True);
-            yield return new WaitForEndOfFrame();
-            Assert.That(map.enabled, Is.False);
+            yield return null;
+            Assert.That(((Behaviour)blueprint).isActiveAndEnabled, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator ObjectiveTargetDrawsRouteOnMinimap()
+        {
+            Component blueprint = GameObject.Find("Runtime Minimap").GetComponent("FieldMinimapBlueprint");
+            PropertyInfo routePoints = blueprint.GetType().GetProperty("RoutePointCount");
+            Component progress = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
+                .Single(item => item.GetType().Name == "LevelProgress");
+            MethodInfo setObjective = progress.GetType().GetMethod("SetObjective", new[] { typeof(string), typeof(Transform) });
+            Transform desk = GameObject.Find("I03_DeskCardKey").transform;
+            setObjective.Invoke(progress, new object[] { "안내선 확인", desk });
+            yield return null;
+            yield return null;
+            Assert.That(progress.GetType().GetProperty("ObjectiveTarget").GetValue(progress), Is.SameAs(desk));
+            Assert.That((int)routePoints.GetValue(blueprint), Is.GreaterThanOrEqualTo(2));
+            setObjective.Invoke(progress, new object[] { "안내선 없음", null });
+            yield return null;
+            yield return null;
+            Assert.That((int)routePoints.GetValue(blueprint), Is.EqualTo(0));
         }
 
         [UnityTest, Category("BattleSkillMenu")]

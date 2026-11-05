@@ -248,6 +248,10 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private Slider _playerHp;
         [SerializeField] private Slider _playerMemory;
         [SerializeField] private TMP_Text _playerVitals;
+        [SerializeField, Tooltip("전투 화면 하단 '보유 메모리 : n / 폭주 : n' 표시. 비어 있으면 건너뛴다.")]
+        private TMP_Text _battleResourceText;
+        [SerializeField, Min(0f), Tooltip("조작 안내 문구 왼쪽 끝과 메모리·폭주 표시 사이 간격(px)")]
+        private float _battleResourceGap = 24f;
         [SerializeField] private TMP_Text _memoryCurrent;
         [SerializeField] private TMP_Text _memoryCapacity;
         [SerializeField] private TMP_Text _skillMemory;
@@ -449,6 +453,15 @@ namespace CK.SemesterProject.Tutorial
             _execute.onClick.AddListener(ExecuteSelectedSkill);
             _investment.onClick.AddListener(_battle.CycleInvestment);
             _defend.onClick.AddListener(_battle.Defend);
+            // 청사진 미니맵(FieldMinimapBlueprint)이 붙어 있으면 그쪽이 지도를 그린다. 없는 씬만 위에서 찍는 카메라를 쓴다.
+            if (_minimap.GetComponent<FieldMinimapBlueprint>() == null)
+            {
+                CreateMapCamera();
+            }
+        }
+
+        private void CreateMapCamera()
+        {
             _mapTexture = new RenderTexture(256, 256, 16);
             var mapCamera = new GameObject("Field Minimap Camera", typeof(Camera));
             _mapCamera = mapCamera.GetComponent<Camera>();
@@ -573,12 +586,15 @@ namespace CK.SemesterProject.Tutorial
             {
                 _minimapPlayerMarker.localRotation = Quaternion.Euler(0f, 0f, -_player.eulerAngles.y);
             }
-            bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
-            _mapCamera.enabled = renderMap;
-            if (renderMap)
+            if (_mapCamera != null)
             {
-                _mapCamera.transform.position = _player.position + Vector3.up * 15f;
-                _nextMapFrame = Time.unscaledTime + 0.1f;
+                bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
+                _mapCamera.enabled = renderMap;
+                if (renderMap)
+                {
+                    _mapCamera.transform.position = _player.position + Vector3.up * 15f;
+                    _nextMapFrame = Time.unscaledTime + 0.1f;
+                }
             }
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
             if (floor != _previousFloor || _fieldName.text.Length == 0)
@@ -946,6 +962,10 @@ namespace CK.SemesterProject.Tutorial
                 _playerVitals.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
                     + "  폭주 " + player.RageEnergy;
             }
+            if (_battleResourceText != null)
+            {
+                _battleResourceText.text = "보유 메모리 : " + player.Memory + "  /  폭주 : " + player.RageEnergy;
+            }
             if (_memoryCurrent != null)
             {
                 _memoryCurrent.text = player.Memory.ToString();
@@ -1166,6 +1186,7 @@ namespace CK.SemesterProject.Tutorial
             _skillNavigationHint.text = IsCommandPhase
                 ? "W / S 행동 선택   ·   Enter 확인"
                 : "W / S 행동 선택   ·   Enter 확인   ·   A 메모리 투자   ·   Esc 뒤로";
+            PlaceBattleResourceText();
             for (int index = 0; index < _commands.Length; index++)
             {
                 _commands[index].interactable = _couldChoose && _battle.HasSelectedBattleTarget
@@ -1175,6 +1196,20 @@ namespace CK.SemesterProject.Tutorial
                 float scale = index == _selectedCommand ? _selectedCommandScale : _normalCommandScale;
                 _commands[index].transform.localScale = Vector3.one * scale;
             }
+        }
+
+        // 안내 문구는 오른쪽 정렬이라 단계마다 왼쪽 끝이 달라진다. 메모리·폭주 표시를 그 왼쪽 끝에 붙인다.
+        private void PlaceBattleResourceText()
+        {
+            if (_battleResourceText == null)
+            {
+                return;
+            }
+            RectTransform hint = _skillNavigationHint.rectTransform;
+            RectTransform label = _battleResourceText.rectTransform;
+            float hintRight = hint.anchoredPosition.x + hint.sizeDelta.x * (1f - hint.pivot.x);
+            float labelRight = hintRight - _skillNavigationHint.preferredWidth - _battleResourceGap;
+            label.anchoredPosition = new Vector2(labelRight + label.sizeDelta.x * (label.pivot.x - 1f), label.anchoredPosition.y);
         }
 
         private void RefreshSkillDetails(SkillData skill)

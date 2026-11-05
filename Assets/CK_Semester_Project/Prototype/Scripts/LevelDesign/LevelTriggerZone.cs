@@ -16,6 +16,8 @@ namespace CK.SemesterProject.LevelDesign
         private float _messageSeconds = 3f;
         [SerializeField, Tooltip("진입 시 바꿀 현재 목표. 비우면 유지합니다.")]
         private string _objective;
+        [SerializeField, Tooltip("바꾼 목표를 미니맵이 노란 선으로 안내할 곳. 비우면 안내선을 숨깁니다.")]
+        private Transform _objectiveTarget;
         [SerializeField, Tooltip("진입 시 한글 위치. 비우면 유지합니다.")]
         private string _areaName;
         [SerializeField, Tooltip("진입 시 영문 위치. 비우면 유지합니다.")]
@@ -66,7 +68,7 @@ namespace CK.SemesterProject.LevelDesign
             }
             if (!string.IsNullOrEmpty(_objective))
             {
-                _progress.SetObjective(_objective);
+                _progress.SetObjective(_objective, _objectiveTarget);
             }
             if (_isCheckpoint)
             {

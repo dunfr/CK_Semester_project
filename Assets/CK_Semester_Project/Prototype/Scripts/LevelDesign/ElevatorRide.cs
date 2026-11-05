@@ -22,6 +22,8 @@ namespace CK.SemesterProject.LevelDesign
         private LevelDoor _arrivalDoor;
         [SerializeField, Tooltip("층수 패널 표시")]
         private TextMesh[] _floorDisplays;
+        [SerializeField, Tooltip("도착 후 목표(복도 구역 통과)를 미니맵이 안내할 곳. 비우면 안내선을 숨깁니다.")]
+        private Transform _objectiveTarget;
 
         private bool _hasArrived;
         private bool _isMoving;
@@ -82,7 +84,7 @@ namespace CK.SemesterProject.LevelDesign
             _arrivalDoor.Open();
             Progress.Battle.SetRespawnPoint(player.position);
             Progress.UnlockControls(this);
-            Progress.SetObjective("복도 구역 통과");
+            Progress.SetObjective("복도 구역 통과", _objectiveTarget);
             _isMoving = false;
         }
 

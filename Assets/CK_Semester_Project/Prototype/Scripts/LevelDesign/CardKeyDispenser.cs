@@ -19,6 +19,8 @@ namespace CK.SemesterProject.LevelDesign
         private string _acquiredMessage = "카드 키를 얻었습니다.";
         [SerializeField, Tooltip("카드를 얻은 뒤 목표 문구(비우면 바꾸지 않음)")]
         private string _nextObjective = "카드 키로 다음 문 열기";
+        [SerializeField, Tooltip("카드를 얻은 뒤 미니맵이 길을 안내할 곳(다음 문 등). 비우면 안내선을 숨깁니다.")]
+        private Transform _nextObjectiveTarget;
 
         private bool _isDispensing;
 
@@ -58,7 +60,7 @@ namespace CK.SemesterProject.LevelDesign
             Progress.ShowMessage(_acquiredMessage, 2.5f);
             if (!string.IsNullOrEmpty(_nextObjective))
             {
-                Progress.SetObjective(_nextObjective);
+                Progress.SetObjective(_nextObjective, _nextObjectiveTarget);
             }
         }
     }
