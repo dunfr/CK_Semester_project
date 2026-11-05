@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
@@ -55,7 +55,7 @@ namespace CK.SemesterProject.Battle.Tests
         {
             _playerState.SetVitals(731, 143);
             yield return null;
-            Assert.That(Text("Runtime Field Vitals"), Does.Contain("731/1000").And.Contain("143/200"));
+            Assert.That(Text("Runtime Field Vitals"), Does.Contain("731/1500").And.Contain("143/200"));
             Assert.That(GameObject.Find("Fuchsia Player").GetComponent("FloorTravelButtons"), Is.Null);
             string[] unavailable = { "Travel First Floor", "Travel Second Floor", "03_Menu_C", "04_Menu_J",
                 "05_Menu_ESC", "07_Tab_Button", "08_R_Button", "11_Interact_E",

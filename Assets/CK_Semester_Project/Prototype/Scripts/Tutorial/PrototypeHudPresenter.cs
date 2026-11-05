@@ -429,8 +429,8 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            bool up = keyboard.upArrowKey.wasPressedThisFrame;
-            bool down = keyboard.downArrowKey.wasPressedThisFrame;
+            bool up = keyboard.wKey.wasPressedThisFrame || keyboard.upArrowKey.wasPressedThisFrame;
+            bool down = keyboard.sKey.wasPressedThisFrame || keyboard.downArrowKey.wasPressedThisFrame;
             bool confirm = keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame;
             if (up || down || confirm)
             {
@@ -469,7 +469,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 MoveSkillSelection(up ? -1 : 1);
             }
-            if (keyboard.fKey.wasPressedThisFrame)
+            if (keyboard.aKey.wasPressedThisFrame || keyboard.fKey.wasPressedThisFrame)
             {
                 _battle.CycleInvestment();
             }
@@ -589,6 +589,8 @@ namespace CK.SemesterProject.Tutorial
                 }
                 // 부모 로컬 좌표를 써서 앵커 위치의 영향을 받지 않는다.
                 bar.Root.localPosition = new Vector3(local.x, local.y, 0f);
+                bool isSelectedTarget = _battle.HasSelectedBattleTarget && unit.InstanceId == _battle.TargetId;
+                bar.Root.localScale = Vector3.one * (isSelectedTarget ? 1.12f : 1f);
                 bar.Root.gameObject.SetActive(true);
             }
             for (; index < _enemyHeadBars.Length; index++)
@@ -1022,8 +1024,8 @@ namespace CK.SemesterProject.Tutorial
             }
             _backHint.SetActive(!IsCommandPhase);
             _skillNavigationHint.text = IsCommandPhase
-                ? "↑ ↓ 커맨드 선택   ·   Enter 결정"
-                : "↑ ↓ 스킬 선택   ·   Enter 사용   ·   F 투자   ·   Backspace 뒤로";
+                ? "W / S 행동 선택   ·   Enter 확인"
+                : "W / S 행동 선택   ·   Enter 확인   ·   A 메모리 투자   ·   Backspace 뒤로";
             for (int index = 0; index < _commands.Length; index++)
             {
                 _commands[index].interactable = _couldChoose && _battle.HasSelectedBattleTarget

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using CK.SemesterProject.Tutorial;
 using TMPro;
@@ -100,7 +100,7 @@ namespace CK.SemesterProject.Editor
             Place(prompt, new Vector2(1, 0), new Vector2(-230, 65), new Vector2(410, 34));
             var promptText = prompt.GetComponent<TMP_Text>();
             promptText.font = investmentLabel.font;
-            promptText.text = "↑ ↓ 스킬 선택   ·   Enter 사용   ·   F 투자";
+            promptText.text = "W / S 행동 선택   ·   Enter 확인   ·   A 메모리 투자";
             promptText.fontSize = 17;
             promptText.color = new Color(.7f, .92f, 1);
             promptText.alignment = TextAlignmentOptions.Right;

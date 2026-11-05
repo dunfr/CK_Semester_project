@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CK.SemesterProject.Battle;
@@ -207,6 +207,7 @@ namespace CK.SemesterProject.Tutorial
         private Vector3 _lastPlayerPosition;
         private UnityEngine.Events.UnityAction[] _skillActions;
         private TutorialBattleCameraPreview _cameraPreview;
+        private readonly TutorialBattleTargetHighlight _targetHighlight = new TutorialBattleTargetHighlight();
         private bool _isBattleCameraActive;
 
         private Vector3 ConfiguredCameraOffset => new Vector3(
@@ -417,6 +418,13 @@ namespace CK.SemesterProject.Tutorial
             }
             _elapsed += Time.deltaTime;
             BattleSnapshot snapshot = Snapshot;
+            if (snapshot != null && snapshot.Phase == BattlePhase.Finished
+                && Keyboard.current != null && Application.isFocused
+                && (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame))
+            {
+                ReturnToExploration();
+                return;
+            }
             if (CanInput(snapshot) && Keyboard.current != null && Application.isFocused)
             {
                 if (Keyboard.current.digit1Key.wasPressedThisFrame)
@@ -469,9 +477,11 @@ namespace CK.SemesterProject.Tutorial
         {
             if (!IsInBattle)
             {
+                _targetHighlight.Clear();
                 UpdateCameraPreview();
                 return;
             }
+            UpdateTargetHighlight();
             bool wasEntering = _cameraTime < _cameraEntrySeconds;
             _cameraTime += Time.deltaTime;
             if (wasEntering && _cameraTime >= _cameraEntrySeconds)
@@ -1478,6 +1488,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void RestoreExploration(bool respawn = false, bool defeated = false)
         {
+            _targetHighlight.Clear();
             if (_skillCutscene != null)
             {
                 _skillCutscene.Abort();
@@ -1608,6 +1619,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnDestroy()
         {
+            _targetHighlight.Dispose();
             if (_playerState != null)
             {
                 _playerState.Changed -= RefreshFieldVitals;
