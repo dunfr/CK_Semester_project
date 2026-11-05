@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf9ad1cf48af80848b5bb748d43e3a94, type: 3}
+  m_Name: SkillCutscene_Ultimate_ZZZ_Game
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.SkillSequence.SkillCutsceneAsset
+  _prefab: {fileID: 8973523171151151237, guid: caf3edc09c557d341b31318302c4c65c, type: 3}
+  _alignToCaster: 1
+  _casterTrackName: Caster
+  _targetTrackName: Target
+  _destroyOnFinish: 1
