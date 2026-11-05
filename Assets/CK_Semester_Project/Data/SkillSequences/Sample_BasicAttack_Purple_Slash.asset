@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f183da8a8364df848ab98b082d884b5a, type: 3}
+  m_Name: Sample_BasicAttack_Purple_Slash
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.SkillSequence.SkillSequenceAsset
+  _casterClip: {fileID: 7400000, guid: 93dd91c398124e948afc2d4c321ac904, type: 2}
+  _clipStart: 0.13333334
+  _duration: 3
+  _frameRate: 30
+  _isEnemySkill: 0
+  _cutscene: {fileID: 0}
+  _cutsceneStart: 0
+  _useMovement: 1
+  _approachStart: 1.2666667
+  _approachEnd: 1.6666666
+  _attackDistance: 1.2
+  _returnStart: 2.1666667
+  _returnEnd: 2.5666666
+  _moveCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _vfxEvents:
+  - _name: "\uCC28\uC9D5_\uD37C\uD50C"
+    _time: 0.1
+    _prefab: {fileID: 6022995082793512756, guid: a993e8ad102c713449900e0063726a7b, type: 3}
+    _anchor: 5
+    _bone: 18
+    _followAnchor: 0
+    _targetMode: 0
+    _positionOffset: {x: 0.43, y: -0.71, z: -6.98}
+    _rotationOffset: {x: 0, y: 0, z: 0}
+    _scale: 0.3
+    _lifetime: 1.1666666
+    _playbackSpeed: 1
+  - _name: "\uC2AC\uB798\uC26C"
+    _time: 1.6666666
+    _prefab: {fileID: 8709136953253636189, guid: 3fc12edd9581b854f9ad4e367e98f2a7, type: 3}
+    _anchor: 3
+    _bone: 18
+    _followAnchor: 0
+    _targetMode: 0
+    _positionOffset: {x: -0.27, y: -0.78, z: -2.3}
+    _rotationOffset: {x: 53.77, y: 0.51, z: 0}
+    _scale: 1.8
+    _lifetime: 1.1666666
+    _playbackSpeed: 1
+  _hitTimes: []
+  _shakeEvents: []
