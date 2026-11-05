@@ -65709,6 +65709,7 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+  _objectiveTarget: {fileID: 0}
 --- !u!1 &127089140
 GameObject:
   m_ObjectHideFlags: 0
@@ -88046,6 +88047,81 @@ Transform:
   - {fileID: 1201564151}
   m_Father: {fileID: 1452028558}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &233666390
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 233666391}
+  - component: {fileID: 233666393}
+  - component: {fileID: 233666392}
+  m_Layer: 0
+  m_Name: Destination Icon
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &233666391
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233666390}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 670076502}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 30, y: 36}
+  m_Pivot: {x: 0.5, y: 0}
+--- !u!114 &233666392
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233666390}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 21300000, guid: 3a373deac054e14498ccbc65057fe38d, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &233666393
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 233666390}
+  m_CullTransparentMesh: 1
 --- !u!1 &233888014
 GameObject:
   m_ObjectHideFlags: 0
@@ -138650,6 +138726,7 @@ MonoBehaviour:
   _message: 
   _messageSeconds: 3
   _objective: "\uACBD\uBE44\uBCD1\uC744 \uD53C\uD574 \uBCF5\uB3C4 c\uC758 \uCD9C\uAD6C\uB85C"
+  _objectiveTarget: {fileID: 1008319277}
   _areaName: "\uC911\uC559 \uBCF5\uB3C4"
   _areaNameEnglish: CENTRAL CORRIDOR
   _storyNumber: 
@@ -139022,6 +139099,7 @@ MonoBehaviour:
   _message: 
   _messageSeconds: 4
   _objective: 
+  _objectiveTarget: {fileID: 0}
   _areaName: 
   _areaNameEnglish: 
   _storyNumber: 
@@ -261382,6 +261460,7 @@ MonoBehaviour:
   _cardKey: {fileID: 718809307}
   _raisedPoint: {fileID: 1041124670}
   _raiseSeconds: 0.2
+  _objectiveTarget: {fileID: 629722354}
 --- !u!64 &649344732
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -263234,6 +263313,7 @@ GameObject:
   - component: {fileID: 670076502}
   - component: {fileID: 670076504}
   - component: {fileID: 670076503}
+  - component: {fileID: 670076505}
   m_Layer: 0
   m_Name: Runtime Minimap
   m_TagString: Untagged
@@ -263253,6 +263333,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 233666391}
   - {fileID: 893951591}
   m_Father: {fileID: 49127439}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -263273,7 +263354,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1344c3c82d62a2a41a3576d8abb8e3ea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.RawImage
-  m_Material: {fileID: 2100000, guid: 06a65df290e7b0c40ad823fbb674d7cd, type: 2}
+  m_Material: {fileID: 2100000, guid: 4ecb2d1e09ae64f46b2a3f486c5ea012, type: 2}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
@@ -263296,6 +263377,29 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 670076501}
   m_CullTransparentMesh: 1
+--- !u!114 &670076505
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 670076501}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96b696396aca6cc41979d3229a31c1fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.FieldMinimapBlueprint
+  _player: {fileID: 77063180}
+  _progress: {fileID: 578325026}
+  _material: {fileID: 2100000, guid: 4ecb2d1e09ae64f46b2a3f486c5ea012, type: 2}
+  _destinationIcon: {fileID: 233666391}
+  _viewRadius: 14
+  _iconEdge: 0.84
+  _pixelsPerMeter: 5
+  _floorBelow: 1.5
+  _floorAbove: 2
+  _rebakeHeight: 1
+  _routeInterval: 0.2
 --- !u!1 &670265344
 GameObject:
   m_ObjectHideFlags: 0
@@ -295680,6 +295784,7 @@ MonoBehaviour:
   _message: 
   _messageSeconds: 3
   _objective: 
+  _objectiveTarget: {fileID: 0}
   _areaName: 
   _areaNameEnglish: 
   _storyNumber: 
@@ -295865,6 +295970,7 @@ MonoBehaviour:
   _message: 
   _messageSeconds: 3
   _objective: "04 \uD640 \uB3C4\uCC29"
+  _objectiveTarget: {fileID: 0}
   _areaName: "\uD640"
   _areaNameEnglish: HALL
   _storyNumber: 
@@ -361591,6 +361697,7 @@ MonoBehaviour:
   _desk: {fileID: 647778612}
   _deskView: {fileID: 1201564151}
   _deskFocus: {fileID: 1041124670}
+  _exitDoorTarget: {fileID: 629722354}
   _firstPersonCamera: {fileID: 1331362930}
   _firstPersonEye: {fileID: 1550842996}
   _firstPersonHeadBone: {fileID: 484659493}
@@ -416386,6 +416493,7 @@ MonoBehaviour:
   _ejectSeconds: 0.2
   _acquiredMessage: "\uCE74\uB4DC \uD0A4\uB97C \uC5BB\uC5C8\uC2B5\uB2C8\uB2E4."
   _nextObjective: "\uCE74\uB4DC \uD0A4\uB85C \uB2E4\uC74C \uBB38 \uC5F4\uAE30"
+  _nextObjectiveTarget: {fileID: 852752127}
 --- !u!65 &1047326669
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -580471,6 +580579,7 @@ MonoBehaviour:
   _departureDoor: {fileID: 1837448327}
   _arrivalDoor: {fileID: 519762231}
   _floorDisplays: []
+  _objectiveTarget: {fileID: 0}
 --- !u!1 &1440725063
 GameObject:
   m_ObjectHideFlags: 0
@@ -816778,6 +816887,7 @@ MonoBehaviour:
   _messageSeconds: 3
   _objective: "\uBCF5\uB3C4 \uB05D \uC5D8\uB9AC\uBCA0\uC774\uD130 \uBB38\uC744 \uCE74\uB4DC
     \uD0A4\uB85C \uC5F4\uACE0 \uD0D1\uC2B9"
+  _objectiveTarget: {fileID: 1592555116}
   _areaName: "\uC5D8\uB9AC\uBCA0\uC774\uD130 \uBCF5\uB3C4"
   _areaNameEnglish: ELEVATOR CORRIDOR
   _storyNumber: 
@@ -903880,6 +903990,7 @@ MonoBehaviour:
   _message: 
   _messageSeconds: 3
   _objective: 
+  _objectiveTarget: {fileID: 0}
   _areaName: 
   _areaNameEnglish: 
   _storyNumber: 

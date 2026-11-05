@@ -381,6 +381,15 @@ namespace CK.SemesterProject.Tutorial
             _execute.onClick.AddListener(ExecuteSelectedSkill);
             _investment.onClick.AddListener(_battle.CycleInvestment);
             _defend.onClick.AddListener(_battle.Defend);
+            // 청사진 미니맵(FieldMinimapBlueprint)이 붙어 있으면 그쪽이 지도를 그린다. 없는 씬만 위에서 찍는 카메라를 쓴다.
+            if (_minimap.GetComponent<FieldMinimapBlueprint>() == null)
+            {
+                CreateMapCamera();
+            }
+        }
+
+        private void CreateMapCamera()
+        {
             _mapTexture = new RenderTexture(256, 256, 16);
             var mapCamera = new GameObject("Field Minimap Camera", typeof(Camera));
             _mapCamera = mapCamera.GetComponent<Camera>();
@@ -504,12 +513,15 @@ namespace CK.SemesterProject.Tutorial
             {
                 _minimapPlayerMarker.localRotation = Quaternion.Euler(0f, 0f, -_player.eulerAngles.y);
             }
-            bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
-            _mapCamera.enabled = renderMap;
-            if (renderMap)
+            if (_mapCamera != null)
             {
-                _mapCamera.transform.position = _player.position + Vector3.up * 15f;
-                _nextMapFrame = Time.unscaledTime + 0.1f;
+                bool renderMap = _fieldRoot.activeInHierarchy && Time.unscaledTime >= _nextMapFrame;
+                _mapCamera.enabled = renderMap;
+                if (renderMap)
+                {
+                    _mapCamera.transform.position = _player.position + Vector3.up * 15f;
+                    _nextMapFrame = Time.unscaledTime + 0.1f;
+                }
             }
             int floor = _floorTravel == null ? 1 : _floorTravel.CurrentFloor;
             if (floor != _previousFloor || _fieldName.text.Length == 0)

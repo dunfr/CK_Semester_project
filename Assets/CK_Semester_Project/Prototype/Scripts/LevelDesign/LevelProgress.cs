@@ -74,11 +74,16 @@ namespace CK.SemesterProject.LevelDesign
         public string AreaNameEnglish { get; private set; } = string.Empty;
         public string StoryTitle { get; private set; } = string.Empty;
         public string Objective { get; private set; } = string.Empty;
+        /// <summary>현재 목표 위치. 미니맵이 이곳까지 노란 안내선을 그린다. 없으면 안내선을 숨긴다.</summary>
+        public Transform ObjectiveTarget { get; private set; }
         public bool HasCardKey { get; private set; }
         public bool IsControlLocked => _lockOwners.Count > 0;
         public bool IsInBattle => _battle != null && _battle.IsInBattle;
         public Transform Player => _movement != null ? _movement.transform : null;
         public TutorialBattleController Battle => _battle;
+
+        /// <summary>목표 문구나 목표 위치가 바뀌었을 때.</summary>
+        public event System.Action ObjectiveChanged;
 
         private void Awake()
         {
@@ -210,9 +215,17 @@ namespace CK.SemesterProject.LevelDesign
             }
         }
 
+        /// <summary>목표 문구만 바꾼다. 미니맵 안내선은 숨긴다.</summary>
         public void SetObjective(string objective)
         {
+            SetObjective(objective, null);
+        }
+
+        /// <summary>목표 문구와 함께 미니맵에 길을 안내할 위치를 정한다. target이 없으면 안내선을 숨긴다.</summary>
+        public void SetObjective(string objective, Transform target)
+        {
             Objective = objective ?? string.Empty;
+            ObjectiveTarget = target;
             if (_storyObjectiveText != null)
             {
                 _storyObjectiveText.text = Objective;
@@ -222,6 +235,7 @@ namespace CK.SemesterProject.LevelDesign
                 _objectiveText.text = Objective;
                 _objectivePanel.SetActive(!string.IsNullOrEmpty(Objective));
             }
+            ObjectiveChanged?.Invoke();
         }
 
         /// <summary>viewPoint 위치에서 lookTarget을 seconds 동안 비춘 뒤 플레이어 카메라로 돌아간다.</summary>

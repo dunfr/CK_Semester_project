@@ -12,6 +12,8 @@ namespace CK.SemesterProject.LevelDesign
         private Transform _raisedPoint;
         [SerializeField, Min(0.01f), Tooltip("카드 키 상승 시간(초). 기획서 1-3-A01 0.2초")]
         private float _raiseSeconds = 0.2f;
+        [SerializeField, Tooltip("카드 키를 얻은 뒤 미니맵이 길을 안내할 곳(열 문 등). 비우면 안내선을 숨깁니다.")]
+        private Transform _objectiveTarget;
 
         public bool IsRaised { get; private set; }
         public override bool CanInteract => IsRaised && !Progress.HasCardKey;
@@ -47,7 +49,7 @@ namespace CK.SemesterProject.LevelDesign
         {
             _cardKey.gameObject.SetActive(false);
             Progress.GiveCardKey();
-            Progress.SetObjective("카드 키로 문 열기");
+            Progress.SetObjective("카드 키로 문 열기", _objectiveTarget);
         }
     }
 }
