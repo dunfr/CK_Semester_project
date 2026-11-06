@@ -17,10 +17,11 @@ namespace CK.SemesterProject.SkillSequence
         private float _time;
         private bool _isDisposed;
 
-        public SkillSequencePlayback(SkillSequenceAsset sequence, SkillSequenceContext context)
+        /// <param name="playCasterClip">false면 시전자 클립을 덮어쓰지 않는다(몬스터가 플레이어용 시퀀스를 빌려 쓸 때 자기 공격 모션 유지).</param>
+        public SkillSequencePlayback(SkillSequenceAsset sequence, SkillSequenceContext context, bool playCasterClip = true)
         {
             _sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
-            _sampler = new SkillSequenceSampler(sequence, context);
+            _sampler = new SkillSequenceSampler(sequence, context, playCasterClip);
             _sampler.Sample(0f);
             SpawnEventsBetween(-1f, 0f);
         }

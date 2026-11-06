@@ -99,6 +99,11 @@ namespace CK.SemesterProject.LevelDesign
             _focusCamera.gameObject.SetActive(false);
             _feedbackPanel.SetActive(false);
             _hintPanel.SetActive(false);
+            // 구멍에 떨어지면 체크포인트로 되돌리는 기능. 씬에 따로 놓지 않았으면 기본값으로 붙인다.
+            if (GetComponent<FallRecovery>() == null)
+            {
+                gameObject.AddComponent<FallRecovery>();
+            }
             _isReady = true;
         }
 

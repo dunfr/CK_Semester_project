@@ -136,6 +136,8 @@ namespace CK.SemesterProject.Tutorial
         private Key _rageCheatKey = Key.F9;
         [SerializeField, Range(0, 90), Tooltip("치트로 채울 폭주 값. 91 이상은 폭주(과열)로 행동 불능이 되므로 90까지")]
         private int _rageCheatValue = 90;
+        [SerializeField, Tooltip("켜면 전투에서 플레이어 메모리가 늘 최대이고, 폭주는 과열 직전(90)으로 유지되며, 과열·메모리 고갈로 턴을 잃지 않습니다. 빌드에서도 적용됩니다.")]
+        private bool _unlimitedPlayerResources = true;
         [SerializeField, Tooltip("전투 중: 몬스터를 모두 쓰러뜨려 바로 승리합니다(행동 입력 차례일 때)")]
         private Key _winCheatKey = Key.F10;
         [SerializeField, Tooltip("필드·전투: 플레이어 HP·메모리를 최대로 채웁니다")]
@@ -194,6 +196,14 @@ namespace CK.SemesterProject.Tutorial
         private Pose _cinematicReturnPose;
         private float _cinematicReturnFieldOfView;
         private bool[] _enemyEnabled;
+        private bool _enemiesPaused;
+        private LevelDesign.LevelProgress _levelProgress;
+
+        /// <summary>
+        /// 전투·컷신으로 필드 몬스터가 멈춘 동안 true. 몬스터 AI(EnemyStateMachine)를 거치지 않고
+        /// 에이전트를 직접 움직이는 연출(EnemyRoutePreset 등)도 이 값을 보고 멈춘다.
+        /// </summary>
+        public static bool AreFieldEnemiesPaused { get; private set; }
         private bool _fieldUIWasActive;
         private bool _movementEnabled;
         private bool _orbitEnabled;
@@ -322,6 +332,8 @@ namespace CK.SemesterProject.Tutorial
 
         private void Awake()
         {
+            // 씬을 다시 불러와도 지난 판의 멈춤 상태가 남지 않게 한다.
+            AreFieldEnemiesPaused = false;
             MigrateCameraSettings();
             if (_skillCutscene == null)
             {
@@ -732,7 +744,7 @@ namespace CK.SemesterProject.Tutorial
 
         private EnemyStateMachine FindNearbyFieldEnemy(float range)
         {
-            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown || LevelDesign.CutsceneDialogueView.IsShowing || LevelDesign.CutscenePreset.IsAnyCutscenePlaying || (_playerState != null && FindFirstObjectByType<LevelDesign.LevelProgress>() != null && FindFirstObjectByType<LevelDesign.LevelProgress>().IsControlLocked))
+            if (!enabled || IsInBattle || !_movement.isActiveAndEnabled || Time.time < _encounterCooldown || IsFieldEventPlaying())
             {
                 return null;
             }
@@ -768,7 +780,7 @@ namespace CK.SemesterProject.Tutorial
         {
             if (!enabled || _playerData == null || IsInBattle || Time.time < _encounterCooldown
                 || enemy == null || !enemy.isActiveAndEnabled || !_enemies.Contains(enemy)
-                || LevelDesign.CutsceneDialogueView.IsShowing || LevelDesign.CutscenePreset.IsAnyCutscenePlaying)
+                || IsFieldEventPlaying())
             {
                 return false;
             }
@@ -807,7 +819,10 @@ namespace CK.SemesterProject.Tutorial
                 _encounterMembers = Array.Empty<EnemyStateMachine>();
                 return false;
             }
-            var session = new BattleSession(rules: new BattleRules(monsterCollisionMemoryBonus: _collisionMemoryBonus));
+            var session = new BattleSession(rules: new BattleRules(monsterCollisionMemoryBonus: _collisionMemoryBonus))
+            {
+                PlayerHasUnlimitedResources = _unlimitedPlayerResources
+            };
             session.Start(participants, entry, entry == BattleEntryCondition.PlayerInitiated ? "player"
                 : entry == BattleEntryCondition.MonsterCollision ? GetMonsterId(0) : null);
             MoveToBattleArena();
@@ -1040,6 +1055,30 @@ namespace CK.SemesterProject.Tutorial
             }
             SetPlayerPose(target, _movement.transform.rotation);
             Physics.SyncTransforms();
+        }
+
+        /// <summary>
+        /// 마지막 체크포인트(전투 패배 시 다시 시작하는 위치)로 플레이어를 옮긴다. 구멍에 떨어졌을 때 FallRecovery가 부른다.
+        /// 전투 중이면 아무것도 하지 않고 false를 돌려준다.
+        /// </summary>
+        public bool RecoverToRespawnPoint()
+        {
+            if (IsInBattle || _movement == null || _characterController == null)
+            {
+                return false;
+            }
+            Vector3 target = _spawn;
+            if (NavMesh.SamplePosition(target, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+            {
+                target = hit.position;
+            }
+            SetPlayerPose(target, _movement.transform.rotation);
+            _movement.ResetFall();
+            _lastPlayerPosition = target;
+            // 돌아온 자리 근처 몬스터와 바로 부딪혀 전투가 시작되지 않게 잠시 쉰다.
+            _encounterCooldown = Mathf.Max(_encounterCooldown, Time.time + 2f);
+            Physics.SyncTransforms();
+            return true;
         }
 
         private static string GetHierarchyOrder(Transform transform)
@@ -1399,7 +1438,7 @@ namespace CK.SemesterProject.Tutorial
                 targets.Add(_movement.transform);
             }
             // 시퀀스가 끝날 때까지 결과 연출(피해 반영·다음 행동)을 기다린다.
-            _playerMotionSeconds = _sequenceRunner.Play(sequence, caster, targets, selected);
+            _playerMotionSeconds = _sequenceRunner.Play(sequence, caster, targets, selected, casterIsMonster: request.ActorId != "player");
             _playerMotionActionId = result.ActionId;
             _playerMotionApproaches = false;
             _sequenceActionId = result.ActionId;
@@ -1587,12 +1626,28 @@ namespace CK.SemesterProject.Tutorial
             return min == max ? min.ToString() : min + "~" + max;
         }
 
+        /// <summary>컷신·대사·연출 잠금 중이면 true. 이 동안 필드 몬스터는 멈추고 전투도 시작하지 않는다.</summary>
+        public bool IsFieldEventPlaying()
+        {
+            if (LevelDesign.CutsceneDialogueView.IsShowing || LevelDesign.CutscenePreset.IsAnyCutscenePlaying)
+            {
+                return true;
+            }
+            if (_levelProgress == null)
+            {
+                _levelProgress = FindFirstObjectByType<LevelDesign.LevelProgress>();
+            }
+            return _levelProgress != null && _levelProgress.IsControlLocked;
+        }
+
         public void SetEnemiesCutscenePaused(bool isPaused)
         {
             if (IsInBattle)
             {
                 return;
             }
+            // 컷신과 연출 잠금은 따로 끝나므로, 한쪽이 끝나도 다른 쪽이 남아 있으면 계속 멈춰 둔다.
+            isPaused |= IsFieldEventPlaying();
             SetEnemiesPaused(isPaused);
             if (isPaused)
             {
@@ -1761,6 +1816,14 @@ namespace CK.SemesterProject.Tutorial
 
         private void SetEnemiesPaused(bool isPaused)
         {
+            // 연출 잠금이 겹치거나(멈춤 중 다시 멈춤) 멈춘 적 없이 풀면 저장해 둔 켜짐 상태가 꺼짐으로 덮여
+            // 필드 AI가 전부 꺼진 채 남는다. 상태가 바뀔 때만 저장·복원한다.
+            if (_enemiesPaused == isPaused)
+            {
+                return;
+            }
+            _enemiesPaused = isPaused;
+            AreFieldEnemiesPaused = isPaused;
             for (int i = 0; i < _enemies.Length; i++)
             {
                 EnemyStateMachine enemy = _enemies[i];
@@ -1774,8 +1837,9 @@ namespace CK.SemesterProject.Tutorial
                     _enemyEnabled[i] = enemy.enabled;
                     enemy.enabled = false;
                 }
-                else if (enemy.gameObject.activeInHierarchy)
+                else
                 {
+                    // 아직 꺼져 있는 구역의 몬스터도 되돌려야 나중에 구역이 켜졌을 때 필드 AI가 움직인다.
                     enemy.enabled = _enemyEnabled[i];
                 }
             }

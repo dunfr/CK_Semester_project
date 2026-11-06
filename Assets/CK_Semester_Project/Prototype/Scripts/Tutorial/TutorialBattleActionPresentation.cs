@@ -123,7 +123,8 @@ namespace CK.SemesterProject.Tutorial
                 }
                 _actionId = result.ActionId;
                 _animation = _enhancement != null ? _enhancement.GetAnimation(result.Request.SkillId, _skillStage) : null;
-                if (_animation == null && _enhancement != null)
+                // SK00 대체 모션은 플레이어 전용이다. 몬스터에 씌우면 몬스터 자신의 공격 모션이 가려진다.
+                if (_animation == null && _enhancement != null && _actorId == "player")
                 {
                     _animation = _enhancement.GetAnimation("SK00", _skillStage);
                 }

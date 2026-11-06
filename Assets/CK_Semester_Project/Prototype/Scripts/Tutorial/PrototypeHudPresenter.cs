@@ -1075,11 +1075,17 @@ namespace CK.SemesterProject.Tutorial
                 .ThenBy(c => c.Data.Team == BattleTeam.Player ? 0 : 1)
                 .ToList();
 
+            // 슬롯은 전투에 참가 중인(생존) 유닛 수만큼만 보여준다.
+            int visibleSlotCount = Mathf.Min(_turnSlots.Length, roundOrder.Count);
             int nextRoundIndex = 0;
-            while (turnOrderUnits.Count < _turnSlots.Length && roundOrder.Count > 0)
+            while (turnOrderUnits.Count < visibleSlotCount)
             {
                 turnOrderUnits.Add(roundOrder[nextRoundIndex % roundOrder.Count]);
                 nextRoundIndex++;
+            }
+            if (turnOrderUnits.Count > visibleSlotCount)
+            {
+                turnOrderUnits.RemoveRange(visibleSlotCount, turnOrderUnits.Count - visibleSlotCount);
             }
 
             for (int index = 0; index < _turnSlots.Length; index++)

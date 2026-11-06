@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using CK.SemesterProject.Tutorial;
 using Semester.Enemies;
 using UnityEngine;
 using UnityEngine.AI;
@@ -224,7 +225,8 @@ namespace CK.SemesterProject.LevelDesign
             {
                 return;
             }
-            if (!_enemy.gameObject.activeInHierarchy || !_enemy.isOnNavMesh)
+            // 컷신·전투로 멈춘 동안 들어온 반응은 받아 두고, 실제 이동은 MoveTo가 멈춤이 끝날 때까지 기다린다.
+            if (!AgentReady)
             {
                 return;
             }
@@ -256,6 +258,8 @@ namespace CK.SemesterProject.LevelDesign
                 }
             }
             yield return new WaitForSeconds(_returnDelay);
+            // 컷신·전투 중에 AI를 다시 켜면 멈춤이 풀리므로 끝날 때까지 기다린다.
+            yield return WaitWhileFieldPaused();
 
             // 복귀: AI가 다시 켜지면 순찰 상태로 들어가 다음 웨이포인트부터 이어서 돈다.
             _reactionRoutine = null;
@@ -287,7 +291,8 @@ namespace CK.SemesterProject.LevelDesign
 
         private IEnumerator MoveTo(Vector3 destination, float speed)
         {
-            if (!_enemy.isOnNavMesh)
+            yield return WaitWhileFieldPaused();
+            if (!AgentReady)
             {
                 yield break;
             }
@@ -305,6 +310,26 @@ namespace CK.SemesterProject.LevelDesign
             float timeout = Time.time + TravelTimeout;
             while (Time.time < timeout)
             {
+                // 컷신·전투로 필드 몬스터가 멈춘 동안은 제자리에서 기다린다(멈춘 시간은 제한 시간에서 뺀다).
+                if (TutorialBattleController.AreFieldEnemiesPaused)
+                {
+                    if (AgentReady)
+                    {
+                        _enemy.isStopped = true;
+                    }
+                    timeout += Time.deltaTime;
+                    yield return null;
+                    continue;
+                }
+                // 전투 배치·비활성화 등으로 에이전트가 NavMesh에서 빠지면 남은 거리를 물을 수 없으므로 이동을 끝낸다.
+                if (!AgentReady)
+                {
+                    yield break;
+                }
+                if (_enemy.isStopped)
+                {
+                    _enemy.isStopped = false;
+                }
                 if (!_enemy.pathPending
                     && (_enemy.remainingDistance <= _enemy.stoppingDistance + ArrivalTolerance || _enemy.pathStatus == NavMeshPathStatus.PathInvalid))
                 {
@@ -312,9 +337,19 @@ namespace CK.SemesterProject.LevelDesign
                 }
                 yield return null;
             }
-            if (_enemy.isOnNavMesh)
+            if (AgentReady)
             {
                 _enemy.ResetPath();
+            }
+        }
+
+        private bool AgentReady => _enemy != null && _enemy.isActiveAndEnabled && _enemy.isOnNavMesh;
+
+        private IEnumerator WaitWhileFieldPaused()
+        {
+            while (TutorialBattleController.AreFieldEnemiesPaused)
+            {
+                yield return null;
             }
         }
 

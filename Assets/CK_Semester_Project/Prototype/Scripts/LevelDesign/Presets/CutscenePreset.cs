@@ -413,11 +413,7 @@ namespace CK.SemesterProject.LevelDesign
         // 컷씬 전용 Cinemachine 카메라. 켜져 있는 동안 우선순위가 가장 높아 화면을 가져오고, 끄면 원래 카메라로 블렌드된다.
         private CinemachineCamera GetCamera()
         {
-            _activeCutsceneCount = Mathf.Max(0, _activeCutsceneCount - 1);
-            if (_activeCutsceneCount == 0 && _progress != null && _progress.Battle != null)
-            {
-                _progress.Battle.SetEnemiesCutscenePaused(false);
-            }
+            // 컷신 카운트·몬스터 멈춤 해제는 Finish()에서만 한다(카메라 단계마다 풀리면 컷신 도중 몬스터가 다가와 전투가 시작된다).
             if (_camera != null)
             {
                 return _camera;

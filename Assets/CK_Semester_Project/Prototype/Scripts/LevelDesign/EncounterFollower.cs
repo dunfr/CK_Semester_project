@@ -28,6 +28,8 @@ namespace CK.SemesterProject.LevelDesign
         private NavMeshAgent _agent;
         private Renderer[] _renderers;
         private bool _visible = true;
+        // 실제로 리더와 같은 전투에 뽑혔을 때만 true. 연출·다른 전투로 리더 AI가 잠시 꺼진 것과 구분한다.
+        private bool _inEncounter;
 
         public EnemyStateMachine Leader => _leader;
         /// <summary>리더가 필드에서 움직이는 중(전투 아님)이면 true.</summary>
@@ -65,6 +67,7 @@ namespace CK.SemesterProject.LevelDesign
                     break;
                 }
                 follower._self.enabled = true;
+                follower._inEncounter = true;
                 members.Add(follower._self);
             }
             return members;
@@ -95,10 +98,12 @@ namespace CK.SemesterProject.LevelDesign
             }
             if (!IsFollowing)
             {
-                // 전투 중: 모습을 드러내고 위치는 전투 코드가 맡는다.
-                SetVisible(true);
+                // 리더 AI가 꺼진 동안: 이 동료가 리더와 같은 전투에 들어갔을 때만 모습을 드러내고 위치는 전투 코드가 맡는다.
+                // 연출 잠금이나 다른 몬스터와의 전투로 리더가 멈춘 것뿐이면 계속 숨긴 채 제자리에 둔다.
+                SetVisible(_inEncounter);
                 return;
             }
+            _inEncounter = false;
             SetVisible(false);
             // 필드로 돌아왔으면 자기 AI·에이전트는 다시 끈다.
             if (_self != null && _self.enabled)

@@ -34,6 +34,25 @@ namespace CK.SemesterProject.Battle
         private bool _isBonusAction;
         private bool _resumeActorAfterPresentation;
 
+        private bool _playerHasUnlimitedResources;
+
+        /// <summary>
+        /// 켜면 플레이어 메모리는 늘 최대치, 폭주는 과열 직전(OverheatThreshold - 1)으로 유지되고
+        /// 과열·메모리 고갈로 턴을 잃지 않는다. 켜는 즉시 현재 플레이어 상태에도 적용한다.
+        /// </summary>
+        public bool PlayerHasUnlimitedResources
+        {
+            get => _playerHasUnlimitedResources;
+            set
+            {
+                _playerHasUnlimitedResources = value;
+                foreach (string id in _combatants.Keys.ToList())
+                {
+                    _combatants[id] = ApplyUnlimitedResources(_combatants[id]);
+                }
+            }
+        }
+
         public IReadOnlyList<BattleHistoryEntry> History { get; }
         public BattleActionResult PendingResult { get; private set; }
         public BattleRules Rules => _rules;
@@ -71,6 +90,7 @@ namespace CK.SemesterProject.Battle
             preview._openingActorId = _openingActorId;
             preview._isBonusAction = _isBonusAction;
             preview.EntryInitiatorId = EntryInitiatorId;
+            preview._playerHasUnlimitedResources = _playerHasUnlimitedResources;
             if (!preview.TrySubmit(request, out BattleActionResult result, out _))
             {
                 return null;
@@ -147,6 +167,7 @@ namespace CK.SemesterProject.Battle
                             ? _rules.MonsterCollisionMemoryBonus : 0)), participant.SkippedTurns,
                     rageEnergy: participant.InitialRageEnergy, isOverheated: _rules.Mechanics.EnableRage
                         && participant.InitialRageEnergy >= BattleCombatRules.OverheatThreshold));
+                _combatants[participant.InstanceId] = ApplyUnlimitedResources(_combatants[participant.InstanceId]);
             }
             _entryCondition = entryCondition;
             CombatantState[] monsters = _combatants.Values.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
@@ -441,9 +462,21 @@ namespace CK.SemesterProject.Battle
                     _rules.Mechanics.EnableRage && (long)before.RageEnergy + effect.RageDelta >= BattleCombatRules.OverheatThreshold, before.HasMemoryLoss,
                     effect.DefenseDamageMultiplier ?? before.DefenseDamageMultiplier,
                     effect.HasAfterimageRecovery ?? before.HasAfterimageRecovery);
-                changes.Add(new BattleStateChange(before, after));
+                changes.Add(new BattleStateChange(before, ApplyUnlimitedResources(after)));
             }
             return changes;
+        }
+
+        private CombatantState ApplyUnlimitedResources(CombatantState state)
+        {
+            if (!_playerHasUnlimitedResources || state == null || state.Data.Team != BattleTeam.Player || state.IsDead)
+            {
+                return state;
+            }
+            return new CombatantState(state.InstanceId, state.Data, state.Hp, state.Data.MaxMemory, state.SkippedTurns,
+                state.IsDefending, BattleCombatRules.OverheatThreshold - 1, state.ChainStep, state.ImprintDamage,
+                isOverheated: false, hasMemoryLoss: false, defenseDamageMultiplier: state.DefenseDamageMultiplier,
+                hasAfterimageRecovery: state.HasAfterimageRecovery);
         }
 
         private static int Clamp(long value, int maximum)

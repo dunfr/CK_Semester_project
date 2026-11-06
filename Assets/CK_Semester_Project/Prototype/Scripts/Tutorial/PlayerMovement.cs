@@ -193,6 +193,12 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
+        /// <summary>순간이동(체크포인트 복귀 등) 직후 떨어지던 속도를 지워 곧바로 다시 낙하하지 않게 한다.</summary>
+        public void ResetFall()
+        {
+            _verticalSpeed = 0f;
+        }
+
         // 점프 상태가 발을 뗄 때 부른다. _jumpHeight까지 오르는 위쪽 속도를 주고, 내려오는 것은 MoveCharacter의 중력에 맡긴다.
         internal void TakeOff()
         {

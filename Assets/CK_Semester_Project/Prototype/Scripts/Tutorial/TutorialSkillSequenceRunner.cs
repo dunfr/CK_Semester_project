@@ -87,8 +87,13 @@ namespace CK.SemesterProject.Tutorial
             return FindPlayerSequence("SK00") ?? FindPlayerSequence("SK02") ?? FindPlayerSequence("SK01");
         }
 
-        /// <summary>시퀀스를 재생하고 길이(초)를 돌려준다. 이미 재생 중이면 끊고 새로 시작한다.</summary>
-        public float Play(SkillSequenceAsset sequence, Transform caster, IList<Transform> targets, int selectedTargetIndex)
+        /// <summary>
+        /// 시퀀스를 재생하고 길이(초)를 돌려준다. 이미 재생 중이면 끊고 새로 시작한다.
+        /// 몬스터가 '적 스킬'이 아닌(플레이어용) 시퀀스를 쓰면 시전자 클립(푸시아 모션)을 덮어쓰지 않고
+        /// 이동·이펙트만 재생해, 몬스터 자신의 공격 모션(MonsterAnimationDriver의 Attack)이 보이게 한다.
+        /// </summary>
+        public float Play(SkillSequenceAsset sequence, Transform caster, IList<Transform> targets, int selectedTargetIndex,
+            bool casterIsMonster = false)
         {
             Abort();
             if (sequence == null || caster == null)
@@ -96,7 +101,7 @@ namespace CK.SemesterProject.Tutorial
                 return 0f;
             }
             var context = new SkillSequenceContext(caster, targets, null, selectedTargetIndex);
-            _playback = new SkillSequencePlayback(sequence, context);
+            _playback = new SkillSequencePlayback(sequence, context, playCasterClip: !casterIsMonster || sequence.IsEnemySkill);
             return sequence.Duration;
         }
 

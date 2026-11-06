@@ -18,12 +18,13 @@ namespace CK.SemesterProject.SkillSequence
         private Animator _animator;
         private bool _hadRootMotion;
 
-        public SkillSequenceSampler(SkillSequenceAsset sequence, SkillSequenceContext context)
+        /// <param name="playCasterClip">false면 시전자 클립을 덮어쓰지 않고 이동만 적용한다(시전자 자신의 Animator 모션을 그대로 쓴다).</param>
+        public SkillSequenceSampler(SkillSequenceAsset sequence, SkillSequenceContext context, bool playCasterClip = true)
         {
             _sequence = sequence;
             _context = context;
             _animator = context.CasterAnimator;
-            if (sequence.CasterClip == null || _animator == null)
+            if (!playCasterClip || sequence.CasterClip == null || _animator == null)
             {
                 return;
             }
@@ -89,7 +90,7 @@ namespace CK.SemesterProject.SkillSequence
         public void Sample(float time)
         {
             _context.Caster.SetPositionAndRotation(EvaluateCasterPosition(time), _context.Facing);
-            if (_graph.IsValid())
+            if (_graph.IsValid() && _sequence.CasterClip != null)
             {
                 // 애니메이션 시작 전에는 첫 프레임, 끝난 뒤에는 마지막 프레임 포즈를 유지한다.
                 _clipPlayable.SetTime(Mathf.Clamp(time - _sequence.ClipStart, 0f, _sequence.CasterClip.length));
