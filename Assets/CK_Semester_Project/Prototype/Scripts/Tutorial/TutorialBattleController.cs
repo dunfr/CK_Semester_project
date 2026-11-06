@@ -415,36 +415,30 @@ namespace CK.SemesterProject.Tutorial
                 }
                 return;
             }
-            Keyboard currentKeyboard = Keyboard.current;
-            if (_enableCheats && Application.isFocused && currentKeyboard != null
-                && (currentKeyboard.f9Key.wasPressedThisFrame || currentKeyboard[_rageCheatKey].wasPressedThisFrame))
+            if (_enableCheats && Application.isFocused && Keyboard.current != null
+                && Keyboard.current[_rageCheatKey].wasPressedThisFrame)
             {
                 DebugFillRage();
-            }
-            Mouse targetingMouse = Mouse.current;
-            BattleSnapshot currentSnapshot = Snapshot;
-            if (currentSnapshot != null && currentSnapshot.Phase == BattlePhase.AwaitingAction
-                && currentSnapshot.CurrentActorId == "player"
-                && Application.isFocused && targetingMouse != null
-                && targetingMouse.leftButton.wasPressedThisFrame
-                && !IsPointerBlockedByInteractiveUi(targetingMouse.position.ReadValue()))
-            {
-                TrySelectBattleTargetAtScreenPoint(targetingMouse.position.ReadValue());
-            }
-            BattleSnapshot snapshot = Snapshot;
-            if (snapshot != null && snapshot.Phase == BattlePhase.Finished)
-            {
-                if (currentKeyboard != null && (currentKeyboard.enterKey.wasPressedThisFrame || currentKeyboard.numpadEnterKey.wasPressedThisFrame))
-                {
-                    ReturnToExploration();
-                }
-                return;
             }
             if (_cameraTime < _cameraEntrySeconds)
             {
                 return;
             }
+            Mouse targetingMouse = Mouse.current;
+            if (CanInput(Snapshot) && Application.isFocused && targetingMouse != null
+                && targetingMouse.leftButton.wasPressedThisFrame
+                && (UnityEngine.EventSystems.EventSystem.current == null
+                    || !UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()))
+            {
+                TrySelectBattleTargetAtScreenPoint(targetingMouse.position.ReadValue());
+            }
             _elapsed += Time.deltaTime;
+            BattleSnapshot snapshot = Snapshot;
+            if (snapshot != null && snapshot.Phase == BattlePhase.Finished)
+            {
+                ReturnToExploration();
+                return;
+            }
             if (snapshot.Phase == BattlePhase.AwaitingPresentation)
             {
                 BattleActionResult pending = _session.PendingResult;
@@ -509,53 +503,31 @@ namespace CK.SemesterProject.Tutorial
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == "player";
             float progress = isAttack ? Mathf.Clamp01(_elapsed / PresentationSeconds) : 0f;
+            float direction = isAttack && result.Request.ActorId != "player" ? -1f : 1f;
             float opening = 1f - Mathf.SmoothStep(0f, 1f, _cameraTime / _cameraEntrySeconds);
-            float pulse = Mathf.Sin(progress * Mathf.PI);
-            float fieldOfView = _battleFieldOfView - 1.2f * pulse;
-
-            Vector3 enemyTargetPos = _enemyCenter;
-            if (isAttack && !string.IsNullOrEmpty(result.Request.TargetId) && TryGetMonsterTransform(result.Request.TargetId, out Transform targetMonster))
+            Vector3 offset = TutorialBattleCamera.GetMotionOffset(ConfiguredCameraOffset,
+                _cameraTime, opening, progress, direction, _cameraDrift, _cameraActionTravel);
+            float fieldOfView = _battleFieldOfView - 2f * Mathf.Sin(progress * Mathf.PI);
+            Pose target;
+            if (!TryGetGroupPose(_playerHome, _enemyCenter, _formation.EnemySlots, offset, fieldOfView, out target))
             {
-                enemyTargetPos = targetMonster.position;
+                target = _battleCameraPose;
+                fieldOfView = _battleFieldOfView;
             }
-
-            Vector3 currentActorPos = _movement.transform.position;
-            Pose attackFollowPose = TutorialBattleCamera.GetBasePose(currentActorPos, enemyTargetPos, ConfiguredCameraOffset);
-
-            float attackFollowWeight = isAttack ? Mathf.SmoothStep(0f, 1f, pulse) : 0f;
-            Vector3 baseForward = _battleCameraPose.rotation * Vector3.forward;
-            Vector3 baseUp = _battleCameraPose.rotation * Vector3.up;
-            Vector3 motionPosition = Vector3.Lerp(_battleCameraPose.position, attackFollowPose.position, attackFollowWeight * 0.72f)
-                + baseForward * (pulse * Mathf.Min(_cameraActionTravel, 0.15f) * 0.3f - opening * 0.45f)
-                + baseUp * (opening * 0.15f);
-            Quaternion motionRotation = Quaternion.Slerp(_battleCameraPose.rotation, attackFollowPose.rotation, attackFollowWeight * 0.65f);
-            Pose target = new Pose(motionPosition, motionRotation);
-
-            if (Mathf.Abs(_battleYaw) > 0.001f || Mathf.Abs(_battlePitch) > 0.001f)
+            Pose orbitPose;
+            if (!TutorialBattleCamera.TryGetOrbitPose(target, _playerHome, _enemyCenter,
+                _movement.transform, _encounter.transform,
+                _battleYaw, _battlePitch, fieldOfView, _camera.aspect, out orbitPose)
+                || !IsGroupFramed(orbitPose, _formation.EnemySlots, fieldOfView)
+                || !TutorialBattleCamera.CanTravel(_camera.transform.position, orbitPose.position,
+                    _movement.transform, _encounter.transform))
             {
-                if (TutorialBattleCamera.TryGetOrbitPose(target, _playerHome, _enemyCenter,
-                    _movement.transform, _encounter.transform,
-                    _battleYaw, _battlePitch, fieldOfView, _camera.aspect, out Pose orbitPose)
-                    && IsGroupFramed(orbitPose, _formation.EnemySlots, fieldOfView)
-                    && TutorialBattleCamera.CanTravel(_camera.transform.position, orbitPose.position,
-                        _movement.transform, _encounter.transform))
-                {
-                    target = orbitPose;
-                }
-                else
-                {
-                    _battleYaw = previousYaw;
-                    _battlePitch = previousPitch;
-                    if (TutorialBattleCamera.TryGetOrbitPose(target, _playerHome, _enemyCenter,
-                        _movement.transform, _encounter.transform,
-                        _battleYaw, _battlePitch, fieldOfView, _camera.aspect, out Pose fallbackOrbit))
-                    {
-                        target = fallbackOrbit;
-                    }
-                }
+                _battleYaw = previousYaw;
+                _battlePitch = previousPitch;
+                return;
             }
-            target.rotation = Quaternion.RotateTowards(_battleCameraPose.rotation, target.rotation, 14f);
-            float blend = 1f - Mathf.Exp(-8f * Time.deltaTime);
+            target = orbitPose;
+            float blend = 1f - Mathf.Exp(-6f * Time.deltaTime);
             Vector3 position = Vector3.Lerp(_camera.transform.position, target.position, blend);
             if (TutorialBattleCamera.CanTravel(_camera.transform.position, position,
                 _movement.transform, _encounter.transform))
@@ -709,8 +681,8 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             Vector2 delta = mouse.delta.ReadValue();
-            _battleYaw = Mathf.Clamp(_battleYaw + delta.x * _battleMouseSensitivity, -12f, 12f);
-            _battlePitch = Mathf.Clamp(_battlePitch - delta.y * _battleMouseSensitivity, -6f, 10f);
+            _battleYaw = Mathf.Repeat(_battleYaw + delta.x * _battleMouseSensitivity + 180f, 360f) - 180f;
+            _battlePitch = Mathf.Clamp(_battlePitch - delta.y * _battleMouseSensitivity, -10f, 30f);
         }
 
         private void UpdateExploration()
@@ -875,7 +847,7 @@ namespace CK.SemesterProject.Tutorial
                 _enemyCenter += slot / formation.EnemySlots.Length;
             }
             _targetId = GetMonsterId(0);
-            HasSelectedBattleTarget = true;;
+            HasSelectedBattleTarget = false;
             _encounter = enemy;
             _investment = 0;
             _elapsed = 0;
@@ -909,13 +881,14 @@ namespace CK.SemesterProject.Tutorial
             _camera.fieldOfView = _battleFieldOfView;
             _battleCameraPose = battlePose;
             _cameraTime = 0f;
-            Vector3 openingPosition = battlePose.position
-                - (battlePose.rotation * Vector3.forward) * 0.45f
-                + (battlePose.rotation * Vector3.up) * 0.15f;
-            if (TutorialBattleCamera.CanTravel(openingPosition, battlePose.position,
-                _movement.transform, enemy.transform))
+            Pose openingPose;
+            Vector3 openingOffset = TutorialBattleCamera.GetMotionOffset(ConfiguredCameraOffset,
+                0f, 1f, 0f, 1f, _cameraDrift, _cameraActionTravel);
+            if (TryGetGroupPose(_playerHome, _enemyCenter, _formation.EnemySlots, openingOffset, _battleFieldOfView, out openingPose)
+                && TutorialBattleCamera.CanTravel(openingPose.position, battlePose.position,
+                    _movement.transform, enemy.transform))
             {
-                battlePose = new Pose(openingPosition, battlePose.rotation);
+                battlePose = openingPose;
             }
             _camera.transform.SetPositionAndRotation(battlePose.position, battlePose.rotation);
             Cursor.lockState = CursorLockMode.None;
@@ -965,153 +938,32 @@ namespace CK.SemesterProject.Tutorial
 
         public bool TrySelectBattleTargetAtScreenPoint(Vector2 screenPoint)
         {
-            BattleSnapshot state = Snapshot;
-            if (state == null || state.Phase != BattlePhase.AwaitingAction || state.CurrentActorId != "player" || _camera == null)
+            if (!CanInput(Snapshot))
             {
                 return false;
             }
-            Ray ray = _camera.ScreenPointToRay(screenPoint);
-            RaycastHit[] rayHits = Physics.RaycastAll(ray, _camera.farClipPlane, ~0, QueryTriggerInteraction.Collide);
-            Array.Sort(rayHits, (a, b) => a.distance.CompareTo(b.distance));
-            foreach (RaycastHit hit in rayHits)
+            RaycastHit hit;
+            if (!Physics.Raycast(_camera.ScreenPointToRay(screenPoint), out hit, _camera.farClipPlane,
+                ~0, QueryTriggerInteraction.Ignore))
             {
-                for (int index = 0; index < _encounterMembers.Length; index++)
-                {
-                    if (_encounterMembers[index] != null && hit.transform.IsChildOf(_encounterMembers[index].transform)
-                        && state.Combatants.Any(unit => unit.InstanceId == GetMonsterId(index) && unit.Hp > 0))
-                    {
-                        SelectTarget(index);
-                        return true;
-                    }
-                }
+                return false;
             }
-
-            RaycastHit[] sphereHits = Physics.SphereCastAll(ray, 0.28f, _camera.farClipPlane, ~0, QueryTriggerInteraction.Collide);
-            Array.Sort(sphereHits, (a, b) => a.distance.CompareTo(b.distance));
-            foreach (RaycastHit hit in sphereHits)
-            {
-                for (int index = 0; index < _encounterMembers.Length; index++)
-                {
-                    if (_encounterMembers[index] != null && hit.transform.IsChildOf(_encounterMembers[index].transform)
-                        && state.Combatants.Any(unit => unit.InstanceId == GetMonsterId(index) && unit.Hp > 0))
-                    {
-                        SelectTarget(index);
-                        return true;
-                    }
-                }
-            }
-
-            int bestIndex = -1;
-            float bestScore = float.MaxValue;
             for (int index = 0; index < _encounterMembers.Length; index++)
             {
-                EnemyStateMachine member = _encounterMembers[index];
-                if (member == null || !member.gameObject.activeInHierarchy)
+                if (hit.transform.IsChildOf(_encounterMembers[index].transform)
+                    && Snapshot.Combatants.Any(unit => unit.InstanceId == GetMonsterId(index) && unit.Hp > 0))
                 {
-                    continue;
-                }
-                string id = GetMonsterId(index);
-                if (!state.Combatants.Any(unit => unit.InstanceId == id && unit.Hp > 0))
-                {
-                    continue;
-                }
-
-                Bounds bounds = new Bounds(member.transform.position + Vector3.up * 0.95f, new Vector3(0.95f, 2.0f, 0.95f));
-                foreach (Renderer renderer in member.GetComponentsInChildren<Renderer>(true))
-                {
-                    if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy
-                        && !(renderer is ParticleSystemRenderer) && !(renderer is LineRenderer))
-                    {
-                        bounds.Encapsulate(renderer.bounds);
-                    }
-                }
-                bounds.Expand(0.25f);
-                if (bounds.IntersectRay(ray, out float rayDist) && rayDist >= 0f && rayDist < bestScore)
-                {
-                    bestScore = rayDist;
-                    bestIndex = index;
-                    continue;
-                }
-
-                Vector3 feetScreen = _camera.WorldToScreenPoint(member.transform.position);
-                Vector3 headScreen = _camera.WorldToScreenPoint(member.transform.position + Vector3.up * 2.15f);
-                if (feetScreen.z <= 0f || headScreen.z <= 0f)
-                {
-                    continue;
-                }
-                float minY = Mathf.Min(feetScreen.y, headScreen.y) - 24f;
-                float maxY = Mathf.Max(feetScreen.y, headScreen.y) + 36f;
-                float height = Mathf.Max(60f, maxY - minY);
-                float centerX = (feetScreen.x + headScreen.x) * 0.5f;
-                float halfWidth = Mathf.Max(48f, height * 0.42f);
-                if (screenPoint.y >= minY && screenPoint.y <= maxY && Mathf.Abs(screenPoint.x - centerX) <= halfWidth)
-                {
-                    float normalizedDist = Mathf.Abs(screenPoint.x - centerX) / halfWidth;
-                    if (1000f + normalizedDist < bestScore)
-                    {
-                        bestScore = 1000f + normalizedDist;
-                        bestIndex = index;
-                    }
-                }
-            }
-            if (bestIndex >= 0)
-            {
-                SelectTarget(bestIndex);
-                return true;
-            }
-            return false;
-        }
-
-        private static bool IsPointerBlockedByInteractiveUi(Vector2 screenPoint)
-        {
-            var eventSystem = UnityEngine.EventSystems.EventSystem.current;
-            if (eventSystem == null)
-            {
-                return false;
-            }
-            var pointerData = new UnityEngine.EventSystems.PointerEventData(eventSystem)
-            {
-                position = screenPoint
-            };
-            var results = new List<UnityEngine.EventSystems.RaycastResult>();
-            eventSystem.RaycastAll(pointerData, results);
-            foreach (UnityEngine.EventSystems.RaycastResult hit in results)
-            {
-                if (hit.gameObject == null)
-                {
-                    continue;
-                }
-                Transform current = hit.gameObject.transform;
-                bool isEnemyHeadBar = false;
-                while (current != null)
-                {
-                    if (current.name.StartsWith("EnemyHeadBar", StringComparison.OrdinalIgnoreCase)
-                        || current.name.Equals("EnemyHPbar", StringComparison.OrdinalIgnoreCase))
-                    {
-                        isEnemyHeadBar = true;
-                        break;
-                    }
-                    current = current.parent;
-                }
-                if (isEnemyHeadBar)
-                {
-                    continue;
-                }
-                Selectable selectable = hit.gameObject.GetComponentInParent<Selectable>();
-                if (selectable != null && selectable.IsActive() && selectable.IsInteractable()
-                    && selectable is Button)
-                {
+                    SelectTarget(index);
                     return true;
                 }
             }
             return false;
         }
 
-
         // 테스트용 치트: 전투 중 플레이어 폭주 게이지를 채운다. 에디터·Development 빌드에서만 동작한다.
         public bool DebugFillRage()
         {
-            if (_session == null || !_session.DebugSetRageEnergy("player", _rageCheatValue))
+            if (!Debug.isDebugBuild || _session == null || !_session.DebugSetRageEnergy("player", _rageCheatValue))
             {
                 return false;
             }
@@ -1127,47 +979,33 @@ namespace CK.SemesterProject.Tutorial
         private bool HandleCheatKeys()
         {
             Keyboard keyboard = Keyboard.current;
-            if (!_enableCheats || keyboard == null || !Application.isFocused)
+            if (!_enableCheats || !Debug.isDebugBuild || keyboard == null || !Application.isFocused)
             {
                 return false;
             }
-            // F12: 어디서나 게임 씬을 시작 연출부터 다시 시작합니다. HP·승리 횟수도 초기화됩니다.
-            if (keyboard.f12Key.wasPressedThisFrame || keyboard[_restartCheatKey].wasPressedThisFrame)
+            if (keyboard[_restartCheatKey].wasPressedThisFrame)
             {
                 DebugRestartGame();
                 return true;
             }
-            // F11: 필드·전투 HP와 메모리를 최대로 회복합니다.
-            if (keyboard.f11Key.wasPressedThisFrame || keyboard[_healCheatKey].wasPressedThisFrame)
+            if (keyboard[_healCheatKey].wasPressedThisFrame)
             {
                 DebugRestorePlayer();
             }
             if (IsInBattle)
             {
-                // F9: 전투 폭주 게이지를 90까지 채웁니다. 특수기·궁극기 테스트용입니다.
-                if (keyboard.f9Key.wasPressedThisFrame || keyboard[_rageCheatKey].wasPressedThisFrame)
-                {
-                    DebugFillRage();
-                }
-                // F10: 전투 (내 차례) 몬스터를 모두 쓰러뜨리고 즉시 승리합니다. Enter를 누르면 필드로 돌아갑니다.
-                if (keyboard.f10Key.wasPressedThisFrame || keyboard[_winCheatKey].wasPressedThisFrame)
+                if (keyboard[_winCheatKey].wasPressedThisFrame)
                 {
                     DebugWinBattle();
                 }
             }
-            else
+            else if (keyboard[_bossWarpCheatKey].wasPressedThisFrame)
             {
-                // F8: 필드 보스방 입구(보스 재시작 지점)로 순간이동합니다.
-                if (keyboard.f8Key.wasPressedThisFrame || keyboard[_bossWarpCheatKey].wasPressedThisFrame)
-                {
-                    DebugWarpToBoss();
-                }
-                // F7: 필드 다음 체크포인트로 순간이동합니다. 마지막 다음은 처음으로 돌아갑니다.
-                // Shift + F7: 필드 이전 체크포인트로 순간이동합니다.
-                if (keyboard.f7Key.wasPressedThisFrame || keyboard[_checkpointCheatKey].wasPressedThisFrame)
-                {
-                    DebugWarpToCheckpoint(keyboard.shiftKey.isPressed ? -1 : 1);
-                }
+                DebugWarpToBoss();
+            }
+            else if (keyboard[_checkpointCheatKey].wasPressedThisFrame)
+            {
+                DebugWarpToCheckpoint(keyboard.shiftKey.isPressed ? -1 : 1);
             }
             return false;
         }
@@ -1176,11 +1014,11 @@ namespace CK.SemesterProject.Tutorial
         // 구역 안으로 들어가므로 구역 진입 처리(위치 이름·목표·재시작 지점)도 그대로 실행된다.
         public void DebugWarpToCheckpoint(int step)
         {
-            if (IsInBattle)
+            if (!Debug.isDebugBuild || IsInBattle)
             {
                 return;
             }
-            if (_cheatCheckpoints == null || _cheatCheckpoints.Length == 0)
+            if (_cheatCheckpoints == null)
             {
                 _cheatCheckpoints = FindObjectsByType<CK.SemesterProject.LevelDesign.LevelTriggerZone>(FindObjectsInactive.Exclude, FindObjectsSortMode.None)
                     .Where(zone => zone.IsCheckpoint)
@@ -1216,7 +1054,7 @@ namespace CK.SemesterProject.Tutorial
 
         public bool DebugWinBattle()
         {
-            if (_session == null || (_skillCutscene != null && _skillCutscene.IsPlaying) || !_session.DebugWinBattle())
+            if (!Debug.isDebugBuild || _session == null || _skillCutscene != null && _skillCutscene.IsPlaying || !_session.DebugWinBattle())
             {
                 return false;
             }
@@ -1227,39 +1065,32 @@ namespace CK.SemesterProject.Tutorial
             _cachedSnapshot = null;
             _elapsed = 0f;
             RefreshUI();
-            _notice.text = "승리 · Enter를 누르면 필드로 돌아갑니다";
             return true;
         }
 
         public void DebugRestorePlayer()
         {
-            if (_playerState == null)
+            if (!Debug.isDebugBuild || _playerState == null)
             {
                 return;
             }
-            if (IsInBattle && _session != null)
+            if (IsInBattle && _session != null && _session.DebugRestore("player"))
             {
-                _session.DebugRestore("player");
                 _cachedSnapshot = null;
                 RefreshUI();
             }
             _playerState.RestoreFull();
-            RefreshFieldVitals();
         }
 
         public void DebugWarpToBoss()
         {
-            if (IsInBattle)
+            if (!Debug.isDebugBuild || IsInBattle)
             {
                 return;
             }
             if (_bossWarpPoint == null)
             {
                 GameObject point = GameObject.Find("Boss_RetryPoint");
-                if (point == null)
-                {
-                    point = Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(go => go.name == "Boss_RetryPoint");
-                }
                 _bossWarpPoint = point != null ? point.transform : null;
             }
             if (_bossWarpPoint == null)
@@ -1272,32 +1103,30 @@ namespace CK.SemesterProject.Tutorial
 
         public void DebugRestartGame()
         {
+            if (!Debug.isDebugBuild)
+            {
+                return;
+            }
             Time.timeScale = 1f;
             string scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-            PlayerSessionState.ResetSession();
             if (!CK.SemesterProject.UI.SceneFadeTransition.Run(scene, 0.4f, 0.6f, PlayerSessionState.ResetSession))
             {
+                PlayerSessionState.ResetSession();
                 UnityEngine.SceneManagement.SceneManager.LoadScene(scene);
             }
         }
 
         public void SelectTarget(int index)
         {
-            BattleSnapshot state = Snapshot;
-            if (state == null || state.Phase != BattlePhase.AwaitingAction || state.CurrentActorId != "player"
-                || index < 0 || index >= _encounterMembers.Length)
+            if (!CanInput(Snapshot) || index < 0 || index >= _encounterMembers.Length)
             {
                 return;
             }
             string id = GetMonsterId(index);
-            if (state.Combatants.Any(unit => unit.InstanceId == id && unit.Hp > 0))
+            if (Snapshot.Combatants.Any(unit => unit.InstanceId == id && unit.Hp > 0))
             {
                 _targetId = id;
                 HasSelectedBattleTarget = true;
-                if (_encounterMembers[index] != null)
-                {
-                    _targetHighlight.TriggerSelectPulse(_encounterMembers[index].transform);
-                }
                 RefreshUI();
             }
         }
