@@ -130,7 +130,7 @@ namespace CK.SemesterProject.Tutorial
         private float _cinematicFieldOfViewScale = 1.25f;
 
         [Header("Cheat (Editor/Development)")]
-        [SerializeField, Tooltip("전투 중 치트 키 사용. 에디터와 Development 빌드에서만 동작합니다")]
+        [SerializeField, Tooltip("치트 키 사용. 켜 두면 에디터와 빌드(exe) 모두에서 동작합니다. 배포용 빌드에서는 끄세요")]
         private bool _enableCheats = true;
         [SerializeField, Tooltip("누르면 플레이어 폭주 게이지를 채웁니다(특수·궁극기 테스트용)")]
         private Key _rageCheatKey = Key.F9;
@@ -978,7 +978,7 @@ namespace CK.SemesterProject.Tutorial
         // 테스트용 치트: 전투 중 플레이어 폭주 게이지를 채운다. 에디터·Development 빌드에서만 동작한다.
         public bool DebugFillRage()
         {
-            if (!Debug.isDebugBuild || _session == null || !_session.DebugSetRageEnergy("player", _rageCheatValue))
+            if (!_enableCheats || _session == null || !_session.DebugSetRageEnergy("player", _rageCheatValue))
             {
                 return false;
             }
@@ -994,7 +994,7 @@ namespace CK.SemesterProject.Tutorial
         private bool HandleCheatKeys()
         {
             Keyboard keyboard = Keyboard.current;
-            if (!_enableCheats || !Debug.isDebugBuild || keyboard == null || !Application.isFocused)
+            if (!_enableCheats || keyboard == null || !Application.isFocused)
             {
                 return false;
             }
@@ -1029,7 +1029,7 @@ namespace CK.SemesterProject.Tutorial
         // 구역 안으로 들어가므로 구역 진입 처리(위치 이름·목표·재시작 지점)도 그대로 실행된다.
         public void DebugWarpToCheckpoint(int step)
         {
-            if (!Debug.isDebugBuild || IsInBattle)
+            if (!_enableCheats || IsInBattle)
             {
                 return;
             }
@@ -1093,7 +1093,7 @@ namespace CK.SemesterProject.Tutorial
 
         public bool DebugWinBattle()
         {
-            if (!Debug.isDebugBuild || _session == null || _skillCutscene != null && _skillCutscene.IsPlaying || !_session.DebugWinBattle())
+            if (!_enableCheats || _session == null || _skillCutscene != null && _skillCutscene.IsPlaying || !_session.DebugWinBattle())
             {
                 return false;
             }
@@ -1109,7 +1109,7 @@ namespace CK.SemesterProject.Tutorial
 
         public void DebugRestorePlayer()
         {
-            if (!Debug.isDebugBuild || _playerState == null)
+            if (!_enableCheats || _playerState == null)
             {
                 return;
             }
@@ -1123,7 +1123,7 @@ namespace CK.SemesterProject.Tutorial
 
         public void DebugWarpToBoss()
         {
-            if (!Debug.isDebugBuild || IsInBattle)
+            if (!_enableCheats || IsInBattle)
             {
                 return;
             }
@@ -1142,7 +1142,7 @@ namespace CK.SemesterProject.Tutorial
 
         public void DebugRestartGame()
         {
-            if (!Debug.isDebugBuild)
+            if (!_enableCheats)
             {
                 return;
             }
