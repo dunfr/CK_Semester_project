@@ -135,18 +135,29 @@ namespace CK.SemesterProject.Tutorial
                 {
                     BeginAnimation();
                 }
-                GameObject chargePrefab = _enhancement != null ? _enhancement.GetChargeEffect(result.Request.SkillId) : null;
+                string timingSkillId = result.Request.SkillId;
+                if (_enhancement != null && _enhancement.GetAnimation(timingSkillId, _skillStage) == null)
+                {
+                    timingSkillId = "SK00";
+                }
+                GameObject chargePrefab = _enhancement != null ? _enhancement.GetChargeEffect(timingSkillId) : null;
                 _chargeFraction = chargePrefab != null
-                    ? _enhancement.GetChargeProgressFraction(result.Request.SkillId, _skillStage, presentationSeconds) : 0f;
-                _impactTime = _enhancement != null ? _enhancement.GetImpactFraction(result.Request.SkillId, _skillStage) : .35f;
-                _returnTime = Mathf.Min(.98f, Mathf.Max(.55f, _impactTime + .15f));
+                    ? _enhancement.GetChargeProgressFraction(timingSkillId, _skillStage, presentationSeconds) : 0f;
+                _impactTime = _enhancement != null ? _enhancement.GetImpactFraction(timingSkillId, _skillStage) : .35f;
+                if (!playAnimation && _actorId != "player")
+                {
+                    // 몬스터 기본 공격 시퀀스(Sample_BasicAttack_*_Slash, 3.35s 중 타격 약 2.05s)와 피격 타이밍을 맞춘다.
+                    _chargeFraction = 0f;
+                    _impactTime = 0.61f;
+                }
+                _returnTime = Mathf.Min(.98f, Mathf.Max(.55f, _impactTime + .18f));
                 _slashStartTime = Mathf.Max(0f, _impactTime - DefaultSlashLeadFraction);
                 if (playAnimation && chargePrefab != null && progress < _chargeFraction)
                 {
                     _chargeInstance = Object.Instantiate(chargePrefab, _actor);
                     _chargeInstance.transform.localPosition = Vector3.zero;
                     _chargeInstance.transform.localRotation = Quaternion.identity;
-                    SkillVfxPlacement manualCharge = _enhancement.GetPlacement(result.Request.SkillId, _skillStage, true);
+                    SkillVfxPlacement manualCharge = _enhancement.GetPlacement(timingSkillId, _skillStage, true);
                     if (manualCharge.Enabled)
                     {
                         _chargeInstance.transform.SetParent(null, true);
@@ -228,9 +239,8 @@ namespace CK.SemesterProject.Tutorial
                 && progress >= _impactTime && progress < _returnTime;
             float strength = reacts ? 1f - reaction : 0f;
             Vector3 forward = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up).normalized;
-            Vector3 sideways = Vector3.Cross(Vector3.up, forward);
-            _target.position = TargetHome + forward * (Mathf.Sin(reaction * Mathf.PI) * 0.18f * strength)
-                + sideways * (Mathf.Sin(reaction * Mathf.PI * 8f) * 0.09f * strength);
+            float recoil = reacts ? Mathf.Sin(Mathf.Pow(reaction, 0.55f) * Mathf.PI) * 0.14f : 0f;
+            _target.position = TargetHome + forward * recoil;
             for (int i = 0; i < _renderers.Length; i++)
             {
                 if (_renderers[i] == null)
@@ -249,15 +259,31 @@ namespace CK.SemesterProject.Tutorial
                     _renderers[i].SetPropertyBlock(_originalBlocks[i]);
                 }
             }
-            if (_targetId == "player" && reacts && strength > 0f)
+            if (_targetId == "player")
             {
-                float shakeAmp = strength * 0.08f;
-                Vector3 shakeOffset = new Vector3(
-                    Mathf.Sin(reaction * Mathf.PI * 16f) * shakeAmp,
-                    Mathf.Cos(reaction * Mathf.PI * 20f) * shakeAmp * 0.5f,
-                    0f
-                );
-                CK.SemesterProject.SkillSequence.SkillCameraShake.SetOffset(Camera.main, shakeOffset, Vector3.zero);
+                if (reacts && strength > 0f)
+                {
+                    float envelope = Mathf.Pow(1f - reaction, 2.2f);
+                    float phase = reaction * 28f;
+                    float noiseX = (Mathf.PerlinNoise(phase, 1.37f) - 0.5f) * 2f;
+                    float noiseY = (Mathf.PerlinNoise(3.91f, phase) - 0.5f) * 2f;
+                    float punch = Mathf.Sin(reaction * Mathf.PI * 5f);
+                    Vector3 shakeOffset = new Vector3(
+                        (noiseX * 0.65f + punch * 0.35f) * 0.055f * envelope,
+                        (noiseY * 0.6f - Mathf.Abs(punch) * 0.4f) * 0.042f * envelope,
+                        -0.045f * envelope
+                    );
+                    Vector3 shakeRotation = new Vector3(
+                        (Mathf.Abs(punch) * 0.85f + noiseY * 0.35f) * 1.4f * envelope,
+                        noiseX * 0.9f * envelope,
+                        (punch * 0.7f + noiseX * 0.3f) * 1.6f * envelope
+                    );
+                    CK.SemesterProject.SkillSequence.SkillCameraShake.SetOffset(Camera.main, shakeOffset, shakeRotation);
+                }
+                else
+                {
+                    CK.SemesterProject.SkillSequence.SkillCameraShake.Clear();
+                }
             }
         }
 

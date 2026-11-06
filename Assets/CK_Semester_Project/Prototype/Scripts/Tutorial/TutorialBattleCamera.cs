@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace CK.SemesterProject.Tutorial
 {
@@ -92,10 +92,10 @@ namespace CK.SemesterProject.Tutorial
             float actionProgress, float actorDirection, float drift, float actionTravel)
         {
             float pulse = Mathf.Sin(Mathf.Clamp01(actionProgress) * Mathf.PI);
-            offset.x += Mathf.Sin(time * 0.55f) * drift
-                + actorDirection * Mathf.Sin(actionProgress * Mathf.PI * 2f) * actionTravel;
-            offset.y += opening * 0.2f + Mathf.Sin(time * 0.4f) * drift * 0.25f;
-            offset.z += pulse * actionTravel - opening * 0.65f;
+            float subtleDrift = Mathf.Min(drift, 0.03f);
+            offset.x += Mathf.Sin(time * 0.45f) * subtleDrift;
+            offset.y += opening * 0.16f + Mathf.Sin(time * 0.35f) * subtleDrift * 0.25f;
+            offset.z += pulse * Mathf.Min(actionTravel, 0.12f) * 0.35f - opening * 0.5f;
             return offset;
         }
 
@@ -175,7 +175,9 @@ namespace CK.SemesterProject.Tutorial
 
         private static bool IsParticipant(Transform target, Transform player, Transform enemy)
         {
-            return target.IsChildOf(player) || target.IsChildOf(enemy);
+            return target.IsChildOf(player) || target.IsChildOf(enemy)
+                || target.GetComponentInParent<Semester.Enemies.EnemyStateMachine>() != null
+                || target.GetComponentInParent<PlayerMovement>() != null;
         }
     }
 }

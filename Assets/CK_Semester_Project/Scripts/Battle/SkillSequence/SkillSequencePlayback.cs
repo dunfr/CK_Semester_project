@@ -79,6 +79,10 @@ namespace CK.SemesterProject.SkillSequence
 
         private void ApplyCameraShake()
         {
+            if (_sequence.ShakeEvents == null || _sequence.ShakeEvents.Count == 0)
+            {
+                return;
+            }
             Camera camera = Camera.main;
             if (SkillCameraShake.Evaluate(_sequence.ShakeEvents, _time, out Vector3 position, out Vector3 rotation))
             {
