@@ -1627,14 +1627,19 @@ namespace CK.SemesterProject.Tutorial
         }
 
         /// <summary>컷신·대사·연출 잠금 중이면 true. 이 동안 필드 몬스터는 멈추고 전투도 시작하지 않는다.</summary>
+        private const float LevelProgressSearchInterval = 1f;
+        private float _nextLevelProgressSearchTime;
+
         public bool IsFieldEventPlaying()
         {
             if (LevelDesign.CutsceneDialogueView.IsShowing || LevelDesign.CutscenePreset.IsAnyCutscenePlaying)
             {
                 return true;
             }
-            if (_levelProgress == null)
+            // LevelProgress가 없는 씬에서 매 프레임 씬 전체를 뒤지지 않도록 1초에 한 번만 다시 찾는다.
+            if (_levelProgress == null && Time.unscaledTime >= _nextLevelProgressSearchTime)
             {
+                _nextLevelProgressSearchTime = Time.unscaledTime + LevelProgressSearchInterval;
                 _levelProgress = FindFirstObjectByType<LevelDesign.LevelProgress>();
             }
             return _levelProgress != null && _levelProgress.IsControlLocked;

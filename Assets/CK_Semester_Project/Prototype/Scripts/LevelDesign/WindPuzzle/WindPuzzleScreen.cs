@@ -320,7 +320,7 @@ namespace CK.SemesterProject.LevelDesign.WindPuzzle
             tmp.color = color;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.raycastTarget = false;
-            tmp.enableWordWrapping = false;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
             return tmp;
         }
     }

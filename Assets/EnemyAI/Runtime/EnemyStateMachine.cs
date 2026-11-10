@@ -80,8 +80,11 @@ namespace Semester.Enemies
         public Vector3 LastSeenPosition { get; private set; }
         public Vector3 LastHeardPosition { get; private set; }
 
+        private static readonly RaycastHit[] SightHits = new RaycastHit[32];
+
         private NavMeshAgent agent;
         private NavMeshPath path;
+        private bool indicatorVisible;
         private Vector3 spawnPosition;
         private float timer, stateAge, repathTimer, nextSoundTime;
         private bool soundPending, soundAligned, searchingHold, resumeSearch, patrolDestinationSet;
@@ -113,7 +116,7 @@ namespace Semester.Enemies
         {
             EnemyNoise.Emitted -= HearNoise;
             StopAgent();
-            if (indicator != null) indicator.text = "";
+            HideIndicator();
         }
 
         private void Update()
@@ -186,14 +189,30 @@ namespace Semester.Enemies
             if (delta.sqrMagnitude > viewDistance * viewDistance) return false;
             Vector3 forward = eyes != null ? eyes.forward : transform.forward;
             if (Vector3.Angle(forward, delta) > viewAngle * 0.5f) return false;
-            foreach (RaycastHit hit in Physics.RaycastAll(EyePosition, delta.normalized, delta.magnitude,
-                         sightBlockingLayers, QueryTriggerInteraction.Ignore))
+            float distance = delta.magnitude;
+            if (distance < 0.0001f) return true;
+            Vector3 direction = delta / distance;
+            // Shared buffer: every enemy runs this each frame, so avoid the array RaycastAll allocates per call.
+            int count = Physics.RaycastNonAlloc(EyePosition, direction, SightHits, distance,
+                sightBlockingLayers, QueryTriggerInteraction.Ignore);
+            if (count >= SightHits.Length)
             {
-                Transform t = hit.transform;
-                if (t.IsChildOf(transform) || t.IsChildOf(player)) continue;
-                return false;
+                // Buffer full: some hits may be missing, so fall back to the complete query.
+                return !IsBlocked(Physics.RaycastAll(EyePosition, direction, distance,
+                    sightBlockingLayers, QueryTriggerInteraction.Ignore), int.MaxValue);
             }
-            return true;
+            return !IsBlocked(SightHits, count);
+        }
+
+        private bool IsBlocked(RaycastHit[] hits, int count)
+        {
+            for (int i = 0; i < count && i < hits.Length; i++)
+            {
+                Transform t = hits[i].transform;
+                if (t.IsChildOf(transform) || t.IsChildOf(player)) continue;
+                return true;
+            }
+            return false;
         }
 
         public void ObserveNoise(Vector3 position)
@@ -235,7 +254,7 @@ namespace Semester.Enemies
             stateAge = 0f;
             StopAgent();
             if (agent != null) agent.updateRotation = next == State.Patrol || next == State.PursueLastSeen;
-            if (indicator != null) indicator.text = "";
+            HideIndicator();
             switch (next)
             {
                 case State.Patrol:
@@ -398,11 +417,19 @@ namespace Semester.Enemies
             if (indicator == null) return;
             indicator.text = text;
             indicator.color = color;
+            indicatorVisible = !string.IsNullOrEmpty(text);
+        }
+
+        private void HideIndicator()
+        {
+            indicatorVisible = false;
+            if (indicator != null) indicator.text = "";
         }
 
         private void LateUpdate()
         {
-            if (indicator == null) return;
+            // Nothing to billboard while the mark is hidden (most enemies, most of the time).
+            if (!indicatorVisible || indicator == null) return;
             indicator.transform.position = transform.position + indicatorOffset;
             indicator.characterSize = indicatorSize;
             Camera camera = Camera.main;

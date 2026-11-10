@@ -21,7 +21,7 @@ public static class FuchsiaSkinnedStyleBuilder
     private const string HeadStyleName = "FuchsiaUpdated_head_Style";
     // 표정 블렌드셰이프 원본: 그래픽 파트 모션 FBX의 머리 메시(다섯 모션 FBX의 머리가 모두 같다).
     // 표정 때문에 정점이 더 쪼개져 있어(2164 대 1904) 정점 번호 대신 위치·텍스처 UV로 짝을 찾는다.
-    private const string ExpressionSourceModel = "Assets/FuchsiaAnimation/standing_idle.fbx";
+    private const string ExpressionSourceModel = "Assets/CK_Semester_Project/Animations/Fuchsia/standing_idle.fbx";
     private const float ExpressionMatchDistance = 1e-4f;
 
     [MenuItem("Tools/Fuchsia/Build Skinned Style Meshes")]

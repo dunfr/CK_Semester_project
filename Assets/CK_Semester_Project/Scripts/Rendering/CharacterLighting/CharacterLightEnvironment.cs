@@ -96,9 +96,10 @@ namespace CK.SemesterProject.Rendering
                     return RenderSettings.sun;
                 }
                 float now = Time.realtimeSinceStartup;
-                if (_cached != null && _cached.isActiveAndEnabled && now < _nextSearchTime)
+                // 방향광이 하나도 없는 씬에서도 매 호출마다 전체 조명을 찾지 않도록, 못 찾은 결과도 다음 검색 시각까지 유지한다.
+                if (now < _nextSearchTime && (_cached == null || _cached.isActiveAndEnabled))
                 {
-                    return _cached;
+                    return _cached != null ? _cached : null;
                 }
                 _nextSearchTime = now + SearchInterval;
                 _cached = null;

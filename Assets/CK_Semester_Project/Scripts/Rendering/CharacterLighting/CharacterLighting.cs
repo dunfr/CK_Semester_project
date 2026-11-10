@@ -281,6 +281,8 @@ namespace CK.SemesterProject.Rendering
             _block ??= new MaterialPropertyBlock();
             var direction = new Vector4(state.KeyDirection.x, state.KeyDirection.y, state.KeyDirection.z, state.KeyWeight);
             var color = new Vector4(state.KeyColor.x, state.KeyColor.y, state.KeyColor.z, 0f);
+            // 칸 번호는 목록 검색이므로 렌더러마다 다시 찾지 않는다.
+            int shadowSlot = ShadowSlot;
             foreach (Renderer renderer in _renderers)
             {
                 if (renderer == null)
@@ -294,7 +296,7 @@ namespace CK.SemesterProject.Rendering
                 _block.SetFloat(EnvironmentShadowId, state.EnvironmentShadowStrength);
                 _block.SetVector(BrightnessId, state.Brightness);
                 _block.SetVector(RimTintId, state.RimTint);
-                _block.SetFloat(ShadowSlotId, ShadowSlot);
+                _block.SetFloat(ShadowSlotId, shadowSlot);
                 if (_withoutStyleNormals.Contains(renderer))
                 {
                     _block.SetFloat(StyleNormalStrengthId, 0f);
@@ -302,7 +304,7 @@ namespace CK.SemesterProject.Rendering
                 renderer.SetPropertyBlock(_block);
             }
             _applied = state;
-            _appliedSlot = ShadowSlot;
+            _appliedSlot = shadowSlot;
             _hasApplied = true;
         }
 

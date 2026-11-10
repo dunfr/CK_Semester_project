@@ -16,7 +16,7 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
     // 이름.controller와 이름_Open/Stay/Close.anim을 만들고 Image의 Animator에 연결한다.
     public static class UIAnimationGenerator
     {
-        public const string PresetFolder = "Assets/UI/Animation/Presets";
+        public const string PresetFolder = "Assets/CK_Semester_Project/Animations/UI/Presets";
 
         private const float BlendSeconds = 0.1f;
         private const string DefaultWord = "Default";

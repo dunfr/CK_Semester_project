@@ -25,7 +25,7 @@ namespace OutlawIllustration.Editor
             Canvas canvas = parent != null ? parent.GetComponentInParent<Canvas>() : null;
             if (canvas == null)
             {
-                canvas = UnityEngine.Object.FindObjectOfType<Canvas>();
+                canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
                 parent = canvas != null ? canvas.transform as RectTransform : null;
             }
             if (canvas == null)

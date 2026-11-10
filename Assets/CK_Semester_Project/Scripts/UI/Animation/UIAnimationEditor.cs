@@ -8,7 +8,7 @@ namespace CK.SemesterProject.UIAnimation
     [AddComponentMenu("UI/UI 애니메이션 에디터")]
     public sealed class UIAnimationEditor : MonoBehaviour
     {
-        public const string DefaultFolder = "Assets/UI/Animation";
+        public const string DefaultFolder = "Assets/CK_Semester_Project/Animations/UI";
 
         [SerializeField] private Image _image;
 

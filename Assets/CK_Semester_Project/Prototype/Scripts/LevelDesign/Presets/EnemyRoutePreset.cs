@@ -285,6 +285,11 @@ namespace CK.SemesterProject.LevelDesign
                     yield return MoveTo(point.position, _patrolSpeed);
                     yield return new WaitForSeconds(_waitAtWaypoint);
                 }
+                else
+                {
+                    // 웨이포인트가 모두 삭제되면 양보 없이 계속 돌아 게임이 멈추므로 한 프레임 쉰다.
+                    yield return null;
+                }
                 index = (index + 1) % _waypoints.Count;
             }
         }

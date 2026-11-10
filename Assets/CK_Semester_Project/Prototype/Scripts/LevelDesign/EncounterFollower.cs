@@ -30,6 +30,12 @@ namespace CK.SemesterProject.LevelDesign
         private bool _visible = true;
         // 실제로 리더와 같은 전투에 뽑혔을 때만 true. 연출·다른 전투로 리더 AI가 잠시 꺼진 것과 구분한다.
         private bool _inEncounter;
+        // 따라가기를 마친 시점의 리더·자기 위치. 그대로면 다음 프레임에 다시 계산하지 않는다.
+        private const float SettledAngle = 0.1f;
+        private bool _isSettled;
+        private Vector3 _settledLeaderPosition;
+        private Quaternion _settledLeaderRotation;
+        private Vector3 _settledPosition;
 
         public EnemyStateMachine Leader => _leader;
         /// <summary>리더가 필드에서 움직이는 중(전투 아님)이면 true.</summary>
@@ -83,6 +89,7 @@ namespace CK.SemesterProject.LevelDesign
         private void OnEnable()
         {
             Followers.Add(this);
+            _isSettled = false;
         }
 
         private void OnDisable()
@@ -137,6 +144,14 @@ namespace CK.SemesterProject.LevelDesign
         private void Follow()
         {
             Transform leader = _leader.transform;
+            Vector3 leaderPosition = leader.position;
+            Quaternion leaderRotation = leader.rotation;
+            // 리더가 멈춰 있고 이미 제자리에 섰으면 NavMesh 조회를 건너뛴다(동료 수만큼 매 프레임 반복되는 비용).
+            if (_isSettled && leaderPosition == _settledLeaderPosition && leaderRotation == _settledLeaderRotation
+                && transform.position == _settledPosition)
+            {
+                return;
+            }
             Vector3 target = leader.TransformPoint(_offset);
             // 벽 너머로 자리 잡지 않도록 리더에서 목표까지 NavMesh 위로만 잇는다.
             if (NavMesh.Raycast(leader.position, target, out NavMeshHit wallHit, NavMesh.AllAreas))
@@ -154,6 +169,10 @@ namespace CK.SemesterProject.LevelDesign
             transform.position = next;
             Quaternion facing = flat.sqrMagnitude > 0.0004f ? Quaternion.LookRotation(flat) : leader.rotation;
             transform.rotation = Quaternion.RotateTowards(transform.rotation, facing, _turnSpeed * Time.deltaTime);
+            _isSettled = next == target && Quaternion.Angle(transform.rotation, facing) < SettledAngle;
+            _settledLeaderPosition = leaderPosition;
+            _settledLeaderRotation = leaderRotation;
+            _settledPosition = transform.position;
         }
 
         private void OnDrawGizmosSelected()

@@ -17,7 +17,7 @@ namespace CK.SemesterProject.Battle.Tests
             "Assets/CK_Semester_Project/Prototype/Sandbox/Junmo/FuchsiaShading/Prefabs/FuchsiaUpdatedAnimated.prefab";
         private const string UltClipPath =
             "Assets/CK_Semester_Project/Prototype/Sandbox/Junmo/FuchsiaShading/Animations/FuchsiaUlt.anim";
-        private const string UltSourcePath = "Assets/FuchsiaAnimation/Ult.fbx";
+        private const string UltSourcePath = "Assets/CK_Semester_Project/Animations/Fuchsia/Ult.fbx";
         private const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         // 상태 전환(0.2초 페이드)이 끝날 만큼 Animator를 직접 진행한다.
         private const float SettleSeconds = .5f;

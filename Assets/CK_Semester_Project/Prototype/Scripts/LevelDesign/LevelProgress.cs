@@ -69,6 +69,8 @@ namespace CK.SemesterProject.LevelDesign
         private bool _isReady;
         private string _storyNumber = string.Empty;
         private string _storyTitleEnglish = string.Empty;
+        private LevelInteractable _hintSource;
+        private string _hintPrompt;
 
         public string AreaName { get; private set; } = string.Empty;
         public string AreaNameEnglish { get; private set; } = string.Empty;
@@ -309,7 +311,14 @@ namespace CK.SemesterProject.LevelDesign
             {
                 return;
             }
-            _hintText.text = "[" + InteractKeyLabel + "] " + current.Prompt;
+            // 안내 문구가 바뀔 때만 문자열을 새로 만든다(매 프레임 할당 방지).
+            string prompt = current.Prompt;
+            if (current != _hintSource || prompt != _hintPrompt)
+            {
+                _hintSource = current;
+                _hintPrompt = prompt;
+                _hintText.text = "[" + InteractKeyLabel + "] " + prompt;
+            }
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.fKey.wasPressedThisFrame)
             {

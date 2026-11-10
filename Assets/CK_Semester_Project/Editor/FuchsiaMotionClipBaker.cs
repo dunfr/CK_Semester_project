@@ -49,11 +49,11 @@ namespace CK.SemesterProject.Editor
         private static readonly List<BakeReport> _lastBakeReports = new List<BakeReport>();
         private static readonly ClipSpec[] Clips =
         {
-            new ClipSpec("Assets/FuchsiaAnimation/Attack_idle.fbx", "FuchsiaAttackIdle", true, false, false),
-            new ClipSpec("Assets/FuchsiaAnimation/Ult.fbx", "FuchsiaUlt", false, false, false, "Ult_cam", "Ult_cam.Target"),
-            new ClipSpec("Assets/FuchsiaAnimation/Jump.fbx", "FuchsiaJump", false, true, false),
-            new ClipSpec("Assets/Normal Skill.fbx", "FuchsiaNormalSkill", false, false, true, "PhysCamera001", "PhysCamera001.Target"),
-            new ClipSpec("Assets/Main Skills.fbx", "FuchsiaMainSkill", false, false, true, "PhysCamera001", "PhysCamera001.Target"),
+            new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Attack_idle.fbx", "FuchsiaAttackIdle", true, false, false),
+            new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Ult.fbx", "FuchsiaUlt", false, false, false, "Ult_cam", "Ult_cam.Target"),
+            new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Jump.fbx", "FuchsiaJump", false, true, false),
+            new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Normal Skill.fbx", "FuchsiaNormalSkill", false, false, true, "PhysCamera001", "PhysCamera001.Target"),
+            new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Main Skills.fbx", "FuchsiaMainSkill", false, false, true, "PhysCamera001", "PhysCamera001.Target"),
         };
 
         [MenuItem("Tools/Fuchsia/모션 클립 다시 만들기")]
