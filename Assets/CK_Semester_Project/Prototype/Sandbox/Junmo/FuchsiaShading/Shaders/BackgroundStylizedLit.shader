@@ -28,13 +28,32 @@ Shader "Semester/Background/Stylized Lit"
         _StyleShadowSaturation("Style: saturation in shadow", Range(0, 2)) = 1
         _StyleShadowLift("Style: shadow fill (in shadow hue)", Range(0, 0.5)) = 0
         _StyleShadowDarken("Style: shadow darkness (two-tone contrast)", Range(0, 1)) = 0
+        // 구운 빛 투톤: 구운 빛이 기준보다 밝은 곳(빛 받는 곳)과 어두운 곳(못 받는 곳)을 또렷한 경계로 나누고 각 쪽 밝기를 고르게 맞춘다.
+        // 못 받는 곳은 반사광 밝기로 남는다. 기준값은 디버그 화면 Baked light(구운 빛 밝기)로 읽는다. 0이면 꺼짐.
+        _StyleCel("Style: two-tone baked light", Range(0, 1)) = 0
+        _StyleCelThreshold("Style: two-tone cut (baked brightness)", Range(0, 1)) = 0.18
+        // 1이면 밝기 × 방향성(램프 직사광 정도)으로 나눈다. 빛이 멀어져 약해지는 곳은 빛 받는 쪽에 남고, 반사광만 받는 틈·아랫면이 그늘이 된다.
+        // 밝기만으로 자르면 넓은 벽·천장에 빛이 줄어드는 등고선이 얼룩처럼 생긴다. 1로 쓸 때 기준값은 0.05~0.1 정도.
+        _StyleCelDirectional("Style: two-tone uses direct light only (0 = brightness)", Range(0, 1)) = 0
+        _StyleCelSoftness("Style: two-tone edge softness", Range(0.002, 0.2)) = 0.02
+        _StyleCelLitLevel("Style: lit side brightness (at least)", Range(0, 2)) = 0.4
+        _StyleCelLitFlatten("Style: lit side flatten (1 = even)", Range(0, 1)) = 0
+        _StyleCelShadowLevel("Style: unlit side brightness (bounce light)", Range(0, 1)) = 0.15
+        _StyleCelShadowFlatten("Style: unlit side flatten (1 = even)", Range(0, 1)) = 0.8
+        // 화면 공간 AO(SSAO, 렌더러 기능)를 이 재질이 받는 양. SSAO는 틈마다 부드러운 그라데이션과 자글자글한 잡티를 남겨 투톤을 흐린다. 1이면 그대로.
+        _StyleSSAO("Style: screen-space AO amount (0 = ignore SSAO)", Range(0, 1)) = 1
         // 캐릭터가 이 면(바닥)에 드리우는 그림자. 캐릭터 전용 그림자 맵(CharacterSelfShadowFeature)을 투영한다.
         _StyleCharacterShadow("Style: character shadow darkness on this surface", Range(0, 1)) = 0
         _StyleCharacterShadowSoftness("Style: character shadow softness (map texels)", Range(1, 8)) = 3
         // 발밑 접지 그림자: 빛 방향과 상관없이 캐릭터 발 주변을 부드럽게 어둡게 한다.
         _StyleCharacterContact("Style: character contact shadow under the feet", Range(0, 1)) = 0
         _StyleCharacterContactRadius("Style: contact shadow radius (m)", Range(0.1, 1.5)) = 0.5
-        [Enum(Off, 0, Shadow mask, 1, Baked light, 2, Character shadow, 3)] _StyleDebugView("Style: debug view", Float) = 0
+        // 구운 빛 하이라이트(투톤): 방향성 라이트맵에 담긴 램프 쪽 방향으로 하이라이트를 만들고 경계를 계단처럼 자른다.
+        _StyleSpecular("Style: baked-light highlight strength (two-tone)", Range(0, 2)) = 0
+        _StyleSpecularGloss("Style: highlight tightness", Range(1, 128)) = 24
+        _StyleSpecularStep("Style: highlight cut-off", Range(0.01, 1)) = 0.35
+        _StyleSpecularSoftness("Style: highlight edge softness", Range(0.005, 0.5)) = 0.06
+        [Enum(Off, 0, Shadow mask, 1, Baked light, 2, Character shadow, 3, Baked light direction strength, 4)] _StyleDebugView("Style: debug view", Float) = 0
         [Space]
 
         // Specular vs Metallic workflow

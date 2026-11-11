@@ -122,6 +122,13 @@ Material:
     - _StyleBakedShadow: 1
     - _StyleBakedShadowEnd: 0.24
     - _StyleBakedShadowStart: 0.12
+    - _StyleCel: 0
+    - _StyleCelLitFlatten: 0
+    - _StyleCelLitLevel: 0.4
+    - _StyleCelShadowFlatten: 0.8
+    - _StyleCelShadowLevel: 0.15
+    - _StyleCelSoftness: 0.02
+    - _StyleCelThreshold: 0.18
     - _StyleCharacterContact: 0.65
     - _StyleCharacterContactRadius: 0.45
     - _StyleCharacterShadow: 0.85
@@ -137,6 +144,10 @@ Material:
     - _StyleShadowLift: 0
     - _StyleShadowSaturation: 1.15
     - _StyleShadowTintStrength: 0.7
+    - _StyleSpecular: 0
+    - _StyleSpecularGloss: 24
+    - _StyleSpecularSoftness: 0.06
+    - _StyleSpecularStep: 0.35
     - _StyleWrap: 0
     - _Surface: 0
     - _WorkflowMode: 1

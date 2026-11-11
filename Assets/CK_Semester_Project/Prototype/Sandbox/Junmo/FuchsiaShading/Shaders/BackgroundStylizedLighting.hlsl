@@ -113,7 +113,51 @@ half3 BgStyleMainLight(BRDFData brdfData, BRDFData brdfDataClearCoat, Light ligh
     return brdf * radiance;
 }
 
-half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData)
+// 구운 빛의 주 방향(xyz)과 방향성 정도(w, 0~1). 방향성 라이트맵이면 그 방향 텍스처에서, 아니면 라이트 프로브의 L1 항에서 얻는다.
+half4 BgStyleBakedLightDirection(Varyings input)
+{
+#if defined(LIGHTMAP_ON) && defined(DIRLIGHTMAP_COMBINED)
+    float2 staticLightmapUV = input.staticLightmapUV;
+    half4 encoded = SAMPLE_TEXTURE2D_LIGHTMAP(LIGHTMAP_INDIRECTION_NAME, LIGHTMAP_SAMPLER_NAME, LIGHTMAP_SAMPLE_EXTRA_ARGS);
+    half3 d = encoded.xyz * half(2.0) - half(1.0);
+    half len = length(d);
+    return half4(d / max(len, half(0.0001)), saturate(len));
+#elif !defined(LIGHTMAP_ON)
+    half3 d = unity_SHAr.xyz * half(0.2126) + unity_SHAg.xyz * half(0.7152) + unity_SHAb.xyz * half(0.0722);
+    half len = length(d);
+    return half4(d / max(len, half(0.0001)), saturate(len * half(4.0)));
+#else
+    return half4(0, 1, 0, 0);
+#endif
+}
+
+// 구운 빛 투톤에서 빛을 받는 정도(0 = 못 받음, 1 = 받음). 기준값 앞뒤 Softness 폭에서만 바뀌어 경계가 또렷하다.
+// 판단 값은 구운 빛 밝기에 방향성(_StyleCelDirectional만큼)을 곱한 것: 한 방향에서 오는 빛(램프 직사광)일수록 크고,
+// 사방에서 오는 반사광뿐인 곳일수록 작다.
+half BgStyleCelLit(half bakedLuma, half4 bakedLightDir)
+{
+#if defined(LIGHTMAP_ON) && !defined(DIRLIGHTMAP_COMBINED)
+    half directionality = half(1.0);   // 방향 정보가 없는 라이트맵이면 밝기만 본다.
+#else
+    half directionality = bakedLightDir.w;
+#endif
+    half signal = bakedLuma * lerp(half(1.0), directionality, _StyleCelDirectional);
+    return smoothstep(_StyleCelThreshold - _StyleCelSoftness, _StyleCelThreshold + _StyleCelSoftness, signal);
+}
+
+// 구운 빛을 두 톤으로 다시 칠한다. 빛 받는 쪽은 적어도 Lit level 밝기로 올리고(더 밝은 곳은 Lit flatten만큼 그 값으로 모은다),
+// 못 받는 쪽은 Unlit level(반사광 밝기)로 모은다. 빛 색과 반사광 색은 그 자리 구운 빛의 색을 그대로 쓴다.
+half3 BgStyleCelBakedGI(half3 bakedGI, half bakedLuma, half lit)
+{
+    half litLuma = lerp(max(bakedLuma, _StyleCelLitLevel), _StyleCelLitLevel, _StyleCelLitFlatten);
+    half unlitLuma = lerp(bakedLuma, _StyleCelShadowLevel, _StyleCelShadowFlatten);
+    half target = lerp(unlitLuma, litLuma, lit);
+    // 아주 어두운 틈(밝기 0.02 미만)은 덜 키워 더 어둡게 남긴다. 거의 검은 값을 크게 키우면 색 잡음이 생긴다.
+    half3 styled = bakedGI * (target / max(bakedLuma, half(0.02)));
+    return lerp(bakedGI, styled, _StyleCel);
+}
+
+half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bakedLightDir)
 {
     #if defined(_SPECULARHIGHLIGHTS_OFF)
     bool specularHighlightsOff = true;
@@ -135,9 +179,20 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData)
     BRDFData brdfDataClearCoat = CreateClearCoatBRDFData(surfaceData, brdfData);
     half4 shadowMask = CalculateShadowMask(inputData);
     AmbientOcclusionFactor aoFactor = CreateAmbientOcclusionFactor(inputData, surfaceData);
+    // SSAO를 _StyleSSAO만큼만 받는다(0이면 재질 AO만 남는다). 조명 계산 전에 줄여야 주광·추가광의 직접 AO에도 적용된다.
+    aoFactor.indirectAmbientOcclusion = lerp(surfaceData.occlusion, aoFactor.indirectAmbientOcclusion, _StyleSSAO);
+    aoFactor.directAmbientOcclusion = lerp(half(1.0), aoFactor.directAmbientOcclusion, _StyleSSAO);
     uint meshRenderingLayers = GetMeshRenderingLayer();
     Light mainLight = GetMainLight(inputData, shadowMask, aoFactor);
     MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI);
+
+    // 구운 빛 밝기: 그늘 판단과 투톤의 기준(투톤으로 다시 칠하기 전 값).
+    half bakedLuma = Luminance(inputData.bakedGI);
+    half celLit = BgStyleCelLit(bakedLuma, bakedLightDir);
+    if (_StyleCel > half(0.001))
+    {
+        inputData.bakedGI = BgStyleCelBakedGI(inputData.bakedGI, bakedLuma, celLit);
+    }
 
     LightingData lightingData = CreateLightingData(inputData, surfaceData);
     lightingData.giColor = GlobalIllumination(brdfData, brdfDataClearCoat, surfaceData.clearCoatMask,
@@ -190,9 +245,10 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData)
     lightingData.giColor += brdfData.diffuse * _StyleAmbientColor.rgb * (_StyleAmbientLift * occlusion);
     // 그늘 판단: 해(주광)가 닿지 않는 곳이 그늘이다. 실내처럼 빛이 전부 구운 빛(라이트맵·프로브)이면
     // 해 기준으로는 화면 전체가 그늘이 되므로, _StyleBakedShadow만큼 "구운 빛이 어두운 곳"으로 그늘을 좁힌다.
-    half bakedLuma = Luminance(inputData.bakedGI);
     half bakedShadow = half(1.0) - smoothstep(_StyleBakedShadowStart,
         max(_StyleBakedShadowEnd, _StyleBakedShadowStart + half(0.001)), bakedLuma);
+    // 투톤을 켜면 그늘 판단도 투톤 경계를 따른다(그늘 색조도 경계에서 또렷하게 바뀐다).
+    bakedShadow = lerp(bakedShadow, half(1.0) - celLit, _StyleCel);
     half shadeMask = (half(1.0) - saturate(mainLit)) * lerp(half(1.0), bakedShadow, _StyleBakedShadow);
 
     // 그늘은 밝기를 유지한 채 그늘 색조로 물들인다(곱하기라 베이스 컬러가 씻기지 않는다). 해가 비치는 면은 따뜻한 색조로.
@@ -209,6 +265,19 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData)
     half saturation = _StyleSaturation * lerp(half(1.0), _StyleShadowSaturation, shadeMask);
     color.rgb = max(lerp(half3(luma, luma, luma), color.rgb, saturation), half3(0.0, 0.0, 0.0));
 
+    // 구운 빛 하이라이트(투톤): 구운 램프 빛은 스페큘러를 만들지 않으므로, 방향성 라이트맵의 주 빛 방향으로
+    // 블린-퐁 하이라이트를 계산하고 경계를 계단처럼 잘라 애니풍의 또렷한 하이라이트로 만든다. 색은 그 자리 빛 색을 따른다.
+    if (_StyleSpecular > half(0.001))
+    {
+        half3 lightDir = bakedLightDir.xyz;
+        half3 halfDir = SafeNormalize(lightDir + inputData.viewDirectionWS);
+        half nh = saturate(dot(inputData.normalWS, halfDir));
+        half nl = saturate(dot(inputData.normalWS, lightDir));
+        half specular = pow(nh, _StyleSpecularGloss) * nl;
+        half tone = smoothstep(_StyleSpecularStep - _StyleSpecularSoftness, _StyleSpecularStep + _StyleSpecularSoftness, specular);
+        color.rgb += inputData.bakedGI * (tone * _StyleSpecular * bakedLightDir.w * min(surfaceData.occlusion, aoFactor.indirectAmbientOcclusion));
+    }
+
     // 캐릭터가 드리우는 그림자: 캐릭터 실루엣 그림자와 발밑 접지 그림자 중 진한 쪽만큼 그늘 색조로 어둡게 한다
     // (구운 조명은 움직이는 캐릭터의 그림자를 만들지 못한다).
     half characterShadow = max(BgStyleCharacterShadow(inputData.positionWS) * _StyleCharacterShadow,
@@ -216,11 +285,12 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData)
     color.rgb *= (half(1.0) - characterShadow) * lerp(half3(1.0, 1.0, 1.0), shadowHue, characterShadow);
 
     // 조정용 화면: 1 = 그늘로 판단한 곳(흰색일수록 그늘), 2 = 구운 빛 밝기(회색조),
-    // 3 = 캐릭터 그림자(R: 가려진 정도, G: 캐릭터 그림자 맵 사용 중, B: 캐릭터 그림자 세기 설정).
+    // 3 = 캐릭터 그림자(R: 가려진 정도, G: 캐릭터 그림자 맵 사용 중, B: 캐릭터 그림자 세기 설정),
+    // 4 = 구운 빛의 방향성(흰색일수록 한 방향에서 오는 빛 = 램프 직사광, 검을수록 사방에서 오는 반사광).
     if (_StyleDebugView > half(0.5))
     {
-        half debugValue = _StyleDebugView < half(1.5) ? shadeMask : bakedLuma;
-        color.rgb = _StyleDebugView < half(2.5) ? half3(debugValue, debugValue, debugValue)
+        half debugValue = _StyleDebugView < half(1.5) ? shadeMask : (_StyleDebugView > half(3.5) ? bakedLightDir.w : bakedLuma);
+        color.rgb = (_StyleDebugView < half(2.5) || _StyleDebugView > half(3.5)) ? half3(debugValue, debugValue, debugValue)
             : half3(characterShadow, half(_FuchsiaCharShadowParams.x), _StyleCharacterShadow);
     }
 
@@ -269,7 +339,7 @@ void BackgroundStylizedFragment(
 
     InitializeBakedGIData(input, inputData);
 
-    half4 color = BgStyleFragmentPBR(inputData, surfaceData);
+    half4 color = BgStyleFragmentPBR(inputData, surfaceData, BgStyleBakedLightDirection(input));
     color.rgb = MixFog(color.rgb, inputData.fogCoord);
     color.a = OutputAlpha(color.a, IsSurfaceTypeTransparent(_Surface));
 

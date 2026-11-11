@@ -187257,6 +187257,9 @@ MonoBehaviour:
   _floorSearchDistance: 3
   _floorHeightTolerance: 0.05
   _backgroundColor: {r: 0.52, g: 0.54, b: 0.6, a: 1}
+  _secondFloorLevel: 1
+  _secondFloorMaxStep: 1.5
+  _secondFloorSearchDistance: 30
 --- !u!4 &1644197983
 Transform:
   m_ObjectHideFlags: 0
