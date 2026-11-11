@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -15,14 +16,25 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
     [SerializeField, Range(0.25f, 1f), Tooltip("원본 화면에 대한 반사 텍스처 해상도 비율입니다.")]
     private float _resolutionScale = 0.5f;
 
-    [SerializeField, Min(0.001f), Tooltip("바닥 아래 물체가 반사되지 않도록 자르는 여유 거리(m)입니다.")]
+    [SerializeField, Range(-0.1f, 0.1f), Tooltip("반사 평면에서 이 거리(m)만큼 위(+) 또는 아래(-)부터 반사에 그립니다. 양수면 벽·기둥 밑동이 그만큼 반사에서 잘려 그 틈으로 바깥(하늘)이 비칩니다. 바닥 재질을 반사에서 숨기면(Hide In Reflection) 음수로 두어 밑동까지 그릴 수 있습니다.")]
     private float _clipOffset = 0.03f;
+
+    [SerializeField, Tooltip("반사를 그리는 동안만 숨길 바닥 재질입니다. 반사 평면 높이(±0.3 m)에 있는 이 재질의 렌더러만 숨깁니다. 바닥을 숨겨야 Clip Offset을 음수로 둘 수 있습니다.")]
+    private Material[] _hideInReflection = new Material[0];
 
     [SerializeField, Tooltip("반사 평면 높이를 이 대상(예: 플레이어)이 서 있는 바닥에 맞춥니다. 비워 두면 이 오브젝트 높이를 씁니다. 층이 여러 개인 맵용입니다.")]
     private Transform _followFloorOf;
 
     [SerializeField, Min(0.1f), Tooltip("대상 아래로 바닥을 찾는 최대 거리(m)입니다.")]
     private float _floorSearchDistance = 3f;
+
+    [SerializeField, Min(0f), Tooltip("새로 찾은 바닥 높이가 지금 평면과 이 값(m) 이내로 다르면 평면을 옮기지 않습니다. 같은 방 타일끼리 높이가 1~3 cm씩 달라 반사가 튀는 것을 막습니다. 방마다 바닥 높이가 10 cm쯤 다르므로 그보다 작게 둡니다(크면 다른 방 높이에 평면이 남아 반사가 바닥에서 떠 보입니다).")]
+    private float _floorHeightTolerance = 0.05f;
+
+    [SerializeField, Tooltip("반사 카메라의 배경색입니다. 반사에 아무것도 없는 곳(수평선 너머, 바닥 아래로 잘린 곳)이 이 색으로 채워지고, 흐림 때문에 수평선 근처 바닥에 번집니다. 하늘을 그대로 두면 카메라가 낮을 때 바닥이 하늘색으로 물듭니다.")]
+    private Color _backgroundColor = new Color(0.52f, 0.54f, 0.6f, 1f);
+
+    private float _lockedPlaneY = float.NaN;
 
     private static readonly int ReflectionTextureId = Shader.PropertyToID("_CorridorPlanarReflection");
     private static readonly int ReflectionMatrixId = Shader.PropertyToID("_CorridorReflectionMatrix");
@@ -36,9 +48,13 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
     private Camera _reflectionCamera;
     private RenderTexture _reflectionTexture;
     private bool _isRendering;
+    private readonly List<Renderer> _hideCandidates = new List<Renderer>();
+    private readonly List<Renderer> _hiddenNow = new List<Renderer>();
 
     private void OnEnable()
     {
+        _lockedPlaneY = float.NaN;
+        CollectHideCandidates();
         Shader.SetGlobalFloat(ReflectionAvailableId, 0);
         RenderPipelineManager.beginCameraRendering += RenderReflection;
     }
@@ -66,6 +82,9 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
         EnsureResources(camera);
         _reflectionCamera.CopyFrom(camera);
         _reflectionCamera.enabled = false;
+        // 반사에 아무것도 없는 곳은 하늘 대신 배경색으로 채운다(하늘 수평선의 밝은 하늘색이 흐림을 타고 바닥에 번지던 문제).
+        _reflectionCamera.clearFlags = CameraClearFlags.SolidColor;
+        _reflectionCamera.backgroundColor = _backgroundColor;
         _reflectionCamera.cameraType = CameraType.Reflection;
         _reflectionCamera.useOcclusionCulling = false;
         _reflectionCamera.targetTexture = _reflectionTexture;
@@ -100,6 +119,7 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
             {
                 destination = _reflectionTexture
             };
+            HideFloors(planePosition.y);
             RenderPipeline.SubmitRenderRequest(_reflectionCamera, request);
             Matrix4x4 gpuProjection = GL.GetGPUProjectionMatrix(_reflectionCamera.projectionMatrix, true);
             Shader.SetGlobalMatrix(ReflectionMatrixId, gpuProjection * _reflectionCamera.worldToCameraMatrix);
@@ -113,9 +133,61 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
         }
         finally
         {
+            ShowFloors();
             GL.invertCulling = previousCulling;
             _isRendering = false;
         }
+    }
+
+    // 바닥 자체는 반사에 나올 필요가 없다. 반사를 그리는 동안만 숨기면 클립 평면을 바닥보다 조금 아래로 내려
+    // 벽·기둥 밑동을 자르지 않을 수 있다(밑동이 잘리면 그 틈으로 바깥 하늘이 반사에 비친다).
+    private void CollectHideCandidates()
+    {
+        _hideCandidates.Clear();
+        if (_hideInReflection == null || _hideInReflection.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var candidate in FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        {
+            foreach (var material in candidate.sharedMaterials)
+            {
+                if (material != null && System.Array.IndexOf(_hideInReflection, material) >= 0)
+                {
+                    _hideCandidates.Add(candidate);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void HideFloors(float planeY)
+    {
+        _hiddenNow.Clear();
+        foreach (var candidate in _hideCandidates)
+        {
+            if (candidate == null || candidate.forceRenderingOff || Mathf.Abs(candidate.bounds.max.y - planeY) > 0.3f)
+            {
+                continue;
+            }
+
+            candidate.forceRenderingOff = true;
+            _hiddenNow.Add(candidate);
+        }
+    }
+
+    private void ShowFloors()
+    {
+        foreach (var hidden in _hiddenNow)
+        {
+            if (hidden != null)
+            {
+                hidden.forceRenderingOff = false;
+            }
+        }
+
+        _hiddenNow.Clear();
     }
 
     private void EnsureResources(Camera camera)
@@ -180,17 +252,28 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
             }
         }
 
+        float floorY;
         if (nearest < 0)
         {
-            position.y = _followFloorOf.position.y;
-            return position;
+            floorY = _followFloorOf.position.y;
+        }
+        else
+        {
+            // 충돌체 윗면이 보이는 바닥면보다 낮은 경우가 있어, 얇은 바닥 메시면 그 메시 윗면을 쓴다.
+            RaycastHit hit = FloorHits[nearest];
+            floorY = hit.collider.TryGetComponent(out Renderer floorRenderer) && floorRenderer.bounds.size.y < 0.6f
+                ? floorRenderer.bounds.max.y
+                : hit.point.y;
         }
 
-        // 충돌체 윗면이 보이는 바닥면보다 낮은 경우가 있어, 얇은 바닥 메시면 그 메시 윗면을 쓴다.
-        RaycastHit hit = FloorHits[nearest];
-        position.y = hit.collider.TryGetComponent(out Renderer floorRenderer) && floorRenderer.bounds.size.y < 0.6f
-            ? floorRenderer.bounds.max.y
-            : hit.point.y;
+        // 같은 층 안에서 타일을 건너갈 때마다 평면이 몇 cm씩 뛰면 반사 전체가 움찔거려 깜빡여 보인다.
+        // 허용 범위 안의 차이는 무시하고, 층이 바뀔 만큼 달라졌을 때만 평면을 옮긴다.
+        if (float.IsNaN(_lockedPlaneY) || Mathf.Abs(floorY - _lockedPlaneY) > _floorHeightTolerance)
+        {
+            _lockedPlaneY = floorY;
+        }
+
+        position.y = _lockedPlaneY;
         return position;
     }
 

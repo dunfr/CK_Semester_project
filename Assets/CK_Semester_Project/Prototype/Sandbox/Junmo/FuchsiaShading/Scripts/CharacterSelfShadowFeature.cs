@@ -58,10 +58,13 @@ public sealed class CharacterSelfShadowFeature : ScriptableRendererFeature
         private static readonly int MatricesId = Shader.PropertyToID("_FuchsiaCharShadowMatrices");
         private static readonly int DepthScaleId = Shader.PropertyToID("_FuchsiaCharShadowDepthScale");
         private static readonly int RenderMatrixId = Shader.PropertyToID("_FuchsiaCharShadowRender");
+        // 칸마다 캐릭터 발밑 위치(xyz)와 사용 여부(w). 배경 바닥 셰이더가 발밑 접지 그림자를 그릴 때 쓴다.
+        private static readonly int FeetId = Shader.PropertyToID("_FuchsiaCharFeet");
         private const string PassName = "FuchsiaCharacterShadow";
 
         private readonly Matrix4x4[] _matrices = new Matrix4x4[CharacterLighting.MaxShadowSlots];
         private readonly Vector4[] _depthScale = new Vector4[CharacterLighting.MaxShadowSlots];
+        private readonly Vector4[] _feet = new Vector4[CharacterLighting.MaxShadowSlots];
         private int _resolution;
         private float _padding;
 
@@ -80,6 +83,7 @@ public sealed class CharacterSelfShadowFeature : ScriptableRendererFeature
             internal readonly bool[] Used = new bool[CharacterLighting.MaxShadowSlots];
             internal Matrix4x4[] Matrices;
             internal Vector4[] DepthScale;
+            internal Vector4[] Feet;
             internal int Resolution;
         }
 
@@ -141,6 +145,7 @@ public sealed class CharacterSelfShadowFeature : ScriptableRendererFeature
                 data.Resolution = _resolution;
                 data.Matrices = _matrices;
                 data.DepthScale = _depthScale;
+                data.Feet = _feet;
                 IReadOnlyList<CharacterLighting> characters = CharacterLighting.Active;
                 for (int slot = 0; slot < CharacterLighting.MaxShadowSlots; slot++)
                 {
@@ -149,6 +154,7 @@ public sealed class CharacterSelfShadowFeature : ScriptableRendererFeature
                     data.Used[slot] = false;
                     _matrices[slot] = Matrix4x4.identity;
                     _depthScale[slot] = Vector4.zero;
+                    _feet[slot] = Vector4.zero;
                     if (slot >= characters.Count) continue;
                     CharacterLighting character = characters[slot];
                     if (character == null || !character.TryGetSelfShadowSphere(out Vector3 center, out float radius)) continue;
@@ -159,6 +165,8 @@ public sealed class CharacterSelfShadowFeature : ScriptableRendererFeature
                     _matrices[slot] = m;
                     // x: 1/깊이 범위, y: 깊이 범위(m), z: 텍셀 크기(m) — 셰이더의 바이어스·노멀 밀기에 쓴다.
                     _depthScale[slot] = new Vector4(1f / range, range, texelSize, 0f);
+                    Vector3 feet = character.transform.position;
+                    _feet[slot] = new Vector4(feet.x, feet.y, feet.z, 1f);
                     foreach (Renderer renderer in character.Renderers)
                     {
                         if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy
@@ -196,6 +204,7 @@ public sealed class CharacterSelfShadowFeature : ScriptableRendererFeature
                     }
                     cmd.SetGlobalMatrixArray(MatricesId, d.Matrices);
                     cmd.SetGlobalVectorArray(DepthScaleId, d.DepthScale);
+                    cmd.SetGlobalVectorArray(FeetId, d.Feet);
                     // x: 사용 여부, y: 칸 수, z: 칸 해상도
                     cmd.SetGlobalVector(ParamsId, new Vector4(any ? 1f : 0f, CharacterLighting.MaxShadowSlots, d.Resolution, 0f));
                 });

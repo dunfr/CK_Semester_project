@@ -27,14 +27,19 @@ Material:
     m_Floats:
     - _BlurMip: 2.5
     - _BlurPixels: 3
-    - _FarDistance: 12
+    - _FarDistance: 0
     - _FarStrength: 0.1
-    - _FloorColorLoss: 0
-    - _GrazingBoost: 0
+    - _FloorColorLoss: 1
+    - _FresnelMin: 0.1
+    - _FresnelPower: 4
+    - _GrazingBoost: 1
+    - _GrazingSharpness: 0.9
     - _NearDistance: 1.5
+    - _PlaneFadeEnd: 0.09
+    - _PlaneFadeStart: 0.05
     - _PlaneHeightFade: 1
     - _SeamMask: 0
-    - _Strength: 0.25
+    - _Strength: 0.9
     m_Colors:
     - _Tint: {r: 0.9, g: 0.95, b: 1, a: 1}
   m_BuildTextureStacks: []

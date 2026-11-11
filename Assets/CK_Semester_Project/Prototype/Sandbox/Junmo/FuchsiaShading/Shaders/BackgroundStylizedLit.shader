@@ -21,6 +21,20 @@ Shader "Semester/Background/Stylized Lit"
         _StyleAmbientLift("Style: high-key fill amount", Range(0, 1)) = 0
         _StyleMetallicScale("Style: metallic scale", Range(0, 1)) = 1
         _StyleSaturation("Style: saturation", Range(0, 2)) = 1
+        // 그늘을 구운 빛(라이트맵·프로브) 밝기로 판단한다. 0이면 해(주광)만 보고, 1이면 구운 빛이 어두운 곳만 그늘이다.
+        _StyleBakedShadow("Style: shadow from baked light (0 = sun only)", Range(0, 1)) = 0
+        _StyleBakedShadowStart("Style: baked light below this = full shadow", Range(0, 2)) = 0.08
+        _StyleBakedShadowEnd("Style: baked light above this = no shadow", Range(0, 2)) = 0.45
+        _StyleShadowSaturation("Style: saturation in shadow", Range(0, 2)) = 1
+        _StyleShadowLift("Style: shadow fill (in shadow hue)", Range(0, 0.5)) = 0
+        _StyleShadowDarken("Style: shadow darkness (two-tone contrast)", Range(0, 1)) = 0
+        // 캐릭터가 이 면(바닥)에 드리우는 그림자. 캐릭터 전용 그림자 맵(CharacterSelfShadowFeature)을 투영한다.
+        _StyleCharacterShadow("Style: character shadow darkness on this surface", Range(0, 1)) = 0
+        _StyleCharacterShadowSoftness("Style: character shadow softness (map texels)", Range(1, 8)) = 3
+        // 발밑 접지 그림자: 빛 방향과 상관없이 캐릭터 발 주변을 부드럽게 어둡게 한다.
+        _StyleCharacterContact("Style: character contact shadow under the feet", Range(0, 1)) = 0
+        _StyleCharacterContactRadius("Style: contact shadow radius (m)", Range(0.1, 1.5)) = 0.5
+        [Enum(Off, 0, Shadow mask, 1, Baked light, 2, Character shadow, 3)] _StyleDebugView("Style: debug view", Float) = 0
         [Space]
 
         // Specular vs Metallic workflow

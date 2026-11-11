@@ -6,6 +6,80 @@
 // - 금속감 배율: 모델러 텍스처는 그대로 두고, 패널이 칠한 면처럼 밝게 읽히도록 금속도만 줄인다.
 // 모든 스타일 값이 기본값(0, 금속 배율 1, 채도 1)이면 URP Lit과 같은 결과가 나온다.
 
+// 캐릭터 전용 그림자 맵(CharacterSelfShadowFeature가 채움): 칸 4개 가로 배치, 캐릭터 툰 주광 쪽에서 잰 0~1 깊이.
+TEXTURE2D_FLOAT(_FuchsiaCharShadowMap);
+float4x4 _FuchsiaCharShadowMatrices[4];
+float4 _FuchsiaCharShadowDepthScale[4];
+float4 _FuchsiaCharShadowParams;
+
+// 이 점이 캐릭터에 가려 캐릭터 주광을 못 받는 정도(0 = 안 가려짐, 1 = 완전히 가려짐).
+// 바닥은 그림자 맵의 깊이 범위 밖(캐릭터 뒤쪽)에 있으므로, 맵에 캐릭터가 그려진 자리면 깊이 범위를 넘어도 가려진 것으로 본다.
+// 캐릭터 뒤로 2.5 m를 넘는 곳(아래층 바닥 등)은 그림자를 받지 않는다.
+half BgStyleCharacterShadow(float3 positionWS)
+{
+    if (_FuchsiaCharShadowParams.x < 0.5 || _StyleCharacterShadow <= half(0.001))
+    {
+        return 0;
+    }
+    float resolution = _FuchsiaCharShadowParams.z;
+    int maxCoord = (int)resolution - 1;
+    float spacing = max(_StyleCharacterShadowSoftness, 1.0);
+    half occluded = 0;
+    UNITY_UNROLL for (int slot = 0; slot < 4; slot++)
+    {
+        float3 clip = mul(_FuchsiaCharShadowMatrices[slot], float4(positionWS, 1)).xyz;
+        float4 scale = _FuchsiaCharShadowDepthScale[slot];   // x: 1/깊이 범위, y: 깊이 범위(m), z: 텍셀 크기(m)
+        if (any(abs(clip.xy) > 1) || clip.z <= 0 || clip.z > 1.0 + 2.5 * scale.x)
+        {
+            continue;
+        }
+        float depth = min(clip.z, 1.0) - 0.01 * scale.x;
+        float2 texelPosition = (clip.xy * 0.5 + 0.5) * resolution - 0.5;
+        int slotX = slot * (int)resolution;
+        float hidden = 0;
+        // 4x4 표본을 spacing 텍셀 간격으로 펼쳐 부드러운 가장자리를 만든다.
+        UNITY_UNROLL for (int y = 0; y < 4; y++)
+        {
+            UNITY_UNROLL for (int x = 0; x < 4; x++)
+            {
+                float2 offset = (float2(x, y) - 1.5) * spacing;
+                int2 coord = clamp(int2(round(texelPosition + offset)), 0, maxCoord) + int2(slotX, 0);
+                float stored = LOAD_TEXTURE2D(_FuchsiaCharShadowMap, coord).r;
+                hidden += depth > stored ? 1.0 : 0.0;
+            }
+        }
+        occluded = max(occluded, half(hidden / 16.0));
+    }
+    return occluded;
+}
+
+// 칸마다 캐릭터 발밑 위치(xyz)와 사용 여부(w). CharacterSelfShadowFeature가 채운다.
+float4 _FuchsiaCharFeet[4];
+
+// 발밑 접지 그림자(0~1): 천장 조명 아래 선 캐릭터의 발 주변이 어두워지는 것을 흉내 낸다.
+// 캐릭터 주광 방향과 상관없이 늘 보이므로, 그림자가 캐릭터 뒤로 숨는 시점에서도 캐릭터가 바닥에 붙어 보인다.
+// 점프하면 발 높이 차이만큼 옅어진다.
+half BgStyleCharacterContact(float3 positionWS)
+{
+    if (_FuchsiaCharShadowParams.x < 0.5 || _StyleCharacterContact <= half(0.001))
+    {
+        return 0;
+    }
+    half contact = 0;
+    UNITY_UNROLL for (int slot = 0; slot < 4; slot++)
+    {
+        float4 feet = _FuchsiaCharFeet[slot];
+        if (feet.w < 0.5)
+        {
+            continue;
+        }
+        float r = length(positionWS.xz - feet.xz) / max(_StyleCharacterContactRadius, 0.05);
+        float h = abs(positionWS.y - feet.y);
+        contact = max(contact, half((1.0 - smoothstep(0.15, 1.0, r)) * (1.0 - smoothstep(0.15, 0.6, h))));
+    }
+    return contact;
+}
+
 // 색을 밝기 1로 맞춘다. 그늘·빛의 색조만 바꾸고 밝기는 유지하려고 쓴다.
 half3 BgStyleHue(half3 tint)
 {
@@ -114,14 +188,41 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData)
     // 하이키: 어두운 곳을 일정한 색의 채움광으로 들어 올린다(오목한 곳은 차폐만큼 덜).
     half occlusion = min(surfaceData.occlusion, aoFactor.indirectAmbientOcclusion);
     lightingData.giColor += brdfData.diffuse * _StyleAmbientColor.rgb * (_StyleAmbientLift * occlusion);
-    // 그늘(해가 닿지 않는 간접광)은 밝기를 유지한 채 차가운 색조로, 해가 비치는 면은 따뜻한 색조로.
-    half shadowAmount = _StyleShadowTintStrength * (half(1.0) - saturate(mainLit));
-    lightingData.giColor *= lerp(half3(1.0, 1.0, 1.0), BgStyleHue(_StyleShadowTint.rgb), shadowAmount);
+    // 그늘 판단: 해(주광)가 닿지 않는 곳이 그늘이다. 실내처럼 빛이 전부 구운 빛(라이트맵·프로브)이면
+    // 해 기준으로는 화면 전체가 그늘이 되므로, _StyleBakedShadow만큼 "구운 빛이 어두운 곳"으로 그늘을 좁힌다.
+    half bakedLuma = Luminance(inputData.bakedGI);
+    half bakedShadow = half(1.0) - smoothstep(_StyleBakedShadowStart,
+        max(_StyleBakedShadowEnd, _StyleBakedShadowStart + half(0.001)), bakedLuma);
+    half shadeMask = (half(1.0) - saturate(mainLit)) * lerp(half(1.0), bakedShadow, _StyleBakedShadow);
+
+    // 그늘은 밝기를 유지한 채 그늘 색조로 물들인다(곱하기라 베이스 컬러가 씻기지 않는다). 해가 비치는 면은 따뜻한 색조로.
+    half3 shadowHue = BgStyleHue(_StyleShadowTint.rgb);
+    lightingData.giColor *= lerp(half3(1.0, 1.0, 1.0), shadowHue, _StyleShadowTintStrength * shadeMask);
+    // 그늘 대비: 그늘을 이만큼 더 어둡게 해서 밝은 면과 투톤으로 또렷하게 나뉘게 한다(경계는 Start~End 폭).
+    lightingData.giColor *= half(1.0) - _StyleShadowDarken * shadeMask;
+    // 그늘 채움: 너무 어두운 그늘을 같은 색조의 약한 빛으로 들어 올린다(오목한 곳은 차폐만큼 덜).
+    lightingData.giColor += brdfData.diffuse * shadowHue * (_StyleShadowLift * shadeMask * occlusion);
     lightingData.mainLightColor *= lerp(half3(1.0, 1.0, 1.0), BgStyleHue(_StyleLitTint.rgb), _StyleLitTintStrength);
 
     half4 color = CalculateFinalColor(lightingData, surfaceData.alpha);
     half luma = Luminance(color.rgb);
-    color.rgb = max(lerp(half3(luma, luma, luma), color.rgb, _StyleSaturation), half3(0.0, 0.0, 0.0));
+    half saturation = _StyleSaturation * lerp(half(1.0), _StyleShadowSaturation, shadeMask);
+    color.rgb = max(lerp(half3(luma, luma, luma), color.rgb, saturation), half3(0.0, 0.0, 0.0));
+
+    // 캐릭터가 드리우는 그림자: 캐릭터 실루엣 그림자와 발밑 접지 그림자 중 진한 쪽만큼 그늘 색조로 어둡게 한다
+    // (구운 조명은 움직이는 캐릭터의 그림자를 만들지 못한다).
+    half characterShadow = max(BgStyleCharacterShadow(inputData.positionWS) * _StyleCharacterShadow,
+        BgStyleCharacterContact(inputData.positionWS) * _StyleCharacterContact);
+    color.rgb *= (half(1.0) - characterShadow) * lerp(half3(1.0, 1.0, 1.0), shadowHue, characterShadow);
+
+    // 조정용 화면: 1 = 그늘로 판단한 곳(흰색일수록 그늘), 2 = 구운 빛 밝기(회색조),
+    // 3 = 캐릭터 그림자(R: 가려진 정도, G: 캐릭터 그림자 맵 사용 중, B: 캐릭터 그림자 세기 설정).
+    if (_StyleDebugView > half(0.5))
+    {
+        half debugValue = _StyleDebugView < half(1.5) ? shadeMask : bakedLuma;
+        color.rgb = _StyleDebugView < half(2.5) ? half3(debugValue, debugValue, debugValue)
+            : half3(characterShadow, half(_FuchsiaCharShadowParams.x), _StyleCharacterShadow);
+    }
 
 #if REAL_IS_HALF
     return min(color, HALF_MAX);

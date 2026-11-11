@@ -45,6 +45,17 @@ half _StyleLitTintStrength;
 half _StyleAmbientLift;
 half _StyleMetallicScale;
 half _StyleSaturation;
+half _StyleBakedShadow;
+half _StyleBakedShadowStart;
+half _StyleBakedShadowEnd;
+half _StyleShadowSaturation;
+half _StyleShadowLift;
+half _StyleShadowDarken;
+half _StyleCharacterShadow;
+half _StyleCharacterShadowSoftness;
+half _StyleCharacterContact;
+half _StyleCharacterContactRadius;
+half _StyleDebugView;
 UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 CBUFFER_END
 
