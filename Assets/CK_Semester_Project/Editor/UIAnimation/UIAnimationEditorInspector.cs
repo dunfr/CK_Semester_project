@@ -33,6 +33,15 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         private const string TriggerGuide =
             "+를 눌러 오브젝트를 끌어다 놓고 실행할 함수를 고릅니다. 이 Image에만 적용되고 플레이 중에 실행됩니다.";
 
+        private const string ScopeKey = "CK.UIAnimation.Preview.";
+        private const string ScopeGuide =
+            "기준 오브젝트가 켜질 때 체크한 Image가 함께 나온다고 보고 재생합니다. "
+            + "'시작'은 미리보기에서만 쓰는 값이라 게임에는 들어가지 않습니다. 이름을 누르면 그 Image를 편집합니다.";
+        private const float ScopeIndent = 12f;
+        private const float ScopeStartWidth = 44f;
+
+        private static readonly string[] ScopeNames = { "이 Image만", "여러 Panel 함께" };
+        private static readonly Color TimelineCurrent = new Color(1f, 1f, 1f, 0.08f);
         private static readonly string[] PageNames = { "상태 애니메이션", "입력 반응", "연출·연결" };
         private static readonly string[] RateNames = { "1배", "0.5배", "0.25배" };
         private static readonly float[] Rates = { 1f, 0.5f, 0.25f };
@@ -102,10 +111,14 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         private float _staggerStep = 0.04f;
         private bool _staggerReverse;
         private double _saveAt = double.MaxValue;
+        private bool _together;
+        private Transform _scopeRoot;
+        private readonly Dictionary<UIAnimationPlayer, string> _scopeKeys = new Dictionary<UIAnimationPlayer, string>();
 
         private void OnEnable()
         {
             _image = serializedObject.FindProperty("_image");
+            _together = SessionState.GetBool(ScopeKey + "Together", false);
             _previewer = new UIAnimationPreviewer();
             _previewer.Stopped += ClearEffectBrightness;
             _previewer.Stopped += Repaint;
@@ -1083,13 +1096,34 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     return;
                 }
 
+                int scope = GUILayout.Toolbar(_together ? 1 : 0, ScopeNames);
+                if ((scope == 1) != _together)
+                {
+                    _previewer.Stop();
+                    _previewStates = null;
+                    _together = scope == 1;
+                    SessionState.SetBool(ScopeKey + "Together", _together);
+                    GUI.FocusControl(null);
+                }
+                if (_together && !DrawScopeControls())
+                {
+                    return;
+                }
+
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button($"▶ {_state}"))
+                    if (_together)
+                    {
+                        if (GUILayout.Button("▶ 함께 Open"))
+                        {
+                            Preview(UIAnimationState.Open);
+                        }
+                    }
+                    else if (GUILayout.Button($"▶ {_state}"))
                     {
                         Preview(_state);
                     }
-                    if (GUILayout.Button("▶ 전체 흐름"))
+                    if (GUILayout.Button(_together ? "▶ 함께 전체 흐름" : "▶ 전체 흐름"))
                     {
                         Preview(UIAnimationState.Open, UIAnimationState.Stay, UIAnimationState.Close);
                     }
@@ -1101,11 +1135,177 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                         }
                     }
                 }
-                if (_preset.HideShowEnabled && GUILayout.Button("▶ 숨김 → 보임"))
+                if (!_together && _preset.HideShowEnabled && GUILayout.Button("▶ 숨김 → 보임"))
                     Preview(UIAnimationState.Hide, UIAnimationState.Show);
                 DrawPreviewOptions();
                 DrawTimeline();
             }
+        }
+
+        // 기준 오브젝트와 함께 볼 Image 목록이다. 볼 것이 없으면 false를 돌려 재생 버튼을 숨긴다.
+        private bool DrawScopeControls()
+        {
+            Transform target = _player.transform;
+            List<Transform> roots = UIAnimationPreviewScope.Roots(target);
+            if (roots.Count == 0)
+            {
+                EditorGUILayout.HelpBox("부모 오브젝트가 있는 Image에서만 함께 볼 수 있습니다.", MessageType.Info);
+                return false;
+            }
+
+            Transform root = ScopeRoot();
+            int index = Mathf.Max(0, roots.IndexOf(root));
+            string[] labels = roots.Select((_, i) => UIAnimationPreviewScope.Label(roots, i)).ToArray();
+            int picked = EditorGUILayout.Popup(
+                new GUIContent("기준 오브젝트", "이 오브젝트가 켜질 때 함께 나오는 애니메이션을 한 번에 재생합니다."), index, labels);
+            if (picked != index)
+            {
+                _previewer.Stop();
+                _previewStates = null;
+                root = roots[picked];
+                _scopeRoot = root;
+                SessionState.SetString(ScopeKey + "Root", ScopeId(root));
+            }
+            EditorGUILayout.LabelField(ScopeGuide, EditorStyles.wordWrappedMiniLabel);
+
+            List<UIAnimationPlayer> players = UIAnimationPreviewScope.Players(root);
+            if (players.Count == 0)
+            {
+                EditorGUILayout.HelpBox("기준 오브젝트 아래에 애니메이션을 만든 Image가 없습니다.", MessageType.Info);
+                return false;
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField($"함께 볼 Image ({players.Count(player => IsIncluded(player, root))}/{players.Count})", EditorStyles.miniBoldLabel);
+                GUILayout.Label("시작 (초)", EditorStyles.miniLabel, GUILayout.Width(ScopeStartWidth + 8f));
+            }
+            bool changed = false;
+            foreach (UIAnimationPlayer player in players)
+            {
+                changed |= DrawScopeRow(player, root);
+            }
+            if (changed && _previewer.IsPlaying && _previewStates != null)
+            {
+                RestartPreview();
+            }
+            if (!players.Any(player => IsIncluded(player, root)))
+            {
+                EditorGUILayout.HelpBox("함께 볼 Image를 하나 이상 체크하세요.", MessageType.Info);
+                return false;
+            }
+            return true;
+        }
+
+        private bool DrawScopeRow(UIAnimationPlayer player, Transform root)
+        {
+            bool changed = false;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Space(ScopeIndent * UIAnimationPreviewScope.Depth(player.transform, root));
+                bool included = IsIncluded(player, root);
+                bool next = EditorGUILayout.Toggle(included, GUILayout.Width(16f));
+                if (next != included)
+                {
+                    SessionState.SetInt(ScopeKey + "On." + ScopeId(player), next ? 1 : 0);
+                    changed = true;
+                }
+
+                string name = player.name + (UIAnimationPreviewScope.OpensWithRoot(player, root) ? string.Empty : "  (꺼져 있음)");
+                GUIStyle style = player == _player ? EditorStyles.boldLabel : EditorStyles.label;
+                if (GUILayout.Button(new GUIContent(name, "눌러서 이 Image를 편집합니다."), style) && player != _player)
+                {
+                    EditorApplication.delayCall += () => SwitchTo(player);
+                }
+
+                using (new EditorGUI.DisabledScope(!next))
+                {
+                    float start = StartOffset(player);
+                    float picked = Mathf.Max(0f, EditorGUILayout.DelayedFloatField(start, GUILayout.Width(ScopeStartWidth)));
+                    if (!Mathf.Approximately(picked, start))
+                    {
+                        SessionState.SetFloat(ScopeKey + "At." + ScopeId(player), picked);
+                        changed = true;
+                    }
+                }
+            }
+            return changed;
+        }
+
+        // 목록에서 이름을 누르면 그 Image로 편집 대상을 바꾼다. 그리는 도중에 바꾸면 화면이 어긋나서 다음 틱에 바꾼다.
+        private void SwitchTo(UIAnimationPlayer player)
+        {
+            if (this == null || player == null)
+            {
+                return;
+            }
+            Image image = player.GetComponent<Image>();
+            if (image == null)
+            {
+                return;
+            }
+            serializedObject.Update();
+            _image.objectReferenceValue = image;
+            serializedObject.ApplyModifiedProperties();
+            OnImageChanged();
+            Repaint();
+        }
+
+        // 고른 기준이 지금 Image의 부모가 아니면 Canvas 바로 아래 패널로 돌아간다.
+        private Transform ScopeRoot()
+        {
+            Transform target = _player.transform;
+            if (IsScopeRootFor(_scopeRoot, target))
+            {
+                return _scopeRoot;
+            }
+            Transform saved = null;
+            if (GlobalObjectId.TryParse(SessionState.GetString(ScopeKey + "Root", string.Empty), out GlobalObjectId id))
+            {
+                saved = (GlobalObjectId.GlobalObjectIdentifierToObjectSlow(id) as GameObject)?.transform;
+            }
+            _scopeRoot = IsScopeRootFor(saved, target) ? saved : UIAnimationPreviewScope.DefaultRoot(target);
+            return _scopeRoot;
+        }
+
+        private static bool IsScopeRootFor(Transform root, Transform target)
+        {
+            return root != null && root != target && target.IsChildOf(root);
+        }
+
+        // 따로 정하지 않은 Image는 기준과 함께 켜지는 것만 넣는다.
+        private bool IsIncluded(UIAnimationPlayer player, Transform root)
+        {
+            int saved = SessionState.GetInt(ScopeKey + "On." + ScopeId(player), -1);
+            return saved < 0 ? UIAnimationPreviewScope.OpensWithRoot(player, root) : saved == 1;
+        }
+
+        private float StartOffset(UIAnimationPlayer player)
+        {
+            return SessionState.GetFloat(ScopeKey + "At." + ScopeId(player), 0f);
+        }
+
+        // 다른 Image를 고르거나 창을 다시 열어도 체크와 시작 값이 남도록 오브젝트마다 키를 둔다.
+        private string ScopeId(UnityEngine.Object target)
+        {
+            var player = target as UIAnimationPlayer;
+            if (player != null && _scopeKeys.TryGetValue(player, out string cached))
+            {
+                return cached;
+            }
+            UnityEngine.Object keyed = target is Component component ? component.gameObject : target;
+            string key = GlobalObjectId.GetGlobalObjectIdSlow(keyed).ToString();
+            if (player != null)
+            {
+                _scopeKeys[player] = key;
+            }
+            return key;
+        }
+
+        // 함께 보기에서는 Image마다 미리보기 시작 시간을 더한다. 혼자 볼 때는 0이다.
+        private double Begin(UIAnimationPlayer player)
+        {
+            return _together && !IsVisibilityPreview ? StartOffset(player) : 0.0;
         }
 
         // 부모와 자식의 지연, Open, Stay, Close 길이를 막대로 보여 준다.
@@ -1117,6 +1317,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 DrawVisibilityTimeline(players);
                 return;
             }
+            if (players.Count == 0)
+            {
+                return;
+            }
             double closeAt = FlowCloseStart(players);
             double total = players.Max(player => closeAt + player.CloseDelay + player.Preset.Get(UIAnimationState.Close).Duration);
             Rect area = default;
@@ -1126,11 +1330,16 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 area = area == default ? row : Rect.MinMaxRect(row.x, area.y, row.xMax, row.yMax);
                 if (Event.current.type == EventType.Repaint)
                 {
-                    DrawTimelineRow(row, player, closeAt, total);
+                    if (_together && player == _player)
+                    {
+                        EditorGUI.DrawRect(row, TimelineCurrent);
+                    }
+                    DrawTimelineRow(row, player, Begin(player), closeAt, total);
                 }
             }
 
-            bool flowing = _previewer.IsPlaying && _previewStates != null && _previewStates.Length > 1;
+            // 함께 보기의 Open은 전체 흐름과 같은 시간축이라 재생 위치를 그대로 표시할 수 있다.
+            bool flowing = _previewer.IsPlaying && _previewStates != null && (_previewStates.Length > 1 || _together);
             if (flowing && Event.current.type == EventType.Repaint)
             {
                 float x = TimelineX(area, _previewer.Position, total);
@@ -1138,13 +1347,13 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             }
         }
 
-        private static void DrawTimelineRow(Rect row, UIAnimationPlayer player, double closeAt, double total)
+        private static void DrawTimelineRow(Rect row, UIAnimationPlayer player, double begin, double closeAt, double total)
         {
             UIAnimationPreset preset = player.Preset;
             GUI.Label(new Rect(row.x, row.y, TimelineLabelWidth, row.height), player.name, EditorStyles.miniLabel);
-            double openEnd = OpenEnd(player);
+            double openEnd = begin + OpenEnd(player);
             double closeStart = closeAt + player.CloseDelay;
-            DrawTimelineBar(row, player.OpenDelay, openEnd, total, TimelineOpen);
+            DrawTimelineBar(row, begin + player.OpenDelay, openEnd, total, TimelineOpen);
             DrawTimelineBar(row, openEnd, closeStart, total, TimelineStay);
             DrawTimelineBar(row, closeStart, closeStart + preset.Get(UIAnimationState.Close).Duration, total, TimelineClose);
         }
@@ -1190,13 +1399,18 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
         {
             var players = new List<UIAnimationPlayer> { _player };
             if (IsVisibilityPreview) return players;
+            if (_together)
+            {
+                Transform root = ScopeRoot();
+                return UIAnimationPreviewScope.Players(root).Where(player => IsIncluded(player, root)).ToList();
+            }
             players.AddRange(_player.Followers.Where(follower => follower != null && follower.Preset != null));
             return players;
         }
 
-        private static double FlowCloseStart(List<UIAnimationPlayer> players)
+        private double FlowCloseStart(List<UIAnimationPlayer> players)
         {
-            return players.Max(player => OpenEnd(player) + player.Preset.Get(UIAnimationState.Stay).Duration);
+            return players.Max(player => Begin(player) + OpenEnd(player) + player.Preset.Get(UIAnimationState.Stay).Duration);
         }
 
         private void DrawPreviewOptions()
@@ -1262,6 +1476,10 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             _previewer.Stop();
             _previewStates = states;
             List<UIAnimationPlayer> players = TimelinePlayers();
+            if (players.Count == 0)
+            {
+                return;
+            }
             bool flows = states.Length > 1;
             double closeAt = flows ? FlowCloseStart(players) : 0.0;
             var entries = new List<UIAnimationPreviewer.Entry>();
@@ -1276,13 +1494,14 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                     if (states.Contains(UIAnimationState.Hide)) AddEntry(entries, clips, player, UIAnimationState.Hide, 0.0);
                     if (states.Contains(UIAnimationState.Show)) AddEntry(entries, clips, player, UIAnimationState.Show, showAt, states.Contains(UIAnimationState.Hide));
                 }
+                double begin = Begin(player);
                 if (states.Contains(UIAnimationState.Open))
                 {
-                    AddEntry(entries, clips, player, UIAnimationState.Open, player.OpenDelay);
+                    AddEntry(entries, clips, player, UIAnimationState.Open, begin + player.OpenDelay);
                 }
                 if (states.Contains(UIAnimationState.Stay))
                 {
-                    AddEntry(entries, clips, player, UIAnimationState.Stay, flows ? OpenEnd(player) : 0.0);
+                    AddEntry(entries, clips, player, UIAnimationState.Stay, begin + (flows ? OpenEnd(player) : 0.0));
                 }
                 if (states.Contains(UIAnimationState.Close))
                 {

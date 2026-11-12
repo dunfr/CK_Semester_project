@@ -95,6 +95,29 @@ namespace CK.SemesterProject.UIAnimation.Tests
         }
 
         [UnityTest]
+        public IEnumerator InactiveParent_ShowsDuringPreview_AndTurnsOffAgain()
+        {
+            var panel = new GameObject("Panel", typeof(RectTransform));
+            var group = new GameObject("Group", typeof(RectTransform));
+            group.transform.SetParent(panel.transform, false);
+            _target.transform.SetParent(group.transform, false);
+            panel.SetActive(false);
+            group.SetActive(false);
+            AnimationClip clip = UIAnimationGenerator.ClipOf(_preset, UIAnimationState.Open);
+
+            _previewer.Play(new[] { Entry(clip) });
+            yield return null;
+            Assert.That(_target.activeInHierarchy, Is.True, "꺼진 부모까지 켜야 화면에 나온다");
+
+            _previewer.Stop();
+            Assert.That(panel.activeSelf, Is.False);
+            Assert.That(group.activeSelf, Is.False);
+            Assert.That(_target.activeSelf, Is.True);
+            _target.transform.SetParent(null, false);
+            Object.DestroyImmediate(panel);
+        }
+
+        [UnityTest]
         public IEnumerator DeletedTarget_EndsPreviewCleanly()
         {
             AnimationClip clip = UIAnimationGenerator.ClipOf(_preset, UIAnimationState.Open);

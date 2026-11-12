@@ -67,13 +67,17 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
                 AnimationMode.StartAnimationMode();
             }
 
-            // 꺼 둔 패널도 미리보기에서 보이게 켰다가 멈출 때 되돌린다.
+            // 꺼 둔 패널과 그 부모도 미리보기에서 보이게 켰다가 멈출 때 되돌린다.
+            // 부모가 꺼져 있으면 대상만 켜서는 화면에 나오지 않는다.
             foreach (GameObject target in _entries.Select(entry => entry.Target).Distinct())
             {
-                if (!target.activeSelf)
+                for (Transform node = target.transform; node != null; node = node.parent)
                 {
-                    target.SetActive(true);
-                    _turnedOn.Add(target);
+                    if (!node.gameObject.activeSelf)
+                    {
+                        node.gameObject.SetActive(true);
+                        _turnedOn.Add(node.gameObject);
+                    }
                 }
             }
             EditorApplication.update += Tick;
@@ -108,11 +112,11 @@ namespace CK.SemesterProject.UIAnimation.EditorTools
             foreach (GameObject target in _entries.Select(entry => entry.Target).Distinct())
                 if (target != null && target.TryGetComponent(out UIAnimationFx fx)) fx.ResetVisuals();
             DestroyTemporaryClips();
-            foreach (GameObject target in _turnedOn)
+            for (int index = _turnedOn.Count - 1; index >= 0; index--)
             {
-                if (target != null)
+                if (_turnedOn[index] != null)
                 {
-                    target.SetActive(false);
+                    _turnedOn[index].SetActive(false);
                 }
             }
             _turnedOn.Clear();
