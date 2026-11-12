@@ -80,6 +80,43 @@ half BgStyleCharacterContact(float3 positionWS)
     return contact;
 }
 
+// 까끌까끌한 결용 3D 값 노이즈(해시 기반, 텍스처 없음). 0~1.
+float BgStyleHash31(float3 p)
+{
+    p = frac(p * float3(0.1031, 0.1030, 0.0973));
+    p += dot(p, p.yxz + 33.33);
+    return frac((p.x + p.y) * p.z);
+}
+
+float BgStyleValueNoise(float3 p)
+{
+    float3 i = floor(p);
+    float3 f = frac(p);
+    float3 u = f * f * (3.0 - 2.0 * f);
+    float n000 = BgStyleHash31(i);
+    float n100 = BgStyleHash31(i + float3(1, 0, 0));
+    float n010 = BgStyleHash31(i + float3(0, 1, 0));
+    float n110 = BgStyleHash31(i + float3(1, 1, 0));
+    float n001 = BgStyleHash31(i + float3(0, 0, 1));
+    float n101 = BgStyleHash31(i + float3(1, 0, 1));
+    float n011 = BgStyleHash31(i + float3(0, 1, 1));
+    float n111 = BgStyleHash31(i + float3(1, 1, 1));
+    return lerp(lerp(lerp(n000, n100, u.x), lerp(n010, n110, u.x), u.y),
+                lerp(lerp(n001, n101, u.x), lerp(n011, n111, u.x), u.y), u.z);
+}
+
+// 결이 빛을 가리는 배율(평균 1 - Tone, Grit만큼 얼룩덜룩). 두 크기의 노이즈를 겹친다.
+// 결 한 칸이 화면에서 1픽셀 안팎으로 작아지는 먼 곳은 결을 지운다(지우지 않으면 자글자글 반짝인다).
+half BgStyleGrit(float3 positionWS)
+{
+    float scale = max((float)_StyleGritScale, 1.0);
+    float3 p = positionWS * scale;
+    float n = BgStyleValueNoise(p) * 0.65 + BgStyleValueNoise(p * 2.03 + 17.1) * 0.35;
+    float cellsPerPixel = length(fwidth(positionWS)) * scale;
+    float fade = 1.0 - smoothstep(0.35, 0.8, cellsPerPixel);
+    return half(max((1.0 - _StyleGritTone) * (1.0 + _StyleGrit * fade * (n - 0.5) * 2.0), 0.0));
+}
+
 // 색을 밝기 1로 맞춘다. 그늘·빛의 색조만 바꾸고 밝기는 유지하려고 쓴다.
 half3 BgStyleHue(half3 tint)
 {
@@ -182,6 +219,13 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bak
     // SSAO를 _StyleSSAO만큼만 받는다(0이면 재질 AO만 남는다). 조명 계산 전에 줄여야 주광·추가광의 직접 AO에도 적용된다.
     aoFactor.indirectAmbientOcclusion = lerp(surfaceData.occlusion, aoFactor.indirectAmbientOcclusion, _StyleSSAO);
     aoFactor.directAmbientOcclusion = lerp(half(1.0), aoFactor.directAmbientOcclusion, _StyleSSAO);
+    // 까끌까끌한 결: SSAO처럼 빛을 가리는 값으로 넣는다(구운 빛·반사광 모두 어두워진다). 월드 좌표라 표면에 붙어 있다.
+    if (_StyleGrit + _StyleGritTone > half(0.001))
+    {
+        half gritOcclusion = BgStyleGrit(inputData.positionWS);
+        aoFactor.indirectAmbientOcclusion *= gritOcclusion;
+        aoFactor.directAmbientOcclusion *= gritOcclusion;
+    }
     uint meshRenderingLayers = GetMeshRenderingLayer();
     Light mainLight = GetMainLight(inputData, shadowMask, aoFactor);
     MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI);
@@ -282,7 +326,19 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bak
     // (구운 조명은 움직이는 캐릭터의 그림자를 만들지 못한다).
     half characterShadow = max(BgStyleCharacterShadow(inputData.positionWS) * _StyleCharacterShadow,
         BgStyleCharacterContact(inputData.positionWS) * _StyleCharacterContact);
-    color.rgb *= (half(1.0) - characterShadow) * lerp(half3(1.0, 1.0, 1.0), shadowHue, characterShadow);
+    half characterMultiply = half(1.0) - characterShadow;
+    half characterTint = characterShadow;
+    // 맵 그림자와 합치기: 이 자리가 이미 어두워진 만큼(SSAO 구석 그늘, 맵 그림자 대비)은 빼고 어둡게 한다.
+    // 그림자끼리 겹친 곳은 두 번 어두워지지 않고, 그늘색도 맵 그림자와 같은 세기(_StyleShadowTintStrength)로 입힌다.
+    // _StyleCharacterShadowMerge가 0이면 예전과 같다.
+    if (_StyleCharacterShadowMerge > half(0.001))
+    {
+        half alreadyDark = aoFactor.indirectAmbientOcclusion * (half(1.0) - _StyleShadowDarken * shadeMask);
+        half mergedMultiply = min(half(1.0), characterMultiply / max(alreadyDark, half(0.05)));
+        characterMultiply = lerp(characterMultiply, mergedMultiply, _StyleCharacterShadowMerge);
+        characterTint = lerp(characterTint, (half(1.0) - mergedMultiply) * _StyleShadowTintStrength, _StyleCharacterShadowMerge);
+    }
+    color.rgb *= characterMultiply * lerp(half3(1.0, 1.0, 1.0), shadowHue, characterTint);
 
     // 조정용 화면: 1 = 그늘로 판단한 곳(흰색일수록 그늘), 2 = 구운 빛 밝기(회색조),
     // 3 = 캐릭터 그림자(R: 가려진 정도, G: 캐릭터 그림자 맵 사용 중, B: 캐릭터 그림자 세기 설정),
