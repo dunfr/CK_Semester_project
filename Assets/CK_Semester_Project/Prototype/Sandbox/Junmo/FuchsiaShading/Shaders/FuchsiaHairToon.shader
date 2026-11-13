@@ -85,6 +85,21 @@ Shader "Semester/Fuchsia/Hair Toon"
         [Toggle(_EMISSION)] _UseEmission("Enable emission", Float) = 0
         _EmissionMap("Emission mask", 2D) = "black" {}
         [HDR] _EmissionColor("Emission", Color) = (0,0,0,1)
+        [Header(PBR Layer)]
+        _PBRStrength("PBR layer amount (0 = toon only)", Range(0,1)) = 0
+        _PBRMaskMap("PBR mask (R metallic, G smoothness, B reflection occlusion)", 2D) = "white" {}
+        _PBRMetallic("Metallic", Range(0,1)) = 0
+        _PBRSmoothness("Smoothness", Range(0,1)) = .5
+        _PBRSpecularStrength("Specular strength", Range(0,4)) = 1
+        _PBRSpecularToon("Specular: physical (0) to toon cut (1)", Range(0,1)) = .7
+        _PBRSpecularStep("Toon specular cut", Range(.01,.99)) = .5
+        _PBRSpecularFeather("Toon specular softness", Range(.001,.5)) = .05
+        _PBREnvironmentStrength("Reflection probe / sky strength", Range(0,2)) = .5
+        _PBRMetalFromColor("Metal mask from color (palette textures)", Range(0,1)) = 0
+        _PBRMetalMaxSaturation("Metal: max saturation", Range(0,1)) = .2
+        _PBRMetalMinValue("Metal: min brightness", Range(0,1)) = .45
+        _PBRMetalDiffuse("Metal keeps toon color", Range(0,1)) = .35
+        _PBREnvironmentUpBias("Reflection looks up (sky/ceiling)", Range(0,1)) = .3
     }
     SubShader
     {
@@ -107,6 +122,7 @@ Shader "Semester/Fuchsia/Hair Toon"
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _LIGHT_COOKIES
+            #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RealtimeLights.hlsl"

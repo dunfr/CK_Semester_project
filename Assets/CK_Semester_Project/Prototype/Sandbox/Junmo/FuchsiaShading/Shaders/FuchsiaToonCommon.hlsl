@@ -8,6 +8,7 @@ TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
 TEXTURE2D(_EmissionMap); SAMPLER(sampler_EmissionMap);
 TEXTURE2D(_FaceShadowMap); SAMPLER(sampler_FaceShadowMap);
 TEXTURE2D(_HairHighlightMap); SAMPLER(sampler_HairHighlightMap);
+TEXTURE2D(_PBRMaskMap); SAMPLER(sampler_PBRMaskMap);
 TEXTURE2D_X_FLOAT(_FuchsiaHairDepthTexture); SAMPLER(sampler_FuchsiaHairDepthTexture);
 float4 _FuchsiaHairDepthParams;
 // 모든 패스의 상수 배치를 맞춰 SRP Batcher 호환성을 유지한다.
@@ -46,6 +47,11 @@ CBUFFER_START(UnityPerMaterial)
     // StarRail 림 그림자: 실루엣 가장자리를 살짝 어둡게 해 팔다리 같은 원통이 평평해 보이지 않게 한다.
     half4 _RimShadowColor;
     half _RimShadowStrength, _RimShadowWidth, _RimShadowPower, _RimShadowFeather;
+    // PBR 층(툰 확산 위에 얹는 GGX 반사광·환경 반사). _PBRStrength 0이면 꺼진다.
+    half _PBRStrength, _PBRMetallic, _PBRSmoothness, _PBRSpecularStrength;
+    half _PBRSpecularToon, _PBRSpecularStep, _PBRSpecularFeather, _PBREnvironmentStrength;
+    half _PBRMetalFromColor, _PBRMetalMaxSaturation, _PBRMetalMinValue;
+    half _PBRMetalDiffuse, _PBREnvironmentUpBias;
 CBUFFER_END
 
 // CharacterSelfShadowFeature가 채우는 캐릭터 자기 그림자 맵(칸 4개 가로 배치, 광원 쪽에서 잰 0~1 깊이).
@@ -137,6 +143,63 @@ half FuchsiaDepthRim(float4 positionCS, half3 normalWS, half3 viewWS)
     float offsetDepth = LinearEyeDepth(LoadSceneDepth(index), _ZBufferParams);
     half rim = smoothstep(_DepthRimThreshold, _DepthRimThreshold * 1.6, offsetDepth - depth);
     return rim * smoothstep(.05h, .55h, 1.0h - saturate(dot(normalWS, viewWS)));
+}
+
+// PBR 층(소녀전선2식 PBR+NPR). 툰 확산의 명암 구조는 그대로 두고 그 위에 재질감만 얹는다.
+// - 확산 에너지: kDiff = ((1-F)*.5+.5)*(1-metallic). 금속일수록 툰 확산이 빠지고 반사가 대신한다.
+// - 직접 반사광: URP Lit과 같은 GGX 근사. 툰 비율을 올리면 하이라이트 모양을 잘라 일정한 밝기의 면으로 만든다.
+//   빛 세기는 툰 밝은 면과 같은 directResponse를 써서, 실제 광량 대신 아트 디렉팅된 밝기를 따른다.
+// - 환경 반사: 반사 프로브/하늘을 약하게 더한다. 마스크 B(가림)는 환경 반사에만 곱한다(직접광은 툰 명암이 맡는다).
+// 마스크가 없으면 흰색(R 금속 1, G 매끄러움 1, B 가림 없음)이라 슬라이더 값이 그대로 쓰인다.
+void FuchsiaApplyPBR(inout half3 color, half3 baseColor, half3 n, half3 view, half3 lightDirection,
+    half lit, half3 directResponse, float3 positionWS, float2 screenUV, float2 uv)
+{
+    if (_PBRStrength <= .001h)
+    {
+        return;
+    }
+    half4 mask = SAMPLE_TEXTURE2D(_PBRMaskMap, sampler_PBRMaskMap, uv);
+    // 팔레트 텍스처(카타나 등)용: 채도가 낮고 밝은 칸(은색)만 금속으로 본다.
+    half maxChannel = max(baseColor.r, max(baseColor.g, baseColor.b));
+    half minChannel = min(baseColor.r, min(baseColor.g, baseColor.b));
+    half saturation = (maxChannel - minChannel) / max(maxChannel, .001h);
+    half metalByColor = (1.0h - smoothstep(_PBRMetalMaxSaturation, _PBRMetalMaxSaturation + .1h, saturation))
+        * smoothstep(_PBRMetalMinValue - .05h, _PBRMetalMinValue + .05h, maxChannel);
+    half metallic = _PBRMetallic * mask.r * lerp(1.0h, metalByColor, _PBRMetalFromColor);
+    half smoothness = _PBRSmoothness * mask.g;
+    half perceptualRoughness = 1.0h - smoothness;
+    half roughness = max(perceptualRoughness * perceptualRoughness, HALF_MIN_SQRT);
+    half roughness2 = max(roughness * roughness, HALF_MIN);
+    half3 f0 = lerp(half3(.04h, .04h, .04h), baseColor, metallic);
+    half fresnelTerm = Pow4(1.0h - saturate(dot(n, view)));
+
+    half3 fresnelView = f0 + (1.0h - f0) * fresnelTerm;
+    // 금속도 툰 바탕색을 일부 남긴다(_PBRMetalDiffuse). 0이면 원문처럼 금속 확산이 완전히 빠진다.
+    half3 diffuseEnergy = ((1.0h - fresnelView) * .5h + .5h) * (1.0h - metallic * (1.0h - _PBRMetalDiffuse));
+    color *= lerp(half3(1, 1, 1), diffuseEnergy, _PBRStrength);
+
+    half3 halfDirection = SafeNormalize(lightDirection + view);
+    half nh = saturate(dot(n, halfDirection));
+    half lh2 = max(.1h, saturate(dot(lightDirection, halfDirection)) * saturate(dot(lightDirection, halfDirection)));
+    half normalization = roughness * 4.0h + 2.0h;
+    half d = nh * nh * (roughness2 - 1.0h) + 1.00001h;
+    half specularTerm = roughness2 / (d * d * lh2 * normalization);
+    // NH = 1일 때의 최댓값으로 나눠 0~1 하이라이트 모양을 얻고, 툰 쪽은 그 모양을 잘라 쓴다(원문의 반사광 램프 대신).
+    half peak = 1.0h / (roughness2 * lh2 * normalization);
+    half shape = saturate(specularTerm / peak);
+    half toonBand = smoothstep(_PBRSpecularStep - _PBRSpecularFeather, _PBRSpecularStep + _PBRSpecularFeather, shape);
+    specularTerm = lerp(min(specularTerm, 10.0h), toonBand * min(peak, 4.0h), _PBRSpecularToon);
+    half3 specular = f0 * specularTerm * _PBRSpecularStrength * directResponse * lit;
+
+    // 반사 방향을 위쪽으로 끌어 올려, 금속이 어두운 바닥 대신 하늘·천장을 비추게 한다(캐릭터용 연출).
+    half3 reflectVector = normalize(lerp(reflect(-view, n), half3(0, 1, 0), _PBREnvironmentUpBias));
+    half3 environment = GlossyEnvironmentReflection(reflectVector, positionWS, perceptualRoughness, mask.b, screenUV);
+    half surfaceReduction = 1.0h / (roughness2 + 1.0h);
+    half grazing = saturate(smoothness + lerp(.04h, 1.0h, metallic));
+    half3 environmentSpecular = environment * surfaceReduction * lerp(f0, grazing.xxx, fresnelTerm)
+        * _PBREnvironmentStrength;
+
+    color += (specular + environmentSpecular) * _PBRStrength;
 }
 
 // 얼굴/머리 기준 축. 스킨 메시는 머리 뼈를 따라 도는 월드 축을 받는다.
@@ -308,6 +371,8 @@ half4 FuchsiaFrag(Varyings i)
     half rimShadowMask = saturate(pow(max(1.0h - saturate(dot(n, view)), .001h), _RimShadowPower) * _RimShadowWidth);
     rimShadowMask = smoothstep(_RimShadowFeather, 1.0h, rimShadowMask) * _RimShadowStrength;
     color *= lerp(half3(1, 1, 1), _RimShadowColor.rgb, rimShadowMask);
+    FuchsiaApplyPBR(color, baseColor, n, view, light.direction, lit, directResponse,
+        i.positionWS, GetNormalizedScreenSpaceUV(i.positionCS), i.uv);
 
     #if defined(FUCHSIA_HAIR) || defined(FUCHSIA_ACCESSORY)
         half3 halfDirection = SafeNormalize(light.direction + view);

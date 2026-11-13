@@ -31,6 +31,10 @@ Material:
         m_Texture: {fileID: 2800000, guid: 139a662882898ad48b364da9a05a740c, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _PBRMaskMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _AdditionalLightCeiling: 0.2
@@ -64,6 +68,19 @@ Material:
     - _OutlineUseThickness: 0
     - _OutlineWidth: 1.2
     - _OutlineZOffset: 0.2
+    - _PBREnvironmentStrength: 1
+    - _PBREnvironmentUpBias: 0.5
+    - _PBRMetalDiffuse: 0.55
+    - _PBRMetalFromColor: 1
+    - _PBRMetalMaxSaturation: 0.2
+    - _PBRMetalMinValue: 0.45
+    - _PBRMetallic: 1
+    - _PBRSmoothness: 0.8
+    - _PBRSpecularFeather: 0.05
+    - _PBRSpecularStep: 0.5
+    - _PBRSpecularStrength: 1
+    - _PBRSpecularToon: 0.75
+    - _PBRStrength: 1
     - _ReceiveShadowStrength: 1
     - _RimPower: 4
     - _RimShadowFeather: 0.25
