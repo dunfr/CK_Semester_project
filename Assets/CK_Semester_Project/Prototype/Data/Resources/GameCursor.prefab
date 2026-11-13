@@ -45,7 +45,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.UI.GameCursor
   _image: {fileID: 2800000, guid: 4eae858ef0aef8e4fb56819e0687f419, type: 3}
-  _size: 64
-  _clickPointX: 0.36
-  _clickPointY: 0
-  _removeBackground: 1
+  _hotspot: {x: 28, y: 5}

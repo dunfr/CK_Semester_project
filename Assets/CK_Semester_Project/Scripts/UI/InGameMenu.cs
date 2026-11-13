@@ -50,8 +50,6 @@ namespace CK.SemesterProject.UI
         private bool _hudBlocked;
         private float _closeStartedAt;
         private float _savedTimeScale = 1f;
-        private CursorLockMode _savedCursorLock;
-        private bool _savedCursorVisible;
 
         public bool IsOpen => _isOpen;
         public bool IsPaused => _paused;
@@ -112,8 +110,6 @@ namespace CK.SemesterProject.UI
             {
                 _paused = true;
                 _savedTimeScale = Time.timeScale;
-                _savedCursorLock = Cursor.lockState;
-                _savedCursorVisible = Cursor.visible;
                 if (_progress != null) _progress.LockControls(this);
                 // 전투 HUD는 Esc·방향키·Enter를 직접 읽으므로 메뉴가 떠 있는 동안 끈다(튜토리얼 팝업과 같은 방식).
                 if (_hud != null && _hud.enabled && _battle != null && _battle.IsInBattle)
@@ -125,8 +121,7 @@ namespace CK.SemesterProject.UI
             _isOpen = true;
             _closing = false;
             Time.timeScale = 0f;
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            GameCursor.Show();
             _black.Open();
             _menu.Open();
         }
@@ -225,8 +220,10 @@ namespace CK.SemesterProject.UI
                 if (tutorialOpen && isActiveAndEnabled) StartCoroutine(EnableHudAfterTutorial());
                 else if (_hud != null) _hud.enabled = true;
             }
-            Cursor.lockState = _savedCursorLock;
-            Cursor.visible = _savedCursorVisible;
+            // 메뉴를 열기 전 커서 상태를 저장해 되돌리지 않는다. 에디터는 Esc를 누르는 순간 커서를 풀어 버려
+            // 저장값이 '보임'이 되기 때문이다. 전투는 커서를 보인 채 진행하고, 필드는 카메라를 돌리도록 숨긴다.
+            if (_battle != null && _battle.IsInBattle) GameCursor.Show();
+            else GameCursor.Hide();
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
         }
 
