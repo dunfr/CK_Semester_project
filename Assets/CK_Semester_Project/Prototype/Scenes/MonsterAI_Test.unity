@@ -6396,6 +6396,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 100338, guid: 49f2055d53eeb4e5a92af590a44bddee, type: 3}
       insertIndex: -1
       addedObject: {fileID: 893854610}
+    - targetCorrespondingSourceObject: {fileID: 100338, guid: 49f2055d53eeb4e5a92af590a44bddee, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2049880812}
   m_SourcePrefab: {fileID: 100100000, guid: 49f2055d53eeb4e5a92af590a44bddee, type: 3}
 --- !u!4 &795648641 stripped
 Transform:
@@ -7344,7 +7347,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialPlayerMovement
   _cameraTransform: {fileID: 254295225}
-  _moveSpeed: 3
+  _moveSpeed: 4.5
   _rotationSpeed: 540
   _gravity: 20
 --- !u!143 &893854611
@@ -7512,11 +7515,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialCameraLook
   _sensitivity: 0.12
-  _distance: 4
-  _targetHeight: 1
-  _minPitch: -70
+  _distance: 4.5
+  _targetHeight: 1.3
+  _minPitch: 10
   _maxPitch: 70
-  _pitch: 16
+  _pitch: 30
 --- !u!114 &964235278
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16106,3 +16109,20 @@ SceneRoots:
   - {fileID: 51578648}
   - {fileID: 155926760}
   - {fileID: 379691198}
+--- !u!114 &2049880812
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 893854602}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 711ad8a89ca14c9683f2f7a671f63c29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.PlayerCameraFade
+  _camera: {fileID: 0}
+  _fadeStartDistance: 1.2
+  _fadeEndDistance: 0.4
+  _minOpacity: 0.25
+  _fadeSpeed: 6

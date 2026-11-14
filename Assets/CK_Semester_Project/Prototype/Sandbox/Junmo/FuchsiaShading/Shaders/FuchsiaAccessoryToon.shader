@@ -4,6 +4,7 @@ Shader "Semester/Fuchsia/Accessory Toon"
     {
         [HideInInspector] _CharacterKeyDirection("Character key direction and blend", Vector) = (0,1,0,0)
         [HideInInspector] _CharacterKeyColor("Character key linear color", Vector) = (1,1,1,0)
+        [HideInInspector] _CameraFade("Camera proximity fade (set by PlayerCameraFade)", Range(0,1)) = 1
         [HideInInspector] _CharacterShadowSlot("Character self shadow slot", Float) = -1
         [Header(Self Shadow)]
         _SelfShadowStrength("Self shadow (cloth over legs etc.)", Range(0,1)) = 1
@@ -194,7 +195,7 @@ Shader "Semester/Fuchsia/Accessory Toon"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment DepthFrag
-            half DepthFrag(Varyings i):SV_Target { return i.positionCS.z; }
+            half DepthFrag(Varyings i):SV_Target { FuchsiaCameraFadeClip(i.positionCS); return i.positionCS.z; }
             ENDHLSL
         }
         Pass
@@ -209,6 +210,7 @@ Shader "Semester/Fuchsia/Accessory Toon"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
             half4 NormalFrag(Varyings i):SV_Target
             {
+                FuchsiaCameraFadeClip(i.positionCS);
                 float3 n=normalize(i.normalWS);
                 #if defined(_GBUFFER_NORMALS_OCT)
                 return half4(PackFloat2To888(saturate(PackNormalOctQuadEncode(n)*.5+.5)),0);

@@ -4,6 +4,7 @@ Shader "Semester/Fuchsia/Lens Toon"
     {
         [HideInInspector] _CharacterKeyDirection("Character key direction and blend", Vector) = (0,1,0,0)
         [HideInInspector] _CharacterKeyColor("Character key linear color", Vector) = (1,1,1,0)
+        [HideInInspector] _CameraFade("Camera proximity fade (set by PlayerCameraFade)", Range(0,1)) = 1
         _EnvironmentShadowStrength("Environment shadow dimming", Range(0,1)) = 1
         _BaseColor("Lens tint", Color) = (.86,.95,1,1)
         _Opacity("Lens opacity", Range(0,1)) = .035
@@ -42,6 +43,7 @@ Shader "Semester/Fuchsia/Lens Toon"
                 half _EnvironmentShadowStrength;
                 half _Opacity, _EdgeOpacity, _EdgePower, _HighlightStrength;
                 half _HighlightSize, _HighlightFeather, _Cull;
+                half _CameraFade;
             CBUFFER_END
             struct Attributes { float4 positionOS:POSITION; float3 normalOS:NORMAL; };
             struct Varyings { float4 positionCS:SV_POSITION; float3 positionWS:TEXCOORD0; half3 normalWS:TEXCOORD1; };
@@ -67,7 +69,7 @@ Shader "Semester/Fuchsia/Lens Toon"
                 band *= saturate(dot(n, light.direction)) * light.shadowAttenuation * min(light.distanceAttenuation, 1.0);
                 half alpha = saturate(_Opacity + edge * _EdgeOpacity + band * _HighlightStrength);
                 half3 color = _BaseColor.rgb + _HighlightColor.rgb * light.color * band * _HighlightStrength * environmentVisibility;
-                return half4(color, alpha);
+                return half4(color, alpha * _CameraFade);
             }
             ENDHLSL
         }

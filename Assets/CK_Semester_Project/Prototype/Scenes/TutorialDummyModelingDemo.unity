@@ -43006,6 +43006,7 @@ GameObject:
   - component: {fileID: 77063180}
   - component: {fileID: 77063179}
   - component: {fileID: 77063178}
+  - component: {fileID: 1953340513}
   m_Layer: 0
   m_Name: Fuchsia Player
   m_TagString: Player
@@ -43026,7 +43027,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.PlayerMovement
   _cameraTransform: {fileID: 1985736203}
-  _moveSpeed: 3
+  _moveSpeed: 4.5
   _rotationSpeed: 540
   _gravity: 20
   _animator: {fileID: 1293584533}
@@ -299661,11 +299662,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialCameraLook
   _sensitivity: 0.12
-  _distance: 4
-  _targetHeight: 1
-  _minPitch: -70
+  _distance: 4.5
+  _targetHeight: 1.3
+  _minPitch: 10
   _maxPitch: 70
-  _pitch: 16
+  _pitch: 30
 --- !u!114 &742129934
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -583703,6 +583704,7 @@ MonoBehaviour:
   _enableCheats: 1
   _rageCheatKey: 102
   _rageCheatValue: 90
+  _unlimitedPlayerResources: 1
   _winCheatKey: 103
   _healCheatKey: 104
   _restartCheatKey: 105
@@ -798131,6 +798133,23 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -7924066189611150674, guid: 7cf8954c781d67744889d29f368aef3f, type: 3}
+--- !u!114 &1953340513
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 77063177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 711ad8a89ca14c9683f2f7a671f63c29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.PlayerCameraFade
+  _camera: {fileID: 0}
+  _fadeStartDistance: 1.2
+  _fadeEndDistance: 0.4
+  _minOpacity: 0.25
+  _fadeSpeed: 6
 --- !u!1 &1953513876
 GameObject:
   m_ObjectHideFlags: 0

@@ -78,7 +78,7 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(State, Is.EqualTo("Walk"));
             Assert.That(IsSprinting, Is.False);
             float walkSpeed = HorizontalSpeed;
-            Assert.That(walkSpeed, Is.EqualTo(3f).Within(.02f));
+            Assert.That(walkSpeed, Is.EqualTo(4.5f).Within(.02f));
             Assert.That(AnimationSpeed, Is.EqualTo(.5f).Within(.01f));
 
             Move(Vector2.up, true);

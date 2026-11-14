@@ -46,7 +46,28 @@ CBUFFER_START(UnityPerMaterial)
     // StarRail 림 그림자: 실루엣 가장자리를 살짝 어둡게 해 팔다리 같은 원통이 평평해 보이지 않게 한다.
     half4 _RimShadowColor;
     half _RimShadowStrength, _RimShadowWidth, _RimShadowPower, _RimShadowFeather;
+    // 카메라 근접 페이드: PlayerCameraFade가 렌더러별로 채운다. 1 불투명, 0 완전히 숨김.
+    half _CameraFade;
 CBUFFER_END
+
+// 카메라가 캐릭터에 너무 붙었을 때 4x4 Bayer 디더로 픽셀을 걸러 반투명처럼 보이게 한다.
+// 알파 블렌딩 대신 디더를 쓰는 이유: 여러 부위·외곽선 패스가 겹쳐도 정렬 문제 없이 불투명 큐 그대로 그릴 수 있다.
+void FuchsiaCameraFadeClip(float4 positionCS)
+{
+    if (_CameraFade >= .999h)
+    {
+        return;
+    }
+    static const float bayer[16] =
+    {
+        0, 8, 2, 10,
+        12, 4, 14, 6,
+        3, 11, 1, 9,
+        15, 7, 13, 5
+    };
+    uint2 pixel = (uint2)positionCS.xy % 4;
+    clip(_CameraFade - (bayer[pixel.y * 4 + pixel.x] + .5) / 16.0);
+}
 
 // CharacterSelfShadowFeature가 채우는 캐릭터 자기 그림자 맵(칸 4개 가로 배치, 광원 쪽에서 잰 0~1 깊이).
 TEXTURE2D_FLOAT(_FuchsiaCharShadowMap);
@@ -181,6 +202,7 @@ Varyings Vert(Attributes v)
 }
 half4 FuchsiaFrag(Varyings i)
 {
+    FuchsiaCameraFadeClip(i.positionCS);
     half3 n = normalize(i.normalWS);
     // 원본 FBX를 사용하는 프리팹에는 보정 채널이 없으므로 기존 셰이딩으로 돌아간다.
     half styleAvailable = step(.0001h, dot(i.styleNormalWS, i.styleNormalWS));
@@ -443,6 +465,7 @@ float CharShadowFrag(CharShadowVaryings i) : SV_Target
 
 half4 OutlineFrag(OutlineVaryings i) : SV_Target
 {
+    FuchsiaCameraFadeClip(i.positionCS);
     half3 baseColor = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).rgb * _BaseColor.rgb;
     // 검은 선 대신 원화 색을 어둡고 진하게 만든 색선을 쓴다.
     half3 color = FuchsiaSaturation(baseColor, _OutlineSaturation) * _OutlineColor.rgb;

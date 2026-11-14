@@ -11,11 +11,11 @@ namespace CK.SemesterProject.Tutorial
     public sealed class CameraController : MonoBehaviour
     {
         [SerializeField, Min(0.01f)] private float _sensitivity = 0.12f;
-        [SerializeField, Min(0.5f)] private float _distance = 4f;
-        [SerializeField] private float _targetHeight = 1f;
-        [SerializeField, Range(-80f, 80f)] private float _minPitch = -70f;
+        [SerializeField, Min(0.5f)] private float _distance = 4.5f;
+        [SerializeField] private float _targetHeight = 1.3f;
+        [SerializeField, Range(-80f, 80f)] private float _minPitch = 10f;
         [SerializeField, Range(-80f, 80f)] private float _maxPitch = 70f;
-        [SerializeField, Range(-80f, 80f)] private float _pitch = 16f;
+        [SerializeField, Range(-80f, 80f)] private float _pitch = 30f;
 
         private CinemachineFollow _follow;
         private FloorTravelButtons _floorTravelButtons;

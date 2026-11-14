@@ -60041,6 +60041,7 @@ GameObject:
   - component: {fileID: 1516626646}
   - component: {fileID: 1516626645}
   - component: {fileID: 1516626649}
+  - component: {fileID: 2049442044}
   m_Layer: 0
   m_Name: FuchsiaMovementRig
   m_TagString: Player
@@ -60130,7 +60131,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.PlayerMovement
   _cameraTransform: {fileID: 457679250}
-  _moveSpeed: 3
+  _moveSpeed: 4.5
   _rotationSpeed: 540
   _gravity: 20
   _animator: {fileID: 570282312}
@@ -80203,11 +80204,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialCameraLook
   _sensitivity: 0.12
-  _distance: 4
-  _targetHeight: 1
-  _minPitch: -70
+  _distance: 4.5
+  _targetHeight: 1.3
+  _minPitch: 10
   _maxPitch: 70
-  _pitch: 16
+  _pitch: 30
 --- !u!114 &2004723451
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -86124,3 +86125,20 @@ SceneRoots:
   - {fileID: 522819216}
   - {fileID: 624927930}
   - {fileID: 846576454}
+--- !u!114 &2049442044
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1516626644}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 711ad8a89ca14c9683f2f7a671f63c29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.PlayerCameraFade
+  _camera: {fileID: 0}
+  _fadeStartDistance: 1.2
+  _fadeEndDistance: 0.4
+  _minOpacity: 0.25
+  _fadeSpeed: 6

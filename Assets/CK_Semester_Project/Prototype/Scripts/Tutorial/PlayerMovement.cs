@@ -12,7 +12,7 @@ namespace CK.SemesterProject.Tutorial
     public sealed class PlayerMovement : MonoBehaviour
     {
         [SerializeField] private Transform _cameraTransform;
-        [SerializeField, Min(0f)] private float _moveSpeed = 3f;
+        [SerializeField, Min(0f)] private float _moveSpeed = 4.5f;
         [SerializeField, Min(0f)] private float _rotationSpeed = 540f;
         [SerializeField, Min(0f)] private float _gravity = 20f;
         [SerializeField] private Animator _animator;
