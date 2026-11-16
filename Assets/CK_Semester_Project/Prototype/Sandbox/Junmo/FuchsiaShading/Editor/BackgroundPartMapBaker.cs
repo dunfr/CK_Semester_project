@@ -32,6 +32,17 @@ public static class BackgroundPartMapBaker
     private const int DilatePasses = 12;
     // 삼각형 가장자리에서 이만큼(픽셀) 벗어난 픽셀 중심까지 칠한다. 조각 사이에 빈 줄이 생기지 않게 한다.
     private const float RasterTolerance = .45f;
+    // 좁은 띠 합치기: 바닥 타일 가장자리처럼 홈 하나를 사이에 두고 넓은 판 옆에 붙은 좁은 면은 그 판과 같은 부위로 본다.
+    // 따로 두면 띠만 매끈함이 달라져서, 타일 경계를 따라 줄무늬가 생긴다.
+    // 폭이 이 값(m)보다 좁은 면만 합친다(모서리 면보다 넓고, 판보다는 좁은 면).
+    private const float StripMaxWidth = .5f;
+    // 띠의 둘레와 판의 둘레가 이 거리(m) 안에서 나란히 가야 한다(홈 하나의 폭).
+    private const float StripGap = .05f;
+    // 띠 둘레 가운데 판과 나란히 가는 길이가 이 비율 이상이어야 한다(긴 변 하나가 통째로 붙어 있는 정도).
+    private const float StripMinShare = .3f;
+    // 같은 평면으로 보는 높이 차(m)와 법선 차(코사인).
+    private const float StripPlaneOffset = .02f;
+    private const float StripPlaneCos = .999f;
 
     private sealed class Region
     {
@@ -39,10 +50,12 @@ public static class BackgroundPartMapBaker
         public double UvArea;     // UV 공간 넓이
         public double Perimeter;  // 꺾이는 모서리로 이루어진 둘레(m)
         public Vector3 Sum;       // 넓이 가중 중심 합
+        public Vector3 NormalSum; // 넓이 가중 법선 합
         public byte Id;           // 부위 번호(1~255)
         public byte Bevel;        // 모서리 면 정도(0~255)
         public float TexelMeters; // 텍셀 하나의 실제 길이(m)
         public float Width;       // 면의 폭(m)
+        public readonly List<Vector3> Boundary = new List<Vector3>(); // 둘레 선분(두 점씩)
     }
 
     private sealed class Group
@@ -310,6 +323,7 @@ public static class BackgroundPartMapBaker
                 region.Area += area;
                 region.UvArea += Mathf.Abs(Cross(uvs[i1] - uvs[i0], uvs[i2] - uvs[i0])) * .5;
                 region.Sum += (p0 + p1 + p2) * (float)(area / 3.0);
+                region.NormalSum += Vector3.Cross(p1 - p0, p2 - p0) * .5f;
                 for (int e = 0; e < 3; e++)
                 {
                     int va = indices[t * 3 + e], vb = indices[t * 3 + (e + 1) % 3];
@@ -318,6 +332,8 @@ public static class BackgroundPartMapBaker
                     if (a != b && edgeUse[EdgeKey(a, b)] == 1)
                     {
                         region.Perimeter += Vector3.Distance(positions[va], positions[vb]);
+                        region.Boundary.Add(positions[va]);
+                        region.Boundary.Add(positions[vb]);
                     }
                 }
             }
@@ -334,6 +350,7 @@ public static class BackgroundPartMapBaker
                     (uint)Mathf.RoundToInt(centre.z * 100f), (uint)System.Math.Round(region.Area * 10000.0));
                 region.Id = (byte)(1 + hash % 255u);
             }
+            MergeNarrowStrips(regions, firstRegion);
 
             for (int t = 0; t < triangleCount; t++)
             {
@@ -358,6 +375,77 @@ public static class BackgroundPartMapBaker
             }
             return true;
         }
+    }
+
+    // 한 메시 안에서, 넓은 판 옆에 홈 하나를 두고 나란히 붙은 좁은 띠에 그 판의 부위 번호를 준다.
+    private static void MergeNarrowStrips(List<Region> regions, int firstRegion)
+    {
+        for (int r = firstRegion; r < regions.Count; r++)
+        {
+            Region strip = regions[r];
+            if (strip.Width < BevelZeroWidth || strip.Width >= StripMaxWidth || strip.Area <= 1e-9 || strip.Boundary.Count == 0)
+            {
+                continue;
+            }
+            Vector3 stripNormal = strip.NormalSum.normalized;
+            Vector3 stripCentre = strip.Sum / (float)strip.Area;
+            Region best = null;
+            float bestShared = 0f;
+            for (int o = firstRegion; o < regions.Count; o++)
+            {
+                Region plate = regions[o];
+                if (o == r || plate.Width < StripMaxWidth || plate.Area <= 1e-9)
+                {
+                    continue;
+                }
+                Vector3 plateNormal = plate.NormalSum.normalized;
+                Vector3 plateCentre = plate.Sum / (float)plate.Area;
+                if (Vector3.Dot(stripNormal, plateNormal) < StripPlaneCos
+                    || Mathf.Abs(Vector3.Dot(plateNormal, stripCentre - plateCentre)) > StripPlaneOffset)
+                {
+                    continue;
+                }
+                float shared = SharedBoundaryLength(strip.Boundary, plate.Boundary);
+                if (shared > bestShared)
+                {
+                    bestShared = shared;
+                    best = plate;
+                }
+            }
+            if (best != null && bestShared >= strip.Perimeter * StripMinShare)
+            {
+                strip.Id = best.Id;
+            }
+        }
+    }
+
+    // 둘레 a 가운데 둘레 b와 StripGap 안에서 나란히 가는 길이(m). a를 5cm 간격으로 짚어 가며 잰다.
+    private static float SharedBoundaryLength(List<Vector3> a, List<Vector3> b)
+    {
+        const float step = .05f;
+        float shared = 0f;
+        for (int i = 0; i + 1 < a.Count; i += 2)
+        {
+            Vector3 start = a[i], end = a[i + 1];
+            float length = Vector3.Distance(start, end);
+            int samples = Mathf.Max(1, Mathf.CeilToInt(length / step));
+            float piece = length / samples;
+            for (int s = 0; s < samples; s++)
+            {
+                Vector3 point = Vector3.Lerp(start, end, (s + .5f) / samples);
+                for (int j = 0; j + 1 < b.Count; j += 2)
+                {
+                    Vector3 segment = b[j + 1] - b[j];
+                    float along = segment.sqrMagnitude > 1e-12f ? Mathf.Clamp01(Vector3.Dot(point - b[j], segment) / segment.sqrMagnitude) : 0f;
+                    if ((b[j] + segment * along - point).sqrMagnitude <= StripGap * StripGap)
+                    {
+                        shared += piece;
+                        break;
+                    }
+                }
+            }
+        }
+        return shared;
     }
 
     private static void RasterizeTriangle(Vector2 a, Vector2 b, Vector2 c, int value, int size, int[] owner, float[] cover)
