@@ -6,80 +6,6 @@
 // - 금속감 배율: 모델러 텍스처는 그대로 두고, 패널이 칠한 면처럼 밝게 읽히도록 금속도만 줄인다.
 // 모든 스타일 값이 기본값(0, 금속 배율 1, 채도 1)이면 URP Lit과 같은 결과가 나온다.
 
-// 캐릭터 전용 그림자 맵(CharacterSelfShadowFeature가 채움): 칸 4개 가로 배치, 캐릭터 툰 주광 쪽에서 잰 0~1 깊이.
-TEXTURE2D_FLOAT(_FuchsiaCharShadowMap);
-float4x4 _FuchsiaCharShadowMatrices[4];
-float4 _FuchsiaCharShadowDepthScale[4];
-float4 _FuchsiaCharShadowParams;
-
-// 이 점이 캐릭터에 가려 캐릭터 주광을 못 받는 정도(0 = 안 가려짐, 1 = 완전히 가려짐).
-// 바닥은 그림자 맵의 깊이 범위 밖(캐릭터 뒤쪽)에 있으므로, 맵에 캐릭터가 그려진 자리면 깊이 범위를 넘어도 가려진 것으로 본다.
-// 캐릭터 뒤로 2.5 m를 넘는 곳(아래층 바닥 등)은 그림자를 받지 않는다.
-half BgStyleCharacterShadow(float3 positionWS)
-{
-    if (_FuchsiaCharShadowParams.x < 0.5 || _StyleCharacterShadow <= half(0.001))
-    {
-        return 0;
-    }
-    float resolution = _FuchsiaCharShadowParams.z;
-    int maxCoord = (int)resolution - 1;
-    float spacing = max(_StyleCharacterShadowSoftness, 1.0);
-    half occluded = 0;
-    UNITY_UNROLL for (int slot = 0; slot < 4; slot++)
-    {
-        float3 clip = mul(_FuchsiaCharShadowMatrices[slot], float4(positionWS, 1)).xyz;
-        float4 scale = _FuchsiaCharShadowDepthScale[slot];   // x: 1/깊이 범위, y: 깊이 범위(m), z: 텍셀 크기(m)
-        if (any(abs(clip.xy) > 1) || clip.z <= 0 || clip.z > 1.0 + 2.5 * scale.x)
-        {
-            continue;
-        }
-        float depth = min(clip.z, 1.0) - 0.01 * scale.x;
-        float2 texelPosition = (clip.xy * 0.5 + 0.5) * resolution - 0.5;
-        int slotX = slot * (int)resolution;
-        float hidden = 0;
-        // 4x4 표본을 spacing 텍셀 간격으로 펼쳐 부드러운 가장자리를 만든다.
-        UNITY_UNROLL for (int y = 0; y < 4; y++)
-        {
-            UNITY_UNROLL for (int x = 0; x < 4; x++)
-            {
-                float2 offset = (float2(x, y) - 1.5) * spacing;
-                int2 coord = clamp(int2(round(texelPosition + offset)), 0, maxCoord) + int2(slotX, 0);
-                float stored = LOAD_TEXTURE2D(_FuchsiaCharShadowMap, coord).r;
-                hidden += depth > stored ? 1.0 : 0.0;
-            }
-        }
-        occluded = max(occluded, half(hidden / 16.0));
-    }
-    return occluded;
-}
-
-// 칸마다 캐릭터 발밑 위치(xyz)와 사용 여부(w). CharacterSelfShadowFeature가 채운다.
-float4 _FuchsiaCharFeet[4];
-
-// 발밑 접지 그림자(0~1): 천장 조명 아래 선 캐릭터의 발 주변이 어두워지는 것을 흉내 낸다.
-// 캐릭터 주광 방향과 상관없이 늘 보이므로, 그림자가 캐릭터 뒤로 숨는 시점에서도 캐릭터가 바닥에 붙어 보인다.
-// 점프하면 발 높이 차이만큼 옅어진다.
-half BgStyleCharacterContact(float3 positionWS)
-{
-    if (_FuchsiaCharShadowParams.x < 0.5 || _StyleCharacterContact <= half(0.001))
-    {
-        return 0;
-    }
-    half contact = 0;
-    UNITY_UNROLL for (int slot = 0; slot < 4; slot++)
-    {
-        float4 feet = _FuchsiaCharFeet[slot];
-        if (feet.w < 0.5)
-        {
-            continue;
-        }
-        float r = length(positionWS.xz - feet.xz) / max(_StyleCharacterContactRadius, 0.05);
-        float h = abs(positionWS.y - feet.y);
-        contact = max(contact, half((1.0 - smoothstep(0.15, 1.0, r)) * (1.0 - smoothstep(0.15, 0.6, h))));
-    }
-    return contact;
-}
-
 // 까끌까끌한 결용 3D 값 노이즈(해시 기반, 텍스처 없음). 0~1.
 float BgStyleHash31(float3 p)
 {
@@ -148,6 +74,23 @@ half3 BgStyleMainLight(BRDFData brdfData, BRDFData brdfDataClearCoat, Light ligh
     }
     #endif
     return brdf * radiance;
+}
+
+// 가는 하이라이트 깜빡임 방지(스페큘러 안티에일리어싱: Kaplanyan 2016, Tokuyoshi & Kaplanyan 2019).
+// 배관처럼 휜 면은 멀어질수록 화면의 몇 픽셀 안에서 법선이 크게 돈다. 그러면 매끈한 면의 하이라이트가 한 픽셀보다 가는 선이 되어,
+// 카메라가 조금만 움직여도 선이 픽셀 사이로 들어갔다 나왔다 하며 깜빡인다(블룸이 그 깜빡임을 더 키운다).
+// 한 픽셀 안에서 법선이 도는 만큼 거칠기를 올려, 하이라이트가 픽셀보다 가늘어지지 않게 한다. 넓어진 만큼 정점 밝기는 낮아지므로
+// 화면에 닿는 빛의 양은 같다(가까이서 보는 면은 법선이 거의 돌지 않아 그대로다).
+half BgStyleStableSmoothness(half smoothness, float3 normalWS, half amount)
+{
+    float3 du = ddx(normalWS);
+    float3 dv = ddy(normalWS);
+    // 0.25 = 픽셀 반 칸 크기의 필터(표준값). amount로 필터를 넓힌다.
+    float variance = 0.25 * amount * (dot(du, du) + dot(dv, dv));
+    float roughness = PerceptualSmoothnessToRoughness(smoothness);
+    // 거칠기를 올리는 양에는 한계를 둔다(모서리처럼 법선이 갑자기 꺾이는 곳이 뿌옇게 번지지 않게).
+    float squared = saturate(roughness * roughness + min(2.0 * variance, 0.18));
+    return half(RoughnessToPerceptualSmoothness(sqrt(squared)));
 }
 
 // 구운 빛의 주 방향(xyz)과 방향성 정도(w, 0~1). 방향성 라이트맵이면 그 방향 텍스처에서, 아니면 라이트 프로브의 L1 항에서 얻는다.
@@ -345,26 +288,7 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bak
             * min(surfaceData.occlusion, aoFactor.indirectAmbientOcclusion));
     }
 
-    // 캐릭터가 드리우는 그림자: 캐릭터 실루엣 그림자와 발밑 접지 그림자 중 진한 쪽만큼 그늘 색조로 어둡게 한다
-    // (구운 조명은 움직이는 캐릭터의 그림자를 만들지 못한다).
-    half characterShadow = max(BgStyleCharacterShadow(inputData.positionWS) * _StyleCharacterShadow,
-        BgStyleCharacterContact(inputData.positionWS) * _StyleCharacterContact);
-    half characterMultiply = half(1.0) - characterShadow;
-    half characterTint = characterShadow;
-    // 맵 그림자와 합치기: 이 자리가 이미 어두워진 만큼(SSAO 구석 그늘, 맵 그림자 대비)은 빼고 어둡게 한다.
-    // 그림자끼리 겹친 곳은 두 번 어두워지지 않고, 그늘색도 맵 그림자와 같은 세기(_StyleShadowTintStrength)로 입힌다.
-    // _StyleCharacterShadowMerge가 0이면 예전과 같다.
-    if (_StyleCharacterShadowMerge > half(0.001))
-    {
-        half alreadyDark = aoFactor.indirectAmbientOcclusion * (half(1.0) - _StyleShadowDarken * shadeMask);
-        half mergedMultiply = min(half(1.0), characterMultiply / max(alreadyDark, half(0.05)));
-        characterMultiply = lerp(characterMultiply, mergedMultiply, _StyleCharacterShadowMerge);
-        characterTint = lerp(characterTint, (half(1.0) - mergedMultiply) * _StyleShadowTintStrength, _StyleCharacterShadowMerge);
-    }
-    color.rgb *= characterMultiply * lerp(half3(1.0, 1.0, 1.0), shadowHue, characterTint);
-
     // 조정용 화면: 1 = 그늘로 판단한 곳(흰색일수록 그늘), 2 = 구운 빛 밝기(회색조),
-    // 3 = 캐릭터 그림자(R: 가려진 정도, G: 캐릭터 그림자 맵 사용 중, B: 캐릭터 그림자 세기 설정),
     // 4 = 구운 빛의 방향성(흰색일수록 한 방향에서 오는 빛 = 램프 직사광, 검을수록 사방에서 오는 반사광),
     // 5 = 표면 마감을 거친 매끈함(흰색일수록 매끈함 = 러프니스가 낮음).
     if (_StyleDebugView > half(4.5))
@@ -374,8 +298,7 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bak
     else if (_StyleDebugView > half(0.5))
     {
         half debugValue = _StyleDebugView < half(1.5) ? shadeMask : (_StyleDebugView > half(3.5) ? bakedLightDir.w : bakedLuma);
-        color.rgb = (_StyleDebugView < half(2.5) || _StyleDebugView > half(3.5)) ? half3(debugValue, debugValue, debugValue)
-            : half3(characterShadow, half(_FuchsiaCharShadowParams.x), _StyleCharacterShadow);
+        color.rgb = half3(debugValue, debugValue, debugValue);
     }
 
 #if REAL_IS_HALF
@@ -425,6 +348,13 @@ void BackgroundStylizedFragment(
         half2 bevelInside = SAMPLE_TEXTURE2D(_StylePartMap, sampler_LinearRepeat, input.uv).gb;
         surfaceData.smoothness = BgFinishSmoothness(surfaceData.smoothness, partId, bevelInside, inputData.positionWS,
             half4(_StylePartVariation, _StylePartWearScale, _StyleEdgeFinish, _StyleBevel), _StyleBevelSmoothness);
+    }
+
+    // 가는 하이라이트 깜빡임 방지: 화면에서 법선이 빨리 도는 곳(멀리 있는 배관·둥근 모서리)의 매끈함을 낮춘다.
+    // 노멀맵을 거치기 전의 면 법선으로 잰다(노멀맵 무늬 때문에 가까운 면까지 뿌옇게 되지 않도록).
+    if (_StyleHighlightStability > half(0.001))
+    {
+        surfaceData.smoothness = BgStyleStableSmoothness(surfaceData.smoothness, normalize(input.normalWS), _StyleHighlightStability);
     }
 
 #if defined(_DBUFFER)

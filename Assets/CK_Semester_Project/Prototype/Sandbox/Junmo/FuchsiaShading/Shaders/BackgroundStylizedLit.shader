@@ -46,15 +46,6 @@ Shader "Semester/Background/Stylized Lit"
         _StyleGrit("Style: grit amount (stays on the surface)", Range(0, 1)) = 0
         _StyleGritScale("Style: grit size (grains per meter)", Range(10, 400)) = 70
         _StyleGritTone("Style: grit darkening (overall)", Range(0, 0.9)) = 0
-        // 캐릭터가 이 면(바닥)에 드리우는 그림자. 캐릭터 전용 그림자 맵(CharacterSelfShadowFeature)을 투영한다.
-        _StyleCharacterShadow("Style: character shadow darkness on this surface", Range(0, 1)) = 0
-        _StyleCharacterShadowSoftness("Style: character shadow softness (map texels)", Range(1, 8)) = 3
-        // 발밑 접지 그림자: 빛 방향과 상관없이 캐릭터 발 주변을 부드럽게 어둡게 한다.
-        _StyleCharacterContact("Style: character contact shadow under the feet", Range(0, 1)) = 0
-        _StyleCharacterContactRadius("Style: contact shadow radius (m)", Range(0.1, 1.5)) = 0.5
-        // 1이면 캐릭터 그림자가 이미 어두운 곳(SSAO 구석 그늘, 맵 그림자)과 겹칠 때 두 번 어두워지지 않고(합집합),
-        // 그늘색을 맵 그림자와 같은 세기로 입힌다. 0이면 예전처럼 마지막 색에 곱한다.
-        _StyleCharacterShadowMerge("Style: character shadow merges with baked shadows", Range(0, 1)) = 0
         // 구운 빛 하이라이트(투톤): 방향성 라이트맵에 담긴 램프 쪽 방향으로 하이라이트를 만들고 경계를 계단처럼 자른다.
         _StyleSpecular("Style: baked-light highlight strength (two-tone)", Range(0, 2)) = 0
         _StyleSpecularGloss("Style: highlight tightness", Range(1, 128)) = 24
@@ -80,7 +71,10 @@ Shader "Semester/Background/Stylized Lit"
         //    거친 면은 넓고 은은하게, 매끈한 면은 좁고 밝게 빛나 부위별 러프니스 차이가 눈에 보인다.
         _StyleBakedSpecular("Finish: baked-light specular (follows roughness)", Range(0, 4)) = 0
         _StyleBakedSpecularMinRoughness("Finish: baked specular never sharper than this roughness", Range(0.1, 1)) = 0.35
-        [Enum(Off, 0, Shadow mask, 1, Baked light, 2, Character shadow, 3, Baked light direction strength, 4, Smoothness, 5)] _StyleDebugView("Style: debug view", Float) = 0
+        // 4) 가는 하이라이트 깜빡임 방지: 멀리 있는 배관·둥근 모서리의 하이라이트가 한 픽셀보다 가늘어지지 않게 그만큼 넓힌다.
+        //    카메라가 움직일 때 하이라이트 선이 깜빡이는 것을 막는다. 1이 표준, 클수록 더 넓게(더 안정적, 멀리서 덜 반짝임). 0이면 끔.
+        _StyleHighlightStability("Finish: keep thin highlights from flickering (0 = off)", Range(0, 4)) = 0
+        [Enum(Off, 0, Shadow mask, 1, Baked light, 2, Baked light direction strength, 4, Smoothness, 5)] _StyleDebugView("Style: debug view", Float) = 0
         [Space]
 
         // Specular vs Metallic workflow

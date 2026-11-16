@@ -63,11 +63,6 @@ half _StyleSSAO;
 half _StyleGrit;
 half _StyleGritScale;
 half _StyleGritTone;
-half _StyleCharacterShadow;
-half _StyleCharacterShadowSoftness;
-half _StyleCharacterContact;
-half _StyleCharacterContactRadius;
-half _StyleCharacterShadowMerge;
 half _StyleSpecular;
 half _StyleSpecularGloss;
 half _StyleSpecularStep;
@@ -84,6 +79,7 @@ half _StyleBevel;
 half _StyleBevelSmoothness;
 half _StyleBakedSpecular;
 half _StyleBakedSpecularMinRoughness;
+half _StyleHighlightStability;
 UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 CBUFFER_END
 
