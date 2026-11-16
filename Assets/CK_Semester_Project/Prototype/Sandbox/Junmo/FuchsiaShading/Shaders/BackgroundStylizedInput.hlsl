@@ -73,6 +73,17 @@ half _StyleSpecularGloss;
 half _StyleSpecularStep;
 half _StyleSpecularSoftness;
 half _StyleDebugView;
+half _StyleSmoothMapLow;
+half _StyleSmoothMapHigh;
+half _StyleSmoothOutLow;
+half _StyleSmoothOutHigh;
+half _StylePartVariation;
+half _StylePartWearScale;
+half _StyleEdgeFinish;
+half _StyleBevel;
+half _StyleBevelSmoothness;
+half _StyleBakedSpecular;
+half _StyleBakedSpecularMinRoughness;
 UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 CBUFFER_END
 
@@ -169,6 +180,10 @@ TEXTURE2D(_DetailNormalMap);    SAMPLER(sampler_DetailNormalMap);
 TEXTURE2D(_MetallicGlossMap);   SAMPLER(sampler_MetallicGlossMap);
 TEXTURE2D(_SpecGlossMap);       SAMPLER(sampler_SpecGlossMap);
 TEXTURE2D(_ClearCoatMap);       SAMPLER(sampler_ClearCoatMap);
+// 부위 맵(BackgroundPartMapBaker가 구움). 번호는 점 샘플, 나머지는 선형 샘플로 읽으므로 전용 샘플러를 두지 않는다.
+TEXTURE2D(_StylePartMap);
+
+#include "BackgroundSurfaceFinish.hlsl"
 
 #ifdef _SPECULAR_SETUP
     #define SAMPLE_METALLICSPECULAR(uv) SAMPLE_TEXTURE2D(_SpecGlossMap, sampler_SpecGlossMap, uv)
@@ -185,7 +200,9 @@ half4 SampleMetallicSpecGloss(float2 uv, half albedoAlpha)
     #ifdef _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
         specGloss.a = albedoAlpha * _Smoothness;
     #else
-        specGloss.a *= _Smoothness;
+        // 표면 마감 1): 모델러 러프니스 맵의 범위를 다시 편 뒤 Smoothness 배율을 곱한다(기본값이면 맵 값 그대로).
+        specGloss.a = BgFinishRemap(specGloss.a, half4(_StyleSmoothMapLow, _StyleSmoothMapHigh,
+            _StyleSmoothOutLow, _StyleSmoothOutHigh)) * _Smoothness;
     #endif
 #else // _METALLICSPECGLOSSMAP
     #if _SPECULAR_SETUP

@@ -18,6 +18,15 @@ Shader "Semester/Environment/Corridor Floor Reflection"
         _GrazingSharpness("Sharper reflection at grazing angles", Range(0,1)) = 0
         _PlaneFadeStart("Plane height fade: full reflection within (m)", Range(0,1)) = 0.15
         _PlaneFadeEnd("Plane height fade: no reflection beyond (m)", Range(0,1)) = 0.4
+        // 바닥 재질의 표면 마감(부위별 매끈함)을 반사에도 반영한다. 0이면 예전처럼 바닥 전체가 같은 세기·같은 흐림으로 반사한다.
+        // 매끈함은 CorridorPlanarReflection이 바닥 재질(Hide In Reflection의 첫 Stylized Lit 재질)에서 읽어 전역 값으로 넘긴다.
+        [Header(Floor Surface Finish)]
+        _FinishResponse("Follow the floor's surface finish (0 = uniform)", Range(0,1)) = 0
+        _FinishReference("Finish: smoothness that reflects as tuned above", Range(0,1)) = 0.65
+        _FinishRange("Finish: smoothness difference that counts as full change", Range(0.02,0.6)) = 0.2
+        _FinishRoughStrength("Finish: reflection left on the roughest parts", Range(0,1)) = 0.35
+        _FinishRoughBlur("Finish: extra blur on the roughest parts (mip levels)", Range(0,4)) = 2
+        _FinishGlossBoost("Finish: extra reflection on the smoothest parts", Range(0,1)) = 0.25
     }
     SubShader
     {
@@ -48,19 +57,28 @@ Shader "Semester/Environment/Corridor Floor Reflection"
             float4x4 _CorridorReflectionMatrix2;
             half _CorridorReflectionAvailable2;
             float _CorridorReflectionPlaneY2;
+            // 바닥 재질의 표면 마감 값(CorridorPlanarReflection이 채운다). 바닥 셰이더와 같은 식으로 매끈함을 다시 계산한다.
+            #include "BackgroundSurfaceFinish.hlsl"
+            TEXTURE2D(_CorridorFloorSurfaceMap);
+            TEXTURE2D(_CorridorFloorPartMap);
+            half4 _CorridorFloorRemap;      // 러프니스 맵 범위 다시 펴기(맵 낮은 값, 높은 값, 그때의 매끈함 둘)
+            half4 _CorridorFloorVariation;  // 부위별 변화량, 얼룩 크기(m), 가장자리 변화, 모서리 면 광택 양
+            half4 _CorridorFloorFinish;     // x Smoothness 배율, y 모서리 면 매끈함, z 값이 채워졌는지(1/0)
             CBUFFER_START(UnityPerMaterial)
                 half4 _Tint;
                 half _Strength, _BlurPixels, _SeamMask, _PlaneHeightFade, _FloorColorLoss;
                 half _BlurMip, _GrazingBoost, _NearDistance, _FarDistance, _FarStrength;
                 half _FresnelMin, _FresnelPower, _GrazingSharpness, _PlaneFadeStart, _PlaneFadeEnd;
+                half _FinishResponse, _FinishReference, _FinishRange, _FinishRoughStrength, _FinishRoughBlur, _FinishGlossBoost;
             CBUFFER_END
-            struct Attributes { float4 positionOS:POSITION; };
+            struct Attributes { float4 positionOS:POSITION; float2 uv:TEXCOORD0; };
             struct Varyings
             {
                 float4 positionCS:SV_POSITION;
                 float3 positionWS:TEXCOORD0;
                 float4 reflection:TEXCOORD1;
                 float4 reflection2:TEXCOORD2;
+                float2 uv:TEXCOORD3;
             };
             Varyings Vert(Attributes i)
             {
@@ -69,7 +87,23 @@ Shader "Semester/Environment/Corridor Floor Reflection"
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.reflection = mul(_CorridorReflectionMatrix, float4(o.positionWS,1));
                 o.reflection2 = mul(_CorridorReflectionMatrix2, float4(o.positionWS,1));
+                // 반사막은 바닥 타일과 같은 메시라 UV도 같다(바닥 재질의 타일링은 1로 본다).
+                o.uv = i.uv;
                 return o;
+            }
+            // 바닥 재질과 같은 매끈함을 이 픽셀에서 다시 계산해, 기준보다 거친 정도(-1)~매끈한 정도(+1)로 돌려준다.
+            half FloorFinish(float2 uv, float3 positionWS)
+            {
+                if (_FinishResponse <= 0.001h || _CorridorFloorFinish.z < 0.5h)
+                {
+                    return 0;
+                }
+                half mapSmoothness = SAMPLE_TEXTURE2D(_CorridorFloorSurfaceMap, sampler_LinearRepeat, uv).a;
+                half smoothness = BgFinishRemap(mapSmoothness, _CorridorFloorRemap) * _CorridorFloorFinish.x;
+                half partId = SAMPLE_TEXTURE2D_LOD(_CorridorFloorPartMap, sampler_PointRepeat, uv, 0).r;
+                half2 bevelInside = SAMPLE_TEXTURE2D(_CorridorFloorPartMap, sampler_LinearRepeat, uv).gb;
+                smoothness = BgFinishSmoothness(smoothness, partId, bevelInside, positionWS, _CorridorFloorVariation, _CorridorFloorFinish.y);
+                return clamp((smoothness - _FinishReference) / max(_FinishRange, 0.02h), -1.0h, 1.0h) * _FinishResponse;
             }
             // 흐린 광택 반사: 가운데 한 번과 대각선 네 번을 겹쳐 읽는다.
             half3 SampleReflection(TEXTURE2D_PARAM(reflectionTexture, reflectionSampler), float2 uv, float2 offset, float lod)
@@ -99,7 +133,10 @@ Shader "Semester/Environment/Corridor Floor Reflection"
                 // 거울처럼 또렷하지 않게: _BlurMip가 있으면 밉맵을 다섯 번 겹쳐 넓고 부드럽게 흐린다.
                 // 실제 광택면처럼 비스듬히 볼수록 반사가 또렷해진다(_GrazingSharpness, 0이면 예전과 같다).
                 half sharpen = 1.0h - _GrazingSharpness * grazing * grazing;
-                float lod = max(_BlurMip, 0.0) * sharpen;
+                // 표면 마감: 기준보다 거친 부위는 반사가 더 흐리고 약하게, 매끈한 부위는 조금 더 또렷하고 강하게 비친다.
+                half finish = FloorFinish(i.uv, i.positionWS);
+                half rough = saturate(-finish), glossy = saturate(finish);
+                float lod = max(max(_BlurMip, 0.0) * sharpen * (1.0 - 0.5 * glossy) + rough * _FinishRoughBlur, 0.0);
                 float2 offset = _CorridorReflectionTexelSize.xy * (lod > 0.01 ? exp2(lod) * 0.75 : _BlurPixels * sharpen);
                 half3 color;
                 UNITY_BRANCH if (useSecond)
@@ -129,7 +166,8 @@ Shader "Semester/Environment/Corridor Floor Reflection"
                 half screenFade = smoothstep(0,.025,min(min(uv.x,uv.y),min(1-uv.x,1-uv.y)));
                 // 비교 카메라에서는 원본 카메라의 반사를 재사용하지 않고 PBR 바닥만 표시한다.
                 half sourceMatches = 1.0h - step(.02, distance(_WorldSpaceCameraPos, _CorridorReflectionSourcePosition.xyz));
-                half alpha = _Strength * fresnel * seams * screenFade * step(0,reflection.w) * sourceMatches * _CorridorReflectionAvailable;
+                half finishStrength = lerp(1.0h, _FinishRoughStrength, rough) * (1.0h + _FinishGlossBoost * glossy);
+                half alpha = saturate(_Strength * finishStrength) * fresnel * seams * screenFade * step(0,reflection.w) * sourceMatches * _CorridorReflectionAvailable;
                 return half4(color * _Tint.rgb * alpha, alpha * _FloorColorLoss);
             }
             ENDHLSL

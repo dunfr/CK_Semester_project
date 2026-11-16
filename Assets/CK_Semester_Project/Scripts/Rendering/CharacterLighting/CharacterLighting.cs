@@ -15,6 +15,7 @@ namespace CK.SemesterProject.Rendering
         private static readonly int EnvironmentShadowId = Shader.PropertyToID("_EnvironmentShadowStrength");
         private static readonly int BrightnessId = Shader.PropertyToID("_CharacterBrightness");
         private static readonly int RimTintId = Shader.PropertyToID("_CharacterRimTint");
+        private static readonly int IndirectId = Shader.PropertyToID("_CharacterIndirect");
         private static readonly int ShadowSlotId = Shader.PropertyToID("_CharacterShadowSlot");
         private static readonly int StyleNormalStrengthId = Shader.PropertyToID("_StyleNormalStrength");
 
@@ -294,6 +295,7 @@ namespace CK.SemesterProject.Rendering
                 _block.SetFloat(EnvironmentShadowId, state.EnvironmentShadowStrength);
                 _block.SetVector(BrightnessId, state.Brightness);
                 _block.SetVector(RimTintId, state.RimTint);
+                _block.SetVector(IndirectId, state.Indirect);
                 _block.SetFloat(ShadowSlotId, ShadowSlot);
                 if (_withoutStyleNormals.Contains(renderer))
                 {
@@ -326,6 +328,7 @@ namespace CK.SemesterProject.Rendering
                 _block.SetFloat(EnvironmentShadowId, neutral.EnvironmentShadowStrength);
                 _block.SetVector(BrightnessId, neutral.Brightness);
                 _block.SetVector(RimTintId, neutral.RimTint);
+                _block.SetVector(IndirectId, Vector4.one);
                 _block.SetFloat(ShadowSlotId, -1f);
                 if (_withoutStyleNormals.Contains(renderer))
                 {

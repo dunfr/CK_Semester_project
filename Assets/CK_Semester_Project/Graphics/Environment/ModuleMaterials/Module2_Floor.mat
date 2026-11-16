@@ -74,6 +74,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _StylePartMap:
+        m_Texture: {fileID: 2800000, guid: c4edf0f96e2dbff4ba64beee3a375aed, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -122,6 +126,10 @@ Material:
     - _StyleBakedShadow: 1
     - _StyleBakedShadowEnd: 0.24
     - _StyleBakedShadowStart: 0.12
+    - _StyleBakedSpecular: 0
+    - _StyleBakedSpecularMinRoughness: 0.35
+    - _StyleBevel: 0
+    - _StyleBevelSmoothness: 0.8
     - _StyleCel: 0
     - _StyleCelDirectional: 0
     - _StyleCelLitFlatten: 0
@@ -130,14 +138,20 @@ Material:
     - _StyleCelShadowLevel: 0.15
     - _StyleCelSoftness: 0.02
     - _StyleCelThreshold: 0.18
-    - _StyleCharacterContact: 0.65
+    - _StyleCharacterContact: 0.6
     - _StyleCharacterContactRadius: 0.45
     - _StyleCharacterShadow: 0.6
     - _StyleCharacterShadowMerge: 1
-    - _StyleCharacterShadowSoftness: 3
+    - _StyleCharacterShadowSoftness: 6
     - _StyleDebugView: 0
+    - _StyleEdgeFinish: -0.08
+    - _StyleGrit: 0
+    - _StyleGritScale: 70
+    - _StyleGritTone: 0
     - _StyleLitTintStrength: 0
     - _StyleMetallicScale: 0.15
+    - _StylePartVariation: 0.16
+    - _StylePartWearScale: 3
     - _StyleRamp: 0
     - _StyleRampSoftness: 0.15
     - _StyleRampThreshold: 0.5
@@ -147,6 +161,10 @@ Material:
     - _StyleShadowLift: 0
     - _StyleShadowSaturation: 1.15
     - _StyleShadowTintStrength: 0.7
+    - _StyleSmoothMapHigh: 1
+    - _StyleSmoothMapLow: 0
+    - _StyleSmoothOutHigh: 1
+    - _StyleSmoothOutLow: 0
     - _StyleSpecular: 0
     - _StyleSpecularGloss: 24
     - _StyleSpecularSoftness: 0.06

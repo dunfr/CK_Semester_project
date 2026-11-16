@@ -60,7 +60,27 @@ Shader "Semester/Background/Stylized Lit"
         _StyleSpecularGloss("Style: highlight tightness", Range(1, 128)) = 24
         _StyleSpecularStep("Style: highlight cut-off", Range(0.01, 1)) = 0.35
         _StyleSpecularSoftness("Style: highlight edge softness", Range(0.005, 0.5)) = 0.06
-        [Enum(Off, 0, Shadow mask, 1, Baked light, 2, Character shadow, 3, Baked light direction strength, 4)] _StyleDebugView("Style: debug view", Float) = 0
+        // 표면 마감: 부위마다 러프니스가 다르게 보이도록 한다. 모든 값이 기본값이면 예전과 같다.
+        // 1) 모델러 러프니스 맵(Metallic 슬롯의 알파)의 범위를 다시 편다. 맵 값 Low~High를 매끈함 Low~High로 옮긴다.
+        //    맵이 부위마다 다른 값을 갖고 있어도 범위가 좁으면 전부 같은 러프니스로 보이므로, 그 차이를 벌린다.
+        [Header(Surface Finish)]
+        _StyleSmoothMapLow("Finish: roughness map value of the roughest part", Range(0, 1)) = 0
+        _StyleSmoothMapHigh("Finish: roughness map value of the smoothest part", Range(0, 1)) = 1
+        _StyleSmoothOutLow("Finish: smoothness given to the roughest part", Range(0, 1)) = 0
+        _StyleSmoothOutHigh("Finish: smoothness given to the smoothest part", Range(0, 1)) = 1
+        // 2) 부위 맵: Tools > Background > Bake Part Maps가 모듈 메시에서 굽는다(R 부위 번호, G 모서리 면, B 가장자리→안쪽).
+        //    맵이 부위 전체를 한 값으로 칠한 곳(바닥 타일 등)도 판마다 매끈함이 조금씩 달라진다.
+        [NoScaleOffset] _StylePartMap("Finish: part map (baked from the meshes)", 2D) = "black" {}
+        _StylePartVariation("Finish: smoothness difference between parts", Range(0, 0.5)) = 0
+        _StylePartWearScale("Finish: size of the uneven wear inside a part (m)", Range(0.5, 20)) = 5
+        _StyleEdgeFinish("Finish: part edges rougher (-) or smoother (+)", Range(-0.5, 0.5)) = 0
+        _StyleBevel("Finish: gloss on bevels and thin trims", Range(0, 1)) = 0
+        _StyleBevelSmoothness("Finish: smoothness of bevels and thin trims", Range(0, 1)) = 0.8
+        // 3) 구운 빛 광택: 구운 램프 빛도 러프니스에 맞는 하이라이트를 내게 한다(방향성 라이트맵의 주 빛 방향 사용).
+        //    거친 면은 넓고 은은하게, 매끈한 면은 좁고 밝게 빛나 부위별 러프니스 차이가 눈에 보인다.
+        _StyleBakedSpecular("Finish: baked-light specular (follows roughness)", Range(0, 4)) = 0
+        _StyleBakedSpecularMinRoughness("Finish: baked specular never sharper than this roughness", Range(0.1, 1)) = 0.35
+        [Enum(Off, 0, Shadow mask, 1, Baked light, 2, Character shadow, 3, Baked light direction strength, 4, Smoothness, 5)] _StyleDebugView("Style: debug view", Float) = 0
         [Space]
 
         // Specular vs Metallic workflow

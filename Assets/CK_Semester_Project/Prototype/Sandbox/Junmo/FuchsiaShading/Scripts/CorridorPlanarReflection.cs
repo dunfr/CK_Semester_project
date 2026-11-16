@@ -57,6 +57,24 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
     private static readonly int SecondMatrixId = Shader.PropertyToID("_CorridorReflectionMatrix2");
     private static readonly int SecondPlaneYId = Shader.PropertyToID("_CorridorReflectionPlaneY2");
     private static readonly int SecondAvailableId = Shader.PropertyToID("_CorridorReflectionAvailable2");
+    // 바닥 재질의 표면 마감(부위별 매끈함). 반사막 셰이더가 같은 값으로 매끈함을 다시 계산해 반사 세기·흐림을 맞춘다.
+    private static readonly int FloorSurfaceMapId = Shader.PropertyToID("_CorridorFloorSurfaceMap");
+    private static readonly int FloorPartMapId = Shader.PropertyToID("_CorridorFloorPartMap");
+    private static readonly int FloorRemapId = Shader.PropertyToID("_CorridorFloorRemap");
+    private static readonly int FloorVariationId = Shader.PropertyToID("_CorridorFloorVariation");
+    private static readonly int FloorFinishId = Shader.PropertyToID("_CorridorFloorFinish");
+    private static readonly int MetallicGlossMapId = Shader.PropertyToID("_MetallicGlossMap");
+    private static readonly int SmoothnessId = Shader.PropertyToID("_Smoothness");
+    private static readonly int StylePartMapId = Shader.PropertyToID("_StylePartMap");
+    private static readonly int StyleSmoothMapLowId = Shader.PropertyToID("_StyleSmoothMapLow");
+    private static readonly int StyleSmoothMapHighId = Shader.PropertyToID("_StyleSmoothMapHigh");
+    private static readonly int StyleSmoothOutLowId = Shader.PropertyToID("_StyleSmoothOutLow");
+    private static readonly int StyleSmoothOutHighId = Shader.PropertyToID("_StyleSmoothOutHigh");
+    private static readonly int StylePartVariationId = Shader.PropertyToID("_StylePartVariation");
+    private static readonly int StylePartWearScaleId = Shader.PropertyToID("_StylePartWearScale");
+    private static readonly int StyleEdgeFinishId = Shader.PropertyToID("_StyleEdgeFinish");
+    private static readonly int StyleBevelId = Shader.PropertyToID("_StyleBevel");
+    private static readonly int StyleBevelSmoothnessId = Shader.PropertyToID("_StyleBevelSmoothness");
 
     private const string FloorReflectionShaderName = "Semester/Environment/Corridor Floor Reflection";
 
@@ -89,7 +107,47 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
         Shader.SetGlobalFloat(SecondAvailableId, 0);
         Shader.SetGlobalTexture(ReflectionTextureId, Texture2D.blackTexture);
         Shader.SetGlobalTexture(SecondTextureId, Texture2D.blackTexture);
+        Shader.SetGlobalVector(FloorFinishId, Vector4.zero);
         ReleaseResources();
+    }
+
+    // 바닥 재질(Hide In Reflection에 넣어 둔 재질 가운데 표면 마감 속성이 있는 첫 재질)의 마감 값을 전역 값으로 넘긴다.
+    // 반사막 재질에 같은 값을 따로 적어 두지 않아도 바닥 재질을 고치면 반사가 따라간다. 그런 재질이 없으면 반사는 균일하다.
+    private void PublishFloorFinish()
+    {
+        Material floor = null;
+        if (_hideInReflection != null)
+        {
+            foreach (var material in _hideInReflection)
+            {
+                if (material != null && material.HasProperty(StyleSmoothMapLowId) && material.HasProperty(StylePartMapId))
+                {
+                    floor = material;
+                    break;
+                }
+            }
+        }
+
+        if (floor == null)
+        {
+            Shader.SetGlobalVector(FloorFinishId, Vector4.zero);
+            return;
+        }
+
+        // 러프니스 맵이 없는 재질은 흰 텍스처(알파 1)로 대신해 Smoothness 값 그대로가 되게 한다.
+        Texture surfaceMap = floor.HasProperty(MetallicGlossMapId) && floor.IsKeywordEnabled("_METALLICSPECGLOSSMAP")
+            ? floor.GetTexture(MetallicGlossMapId) : null;
+        Texture partMap = floor.GetTexture(StylePartMapId);
+        Shader.SetGlobalTexture(FloorSurfaceMapId, surfaceMap != null ? surfaceMap : Texture2D.whiteTexture);
+        Shader.SetGlobalTexture(FloorPartMapId, partMap != null ? partMap : Texture2D.blackTexture);
+        Shader.SetGlobalVector(FloorRemapId, surfaceMap != null
+            ? new Vector4(floor.GetFloat(StyleSmoothMapLowId), floor.GetFloat(StyleSmoothMapHighId),
+                floor.GetFloat(StyleSmoothOutLowId), floor.GetFloat(StyleSmoothOutHighId))
+            : new Vector4(0f, 1f, 0f, 1f));
+        Shader.SetGlobalVector(FloorVariationId, new Vector4(floor.GetFloat(StylePartVariationId),
+            floor.GetFloat(StylePartWearScaleId), floor.GetFloat(StyleEdgeFinishId), floor.GetFloat(StyleBevelId)));
+        Shader.SetGlobalVector(FloorFinishId, new Vector4(floor.GetFloat(SmoothnessId),
+            floor.GetFloat(StyleBevelSmoothnessId), 1f, 0f));
     }
 
     private void RenderReflection(ScriptableRenderContext context, Camera camera)
@@ -105,6 +163,7 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
         }
 
         EnsureResources(camera);
+        PublishFloorFinish();
         _reflectionCamera.CopyFrom(camera);
         _reflectionCamera.enabled = false;
         // 반사에 아무것도 없는 곳은 하늘 대신 배경색으로 채운다(하늘 수평선의 밝은 하늘색이 흐림을 타고 바닥에 번지던 문제).

@@ -29,6 +29,12 @@ Material:
     - _BlurPixels: 3
     - _FarDistance: 0
     - _FarStrength: 0.1
+    - _FinishGlossBoost: 0.25
+    - _FinishRange: 0.2
+    - _FinishReference: 0.64
+    - _FinishResponse: 1
+    - _FinishRoughBlur: 1.5
+    - _FinishRoughStrength: 0.55
     - _FloorColorLoss: 1
     - _FresnelMin: 0.08
     - _FresnelPower: 4

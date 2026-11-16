@@ -231,6 +231,7 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bak
     MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI);
 
     // 구운 빛 밝기: 그늘 판단과 투톤의 기준(투톤으로 다시 칠하기 전 값).
+    half3 bakedGIRaw = inputData.bakedGI;
     half bakedLuma = Luminance(inputData.bakedGI);
     half celLit = BgStyleCelLit(bakedLuma, bakedLightDir);
     if (_StyleCel > half(0.001))
@@ -322,6 +323,28 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bak
         color.rgb += inputData.bakedGI * (tone * _StyleSpecular * bakedLightDir.w * min(surfaceData.occlusion, aoFactor.indirectAmbientOcclusion));
     }
 
+    // 구운 빛 광택(표면 마감 3): 구운 램프 빛은 스페큘러를 만들지 않으므로, 방향성 라이트맵에 담긴 주 빛 방향으로
+    // URP Lit과 같은 GGX 하이라이트를 계산한다. 거친 면은 넓고 은은하게, 매끈한 면은 좁고 밝게 빛나므로
+    // 부위별 러프니스 차이가 하이라이트 모양으로 드러난다. 빛의 양은 그 자리 구운 빛 가운데 한 방향에서 오는 몫(방향성)만 쓴다.
+    if (_StyleBakedSpecular > half(0.001))
+    {
+        // 라이트맵의 빛 방향은 여러 램프의 평균이라, 아주 매끈한 면에 그대로 쓰면 작은 점 하나로 찍힌다.
+        // 최소 거칠기로 하이라이트를 넓혀 긴 램프의 넓은 반사처럼 보이게 한다(GGX 정규화로 넓어진 만큼 정점은 낮아진다).
+        BRDFData wide = brdfData;
+        wide.perceptualRoughness = max(brdfData.perceptualRoughness, _StyleBakedSpecularMinRoughness);
+        wide.roughness = max(PerceptualRoughnessToRoughness(wide.perceptualRoughness), HALF_MIN_SQRT);
+        wide.roughness2 = max(wide.roughness * wide.roughness, HALF_MIN);
+        wide.normalizationTerm = wide.roughness * half(4.0) + half(2.0);
+        wide.roughness2MinusOne = wide.roughness2 - half(1.0);
+        half3 bakedDir = bakedLightDir.xyz;
+        // 빛을 등진 면에는 하이라이트가 생기지 않게 한다(경계는 부드럽게).
+        half facing = saturate(dot(inputData.normalWS, bakedDir) * half(2.0) + half(0.3));
+        // 정점 값은 64에서 자른다(매끈한 배관·모서리 면의 하이라이트가 화면을 하얗게 태우지 않게).
+        half specularTerm = min(DirectBRDFSpecular(wide, inputData.normalWS, bakedDir, inputData.viewDirectionWS), half(64.0));
+        color.rgb += brdfData.specular * bakedGIRaw * (specularTerm * facing * bakedLightDir.w * _StyleBakedSpecular
+            * min(surfaceData.occlusion, aoFactor.indirectAmbientOcclusion));
+    }
+
     // 캐릭터가 드리우는 그림자: 캐릭터 실루엣 그림자와 발밑 접지 그림자 중 진한 쪽만큼 그늘 색조로 어둡게 한다
     // (구운 조명은 움직이는 캐릭터의 그림자를 만들지 못한다).
     half characterShadow = max(BgStyleCharacterShadow(inputData.positionWS) * _StyleCharacterShadow,
@@ -342,8 +365,13 @@ half4 BgStyleFragmentPBR(InputData inputData, SurfaceData surfaceData, half4 bak
 
     // 조정용 화면: 1 = 그늘로 판단한 곳(흰색일수록 그늘), 2 = 구운 빛 밝기(회색조),
     // 3 = 캐릭터 그림자(R: 가려진 정도, G: 캐릭터 그림자 맵 사용 중, B: 캐릭터 그림자 세기 설정),
-    // 4 = 구운 빛의 방향성(흰색일수록 한 방향에서 오는 빛 = 램프 직사광, 검을수록 사방에서 오는 반사광).
-    if (_StyleDebugView > half(0.5))
+    // 4 = 구운 빛의 방향성(흰색일수록 한 방향에서 오는 빛 = 램프 직사광, 검을수록 사방에서 오는 반사광),
+    // 5 = 표면 마감을 거친 매끈함(흰색일수록 매끈함 = 러프니스가 낮음).
+    if (_StyleDebugView > half(4.5))
+    {
+        color.rgb = surfaceData.smoothness.xxx;
+    }
+    else if (_StyleDebugView > half(0.5))
     {
         half debugValue = _StyleDebugView < half(1.5) ? shadeMask : (_StyleDebugView > half(3.5) ? bakedLightDir.w : bakedLuma);
         color.rgb = (_StyleDebugView < half(2.5) || _StyleDebugView > half(3.5)) ? half3(debugValue, debugValue, debugValue)
@@ -388,6 +416,16 @@ void BackgroundStylizedFragment(
     InputData inputData;
     InitializeInputData(input, surfaceData.normalTS, inputData);
     SETUP_DEBUG_TEXTURE_DATA(inputData, UNDO_TRANSFORM_TEX(input.uv, _BaseMap));
+
+    // 표면 마감 2): 부위 맵으로 부위마다 매끈함을 조금씩 달리한다(세 값이 모두 0이면 건너뛴다).
+    if (_StylePartVariation + abs(_StyleEdgeFinish) + _StyleBevel > half(0.001))
+    {
+        // 부위 번호는 경계에서 섞이면 안 되므로 가장 큰 밉을 점 샘플로 읽고, 모서리 면·안쪽 정도는 부드럽게 읽는다.
+        half partId = SAMPLE_TEXTURE2D_LOD(_StylePartMap, sampler_PointRepeat, input.uv, 0).r;
+        half2 bevelInside = SAMPLE_TEXTURE2D(_StylePartMap, sampler_LinearRepeat, input.uv).gb;
+        surfaceData.smoothness = BgFinishSmoothness(surfaceData.smoothness, partId, bevelInside, inputData.positionWS,
+            half4(_StylePartVariation, _StylePartWearScale, _StyleEdgeFinish, _StyleBevel), _StyleBevelSmoothness);
+    }
 
 #if defined(_DBUFFER)
     ApplyDecalToSurfaceData(input.positionCS, surfaceData, inputData);

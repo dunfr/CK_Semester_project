@@ -41,6 +41,8 @@ CBUFFER_START(UnityPerMaterial)
     half4 _CharacterBrightness;
     // 구역/보스 연출용 림 색조. rgb 색, a 세기 배율.
     half4 _CharacterRimTint;
+    // 간접광 반응: CharacterLighting이 캐릭터 위치의 구운 빛(라이트 프로브)에서 계산해 넣는다. rgb 색조(밝기 1), a 밝기 배율.
+    half4 _CharacterIndirect;
     // 캐릭터 자기 그림자: CharacterLighting이 칸 번호를 넣는다(-1이면 없음).
     half _CharacterShadowSlot, _SelfShadowStrength, _SelfShadowBias, _SelfShadowSoftness;
     // StarRail 림 그림자: 실루엣 가장자리를 살짝 어둡게 해 팔다리 같은 원통이 평평해 보이지 않게 한다.
@@ -365,6 +367,10 @@ half4 FuchsiaFrag(Varyings i)
     half rimLighting = lerp(_DepthRimShadowFade, 1.0h, saturate(dot(n, light.direction)) * shadow);
     color += lerp(half3(1, 1, 1), baseColor, .35h) * _DepthRimColor.rgb * _CharacterRimTint.rgb * directResponse
         * depthRim * rimLighting * _CharacterRimTint.a;
+    // 간접광 반응: 캐릭터가 서 있는 곳의 구운 빛(라이트 프로브) 밝기·색조를 캐릭터 전체에 고르게 입힌다.
+    // CharacterLighting이 캐릭터 위치 한 곳에서 재서 모든 렌더러에 같은 값을 넣으므로 얼굴·머리·옷이 따로 놀지 않고,
+    // 명암 계단(툰 경계)의 위치는 그대로다. 발광에는 곱하지 않는다. 컴포넌트가 없으면 (1,1,1,1)이라 변화가 없다.
+    color *= _CharacterIndirect.rgb * _CharacterIndirect.a;
     #if defined(_EMISSION)
         color += SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
     #endif
@@ -449,6 +455,8 @@ half4 OutlineFrag(OutlineVaryings i) : SV_Target
     Light light = GetMainLight();
     FuchsiaApplyCharacterKey(light, _CharacterKeyDirection, _CharacterKeyColor.rgb);
     color *= lerp(half3(1, 1, 1), FuchsiaLightHue(light.color), _OutlineLightTint);
+    // 외곽선도 몸과 같은 간접광 반응을 받는다(어두운 곳에서 선만 밝게 남지 않게).
+    color *= _CharacterIndirect.rgb * _CharacterIndirect.a;
     return half4(color, 1);
 }
 #endif
