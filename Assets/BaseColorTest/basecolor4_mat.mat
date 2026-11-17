@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: basecolor4_mat
-  m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
+  m_Shader: {fileID: 4800000, guid: ebb330b5187e4dd428874029d77615d2, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -17,8 +17,7 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
-  stringTagMap:
-    RenderType: Opaque
+  stringTagMap: {}
   disabledShaderPasses:
   - MOTIONVECTORS
   m_LockedProperties: 
@@ -30,6 +29,10 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ClearCoatMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -69,6 +72,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _StylePartMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - unity_Lightmaps:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -88,7 +95,9 @@ Material:
     - _AlphaToMask: 0
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
+    - _BlendOp: 0
     - _BumpScale: 1
+    - _ClearCoat: 0
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _Cull: 2
@@ -101,16 +110,60 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _Metallic: 0
+    - _Metallic: 0.7
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _Smoothness: 0.5
+    - _Smoothness: 0.4
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
+    - _StyleAmbientLift: 0
+    - _StyleBakedShadow: 1
+    - _StyleBakedShadowEnd: 0.11
+    - _StyleBakedShadowStart: 0.05
+    - _StyleBakedSpecular: 0.25
+    - _StyleBakedSpecularMinRoughness: 0.3
+    - _StyleBevel: 0
+    - _StyleBevelSmoothness: 0.8
+    - _StyleCel: 0
+    - _StyleCelDirectional: 0
+    - _StyleCelLitFlatten: 0
+    - _StyleCelLitLevel: 0.4
+    - _StyleCelShadowFlatten: 0.8
+    - _StyleCelShadowLevel: 0.15
+    - _StyleCelSoftness: 0.02
+    - _StyleCelThreshold: 0.18
+    - _StyleDebugView: 0
+    - _StyleEdgeFinish: 0
+    - _StyleGrit: 0
+    - _StyleGritScale: 70
+    - _StyleGritTone: 0
+    - _StyleHighlightStability: 2
+    - _StyleLitTintStrength: 0
+    - _StyleMetallicScale: 1
+    - _StylePartVariation: 0
+    - _StylePartWearScale: 3
+    - _StyleRamp: 0
+    - _StyleRampSoftness: 0.01
+    - _StyleRampThreshold: 0.5
+    - _StyleSSAO: 1
+    - _StyleSaturation: 1
+    - _StyleShadowDarken: 0.5
+    - _StyleShadowLift: 0
+    - _StyleShadowSaturation: 1.15
+    - _StyleShadowTintStrength: 0.15
+    - _StyleSmoothMapHigh: 1
+    - _StyleSmoothMapLow: 0
+    - _StyleSmoothOutHigh: 1
+    - _StyleSmoothOutLow: 0
+    - _StyleSpecular: 0
+    - _StyleSpecularGloss: 24
+    - _StyleSpecularSoftness: 0.06
+    - _StyleSpecularStep: 0.35
+    - _StyleWrap: 0
     - _Surface: 0
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
@@ -120,6 +173,9 @@ Material:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
+    - _StyleAmbientColor: {r: 0.85, g: 0.9, b: 1, a: 1}
+    - _StyleLitTint: {r: 1, g: 0.96, b: 0.9, a: 1}
+    - _StyleShadowTint: {r: 0.74, g: 0.8, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &5484582099437300975

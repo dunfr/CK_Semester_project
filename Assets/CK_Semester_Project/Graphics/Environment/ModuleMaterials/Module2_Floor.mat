@@ -124,8 +124,8 @@ Material:
     - _SrcBlendAlpha: 1
     - _StyleAmbientLift: 0
     - _StyleBakedShadow: 1
-    - _StyleBakedShadowEnd: 0.24
-    - _StyleBakedShadowStart: 0.12
+    - _StyleBakedShadowEnd: 0.11
+    - _StyleBakedShadowStart: 0.05
     - _StyleBakedSpecular: 0
     - _StyleBakedSpecularMinRoughness: 0.35
     - _StyleBevel: 0
@@ -145,7 +145,7 @@ Material:
     - _StyleGritTone: 0
     - _StyleHighlightStability: 0
     - _StyleLitTintStrength: 0
-    - _StyleMetallicScale: 0.15
+    - _StyleMetallicScale: 1
     - _StylePartVariation: 0.16
     - _StylePartWearScale: 3
     - _StyleRamp: 0
@@ -156,7 +156,7 @@ Material:
     - _StyleShadowDarken: 0.5
     - _StyleShadowLift: 0
     - _StyleShadowSaturation: 1.15
-    - _StyleShadowTintStrength: 0.7
+    - _StyleShadowTintStrength: 0.15
     - _StyleSmoothMapHigh: 1
     - _StyleSmoothMapLow: 0
     - _StyleSmoothOutHigh: 1
