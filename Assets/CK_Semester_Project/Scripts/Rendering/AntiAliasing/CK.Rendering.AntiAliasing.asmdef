@@ -1,0 +1,23 @@
+{
+    "name": "CK.Rendering.AntiAliasing",
+    "rootNamespace": "CK.SemesterProject.Rendering",
+    "references": [
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.modules.amd",
+            "expression": "1.0.0",
+            "define": "CK_AMD_MODULE"
+        }
+    ],
+    "noEngineReferences": false
+}

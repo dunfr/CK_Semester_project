@@ -18,6 +18,7 @@ MonoBehaviour:
     KeyEulerAngles: {x: 0, y: 0, z: 0}
     KeyColor: {r: 1, g: 0.94, b: 0.9, a: 1}
     KeyIntensity: 1
+    MainLightColorInfluence: 1
     BrightnessResponse: 0
     BrightnessReference: 1
     MinBrightness: 0.35
@@ -31,3 +32,8 @@ MonoBehaviour:
     SceneLightColorInfluence: 0.6
     MinElevation: 10
     MaxElevation: 50
+    IndirectResponse: 0.4
+    IndirectReference: 0.26
+    IndirectMin: 0.78
+    IndirectMax: 1.1
+    IndirectTint: 0.35

@@ -35,6 +35,10 @@ namespace CK.SemesterProject.Rendering
         [Min(0f), Tooltip("가상 주광 광량입니다. 밝기 반응이 0이면 색조에만 쓰입니다.")]
         public float KeyIntensity;
 
+        [Range(0f, 1f), Tooltip("FollowMainLight에서 씬 주광(방향광)의 색조를 가상 주광 색에 입히는 비율입니다. "
+            + "1이면 방마다 바뀌는 주광 색(RoomKeyLight)을 몬스터와 똑같이 따라가고, 0이면 KeyColor만 씁니다.")]
+        public float MainLightColorInfluence;
+
         [Range(0f, 1f), Tooltip("0이면 광량과 무관하게 원화 밝기를 유지하고, 1이면 광량/기준 광량 비율을 그대로 따릅니다.")]
         public float BrightnessResponse;
 
@@ -69,6 +73,29 @@ namespace CK.SemesterProject.Rendering
         [Range(0f, 89f), Tooltip("주광 높이각 상한(도). 바로 위 천장등에서 얼굴이 전부 그늘지는 것을 막습니다.")]
         public float MaxElevation;
 
+        [Header("간접광(구운 빛) 반응")]
+        [Range(0f, 1f), Tooltip("캐릭터가 서 있는 곳의 간접광(라이트 프로브) 밝기를 따라가는 정도입니다. 0이면 무시하고, 1이면 밝기 비율을 그대로 따릅니다. 0.3~0.5면 어두운 곳에서 살짝 가라앉고 밝은 곳에서 살짝 살아납니다.")]
+        public float IndirectResponse;
+
+        [Min(0f), Tooltip("밝기 1로 보는 간접광 세기입니다. 캐릭터가 주로 서는 곳의 값을 넣습니다. 0이면 0.5로 봅니다.")]
+        public float IndirectReference;
+
+        [Range(0f, 1f), Tooltip("간접광이 어두운 곳에서 내려갈 수 있는 최저 밝기입니다. 0이면 0.6으로 봅니다.")]
+        public float IndirectMin;
+
+        [Range(0f, 2f), Tooltip("간접광이 밝은 곳에서 올라갈 수 있는 최고 밝기입니다. 1보다 작으면 1.15로 봅니다.")]
+        public float IndirectMax;
+
+        [Range(0f, 1f), Tooltip("간접광의 색조(푸른 조명 옆, 따뜻한 조명 아래 등)를 캐릭터에 입히는 정도입니다. 0이면 색은 그대로입니다.")]
+        public float IndirectTint;
+
+        // 라이트 프로브를 읽을 방향(여섯 축)과 그 결과. 평균을 내면 방향과 무관한 주변 밝기가 된다.
+        private static readonly Vector3[] ProbeDirections =
+        {
+            Vector3.up, Vector3.down, Vector3.left, Vector3.right, Vector3.forward, Vector3.back,
+        };
+        private static readonly Color[] ProbeResults = new Color[6];
+
         public static CharacterLightSettings Default => new CharacterLightSettings
         {
             KeyOverride = 0f,
@@ -87,6 +114,11 @@ namespace CK.SemesterProject.Rendering
             SceneLightColorInfluence = .6f,
             MinElevation = 10f,
             MaxElevation = 50f,
+            IndirectResponse = 0f,
+            IndirectReference = .5f,
+            IndirectMin = .6f,
+            IndirectMax = 1.15f,
+            IndirectTint = 0f,
         };
 
         // position: 조명을 판정할 캐릭터 지점. ignoreRoot: 이 아래에 달린 조명은 배경 조명에서 뺀다.
@@ -111,9 +143,59 @@ namespace CK.SemesterProject.Rendering
                     break;
             }
 
-            Color color = QualitySettings.activeColorSpace == ColorSpace.Linear ? KeyColor.linear : KeyColor;
+            bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            Color color = linear ? KeyColor.linear : KeyColor;
+            Vector3 keyColor = new Vector3(color.r, color.g, color.b) * KeyIntensity;
+            if (DirectionMode == CharacterKeyDirectionMode.FollowMainLight && mainLight != null && MainLightColorInfluence > 0f)
+            {
+                // 주광의 밝기는 빼고 색조만 가져온다(밝기 1). 주광이 흰색이면 아무것도 바뀌지 않는다.
+                Color main = linear ? mainLight.color.linear : mainLight.color;
+                float luminance = main.r * .2126f + main.g * .7152f + main.b * .0722f;
+                if (luminance > 1e-5f)
+                {
+                    Vector3 hue = new Vector3(main.r, main.g, main.b) / luminance;
+                    keyColor = Vector3.Scale(keyColor, Vector3.Lerp(Vector3.one, hue, MainLightColorInfluence));
+                }
+            }
             // 셰이더 규칙: 표면에서 광원을 향하는 방향.
-            return Build((rotation * Vector3.back).normalized, new Vector3(color.r, color.g, color.b) * KeyIntensity);
+            return Build((rotation * Vector3.back).normalized, keyColor, position);
+        }
+
+        // 캐릭터 위치의 간접광(구운 빛)에서 캐릭터 전체에 곱할 색조(xyz, 밝기 1)와 밝기 배율(w)을 구한다.
+        // 방향과 무관한 평균 밝기만 쓰므로 얼굴·옷의 명암 계단은 그대로고, 캐릭터가 그 자리 밝기·색에 고르게 묻힌다.
+        // 반응이 0이거나 씬에 구운 라이트 프로브가 없으면 (1, 1, 1, 1) = 변화 없음.
+        private Vector4 ResolveIndirect(Vector3 position)
+        {
+            if (IndirectResponse <= 0f && IndirectTint <= 0f)
+            {
+                return Vector4.one;
+            }
+            LightProbes probes = LightmapSettings.lightProbes;
+            if (probes == null || probes.count == 0)
+            {
+                return Vector4.one;
+            }
+
+            LightProbes.GetInterpolatedProbe(position, null, out UnityEngine.Rendering.SphericalHarmonicsL2 probe);
+            probe.Evaluate(ProbeDirections, ProbeResults);
+            Vector3 ambient = Vector3.zero;
+            foreach (Color result in ProbeResults)
+            {
+                ambient += new Vector3(result.r, result.g, result.b);
+            }
+            ambient = Vector3.Max(ambient / ProbeResults.Length, Vector3.zero);
+            float luminance = ambient.x * .2126f + ambient.y * .7152f + ambient.z * .0722f;
+
+            // 저장된 값이 0인 예전 프로필·구역은 기본값으로 본다.
+            float reference = IndirectReference > 0f ? IndirectReference : .5f;
+            float min = IndirectMin > 0f ? IndirectMin : .6f;
+            float max = IndirectMax >= 1f ? IndirectMax : 1.15f;
+            // 반응 정도를 지수로 써서 완만하게 따라간다(0이면 항상 1, 1이면 밝기 비율 그대로).
+            float factor = Mathf.Clamp(Mathf.Pow(Mathf.Max(luminance, 1e-4f) / reference, IndirectResponse), min, max);
+
+            Vector3 hue = luminance > 1e-4f ? Vector3.Min(ambient / luminance, Vector3.one * 2f) : Vector3.one;
+            Vector3 tint = Vector3.Lerp(Vector3.one, hue, IndirectTint);
+            return new Vector4(tint.x, tint.y, tint.z, factor);
         }
 
         private CharacterLightState ResolveSceneLights(Vector3 position, Transform ignoreRoot)
@@ -124,7 +206,7 @@ namespace CK.SemesterProject.Rendering
             if (!CharacterLightEnvironment.SampleSceneLights(position, SceneLightLayers, ignoreRoot,
                     out Vector3 direction, out Vector3 radiance))
             {
-                return Build(fallback, tintColor * KeyIntensity);
+                return Build(fallback, tintColor * KeyIntensity, position);
             }
 
             direction = ClampElevation(direction, fallback);
@@ -132,7 +214,7 @@ namespace CK.SemesterProject.Rendering
             Vector3 hue = luminance > 1e-5f ? radiance / luminance : Vector3.one;
             // 배경 조명 색조를 KeyColor 쪽으로 섞고, 광량은 실제로 들어오는 양을 쓴다(밝기 반응용).
             Vector3 color = Vector3.Scale(Vector3.Lerp(Vector3.one, hue, SceneLightColorInfluence), tintColor);
-            return Build(direction, color * (luminance * KeyIntensity));
+            return Build(direction, color * (luminance * KeyIntensity), position);
         }
 
         private Vector3 ClampElevation(Vector3 direction, Vector3 fallback)
@@ -156,7 +238,7 @@ namespace CK.SemesterProject.Rendering
             return (horizontal * Mathf.Cos(elevation) + Vector3.up * Mathf.Sin(elevation)).normalized;
         }
 
-        private CharacterLightState Build(Vector3 direction, Vector3 keyColor)
+        private CharacterLightState Build(Vector3 direction, Vector3 keyColor, Vector3 position)
         {
             Color rim = QualitySettings.activeColorSpace == ColorSpace.Linear ? RimTint.linear : RimTint;
             return new CharacterLightState
@@ -167,6 +249,7 @@ namespace CK.SemesterProject.Rendering
                 Brightness = new Vector4(BrightnessReference, MinBrightness, MaxBrightness, BrightnessResponse),
                 EnvironmentShadowStrength = EnvironmentShadowStrength,
                 RimTint = new Vector4(rim.r, rim.g, rim.b, RimStrength),
+                Indirect = ResolveIndirect(position),
             };
         }
     }
@@ -180,6 +263,8 @@ namespace CK.SemesterProject.Rendering
         public Vector4 Brightness;
         public float EnvironmentShadowStrength;
         public Vector4 RimTint;
+        // 간접광 반응: xyz 색조(밝기 1), w 밝기 배율. 변화 없음은 (1, 1, 1, 1).
+        public Vector4 Indirect;
 
         public static CharacterLightState Lerp(CharacterLightState a, CharacterLightState b, float t)
         {
@@ -193,6 +278,7 @@ namespace CK.SemesterProject.Rendering
                 Brightness = Vector4.Lerp(a.Brightness, b.Brightness, t),
                 EnvironmentShadowStrength = Mathf.Lerp(a.EnvironmentShadowStrength, b.EnvironmentShadowStrength, t),
                 RimTint = Vector4.Lerp(a.RimTint, b.RimTint, t),
+                Indirect = Vector4.Lerp(a.Indirect, b.Indirect, t),
             };
         }
 
@@ -203,7 +289,8 @@ namespace CK.SemesterProject.Rendering
                 && (KeyColor - other.KeyColor).sqrMagnitude < 1e-8f
                 && (Brightness - other.Brightness).sqrMagnitude < 1e-8f
                 && Mathf.Abs(EnvironmentShadowStrength - other.EnvironmentShadowStrength) < 1e-4f
-                && (RimTint - other.RimTint).sqrMagnitude < 1e-8f;
+                && (RimTint - other.RimTint).sqrMagnitude < 1e-8f
+                && (Indirect - other.Indirect).sqrMagnitude < 1e-8f;
         }
     }
 }

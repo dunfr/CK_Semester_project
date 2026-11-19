@@ -18,6 +18,7 @@ Shader "Semester/Fuchsia/Cloth Toon"
         _RimShadowFeather("Rim shadow softness", Range(0,1)) = .25
         [HideInInspector] _CharacterBrightness("Character brightness (reference, min, max, response)", Vector) = (1,.35,1.15,0)
         [HideInInspector] _CharacterRimTint("Character rim tint (A = strength)", Vector) = (1,1,1,1)
+        [HideInInspector] _CharacterIndirect("Character indirect light (RGB tint, A brightness)", Vector) = (1,1,1,1)
         _EnvironmentShadowStrength("Environment shadow dimming", Range(0,1)) = 1
         _BaseMap("Color", 2D) = "white" {}
         _BaseColor("Tint", Color) = (1,1,1,1)
