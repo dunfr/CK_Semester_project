@@ -9,6 +9,7 @@ Shader "Semester/Environment/Corridor Floor Reflection"
         _PlaneHeightFade("Fade on floors away from the reflection plane", Range(0,1)) = 0
         _FloorColorLoss("Floor color hidden by reflection (1 = blend over, 0 = add on top)", Range(0,1)) = 1
         _BlurMip("Glossy blur as mip level (0 = off, uses pixel blur)", Range(0,6)) = 0
+        _BlurStretch("Blur stretch toward the viewer (1 = round, higher = long streaks)", Range(1,6)) = 1
         _GrazingBoost("Stronger at grazing angles (1 = old behavior)", Range(0,1)) = 1
         _NearDistance("Full strength within distance (m)", Float) = 0
         _FarDistance("Fade end distance (m, 0 = no distance fade)", Float) = 0
@@ -67,7 +68,7 @@ Shader "Semester/Environment/Corridor Floor Reflection"
             CBUFFER_START(UnityPerMaterial)
                 half4 _Tint;
                 half _Strength, _BlurPixels, _SeamMask, _PlaneHeightFade, _FloorColorLoss;
-                half _BlurMip, _GrazingBoost, _NearDistance, _FarDistance, _FarStrength;
+                half _BlurMip, _BlurStretch, _GrazingBoost, _NearDistance, _FarDistance, _FarStrength;
                 half _FresnelMin, _FresnelPower, _GrazingSharpness, _PlaneFadeStart, _PlaneFadeEnd;
                 half _FinishResponse, _FinishReference, _FinishRange, _FinishRoughStrength, _FinishRoughBlur, _FinishGlossBoost;
             CBUFFER_END
@@ -105,15 +106,28 @@ Shader "Semester/Environment/Corridor Floor Reflection"
                 smoothness = BgFinishSmoothness(smoothness, partId, bevelInside, positionWS, _CorridorFloorVariation, _CorridorFloorFinish.y);
                 return clamp((smoothness - _FinishReference) / max(_FinishRange, 0.02h), -1.0h, 1.0h) * _FinishResponse;
             }
-            // 흐린 광택 반사: 가운데 한 번과 대각선 네 번을 겹쳐 읽는다.
-            half3 SampleReflection(TEXTURE2D_PARAM(reflectionTexture, reflectionSampler), float2 uv, float2 offset, float lod)
+            // 흐린 광택 반사: 타원 안에 고르게 흩은 16개 지점을 가운데가 무거운 가중으로 겹쳐 읽는다.
+            // 예전에는 아주 낮은 해상도 밉 한 장을 다섯 번만 읽어서, 흐림이 클수록 반사가 형체 없는 네모난 얼룩으로 뭉개졌다.
+            // 지점 사이가 비지 않을 만큼만 낮은 밉(lod)을 쓰므로 흐림 크기는 같아도 결이 매끈하다.
+            static const float2 ReflectionTaps[16] =
             {
-                half3 color = SAMPLE_TEXTURE2D_LOD(reflectionTexture, reflectionSampler, uv, lod).rgb * .4;
-                color += SAMPLE_TEXTURE2D_LOD(reflectionTexture, reflectionSampler, uv + offset, lod).rgb * .15;
-                color += SAMPLE_TEXTURE2D_LOD(reflectionTexture, reflectionSampler, uv - offset, lod).rgb * .15;
-                color += SAMPLE_TEXTURE2D_LOD(reflectionTexture, reflectionSampler, uv + offset * float2(1,-1), lod).rgb * .15;
-                color += SAMPLE_TEXTURE2D_LOD(reflectionTexture, reflectionSampler, uv + offset * float2(-1,1), lod).rgb * .15;
-                return color;
+                float2(0.1768, 0.0000), float2(-0.2258, 0.2068), float2(0.0346, -0.3938), float2(0.2846, 0.3712),
+                float2(-0.5222, -0.0924), float2(0.4947, -0.3147), float2(-0.1655, 0.6155), float2(-0.3156, -0.6076),
+                float2(0.6846, 0.2500), float2(-0.7123, 0.2940), float2(0.3434, -0.7337), float2(0.2537, 0.8089),
+                float2(-0.7647, -0.4432), float2(0.8971, -0.1972), float2(-0.5475, 0.7788), float2(-0.1265, -0.9761)
+            };
+            half3 SampleReflection(TEXTURE2D_PARAM(reflectionTexture, reflectionSampler), float2 uv, float2 radius, float lod)
+            {
+                half3 color = 0;
+                half total = 0;
+                for (int tap = 0; tap < 16; tap++)
+                {
+                    float2 point2 = ReflectionTaps[tap];
+                    half weight = exp(-2.0 * dot(point2, point2));
+                    color += SAMPLE_TEXTURE2D_LOD(reflectionTexture, reflectionSampler, uv + point2 * radius, lod).rgb * weight;
+                    total += weight;
+                }
+                return color / total;
             }
             half4 Frag(Varyings i):SV_Target
             {
@@ -137,15 +151,22 @@ Shader "Semester/Environment/Corridor Floor Reflection"
                 half finish = FloorFinish(i.uv, i.positionWS);
                 half rough = saturate(-finish), glossy = saturate(finish);
                 float lod = max(max(_BlurMip, 0.0) * sharpen * (1.0 - 0.5 * glossy) + rough * _FinishRoughBlur, 0.0);
-                float2 offset = _CorridorReflectionTexelSize.xy * (lod > 0.01 ? exp2(lod) * 0.75 : _BlurPixels * sharpen);
+                // 흐림 반지름(반사 텍스처 칸 수). 세로(화면 위아래 = 보는 쪽으로 다가오는 방향)는 _BlurStretch만큼 더 길게 늘여
+                // 조명이 바닥에 길게 비치는 광택 바닥의 모습을 낸다.
+                half stretch = max(_BlurStretch, 1.0h);
+                float2 radius = _CorridorReflectionTexelSize.xy * (lod > 0.01 ? exp2(lod) * 1.25 : _BlurPixels * sharpen);
+                radius.y *= stretch;
+                // 읽는 지점 사이가 비지 않게 하는 밉. 반지름보다 한 단계 반 선명한 밉을 쓰고, 세로로 늘인 만큼 더 흐린 밉을 쓴다
+                // (덜 흐린 밉을 쓰면 얇고 밝은 조명 띠가 읽는 지점마다 따로 찍혀 여러 겹의 줄무늬로 보인다).
+                float sampleLod = max(lod - 1.5 + log2(stretch), 0.0);
                 half3 color;
                 UNITY_BRANCH if (useSecond)
                 {
-                    color = SampleReflection(TEXTURE2D_ARGS(_CorridorPlanarReflection2, sampler_CorridorPlanarReflection2), uv, offset, lod);
+                    color = SampleReflection(TEXTURE2D_ARGS(_CorridorPlanarReflection2, sampler_CorridorPlanarReflection2), uv, radius, sampleLod);
                 }
                 else
                 {
-                    color = SampleReflection(TEXTURE2D_ARGS(_CorridorPlanarReflection, sampler_CorridorPlanarReflection), uv, offset, lod);
+                    color = SampleReflection(TEXTURE2D_ARGS(_CorridorPlanarReflection, sampler_CorridorPlanarReflection), uv, radius, sampleLod);
                 }
                 // 프레넬: 내려다볼 때는 _FresnelMin, 비스듬할수록 1로 커진다. _GrazingBoost가 0이면 각도와 상관없이 1이다.
                 half fresnel = lerp(1.0h, _FresnelMin + (1.0h - _FresnelMin) * pow(grazing, _FresnelPower), _GrazingBoost);

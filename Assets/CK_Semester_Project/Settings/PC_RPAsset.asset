@@ -29,6 +29,10 @@ MonoBehaviour:
   m_MSAA: 1
   m_RenderScale: 1
   m_UpscalingFilter: 0
+  m_IUpscalerName: FSR2 (IUpscaler)
+  m_UpscalerOptions:
+  - {fileID: 81463811059781107}
+  - {fileID: 5880291439158393914}
   m_FsrOverrideSharpness: 0
   m_FsrSharpness: 0.92
   m_EnableLODCrossFade: 1
@@ -142,3 +146,35 @@ MonoBehaviour:
   m_Textures:
     blueNoise64LTex: {fileID: 2800000, guid: e3d24661c1e055f45a7560c033dbb837, type: 3}
     bayerMatrixTex: {fileID: 2800000, guid: f9ee4ed84c1d10c49aabb9b210b0fc44, type: 3}
+--- !u!114 &81463811059781107
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 03be459180a06974d8583254adb17471, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::STPOptions
+  m_UpscalerName: STP (IUpscaler)
+  m_InjectionPoint: 0
+--- !u!114 &5880291439158393914
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b516656c1bb6634192a33e967e54491, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::FSR2Options
+  m_UpscalerName: FSR2 (IUpscaler)
+  m_InjectionPoint: 0
+  FSR2QualityMode: 0
+  FixedResolutionMode: 0
+  EnableSharpening: 0
+  Sharpness: 0.92

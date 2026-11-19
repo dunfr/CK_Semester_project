@@ -25,8 +25,9 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _BlurMip: 4
+    - _BlurMip: 2
     - _BlurPixels: 3
+    - _BlurStretch: 4
     - _FarDistance: 0
     - _FarStrength: 0.1
     - _FinishGlossBoost: 0.25
@@ -39,7 +40,7 @@ Material:
     - _FresnelMin: 0.08
     - _FresnelPower: 4
     - _GrazingBoost: 1
-    - _GrazingSharpness: 0.2
+    - _GrazingSharpness: 0.3
     - _NearDistance: 1.5
     - _PlaneFadeEnd: 0.09
     - _PlaneFadeStart: 0.05
