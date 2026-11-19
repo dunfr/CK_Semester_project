@@ -35,6 +35,10 @@ namespace CK.SemesterProject.Rendering
         [Min(0f), Tooltip("가상 주광 광량입니다. 밝기 반응이 0이면 색조에만 쓰입니다.")]
         public float KeyIntensity;
 
+        [Range(0f, 1f), Tooltip("FollowMainLight에서 씬 주광(방향광)의 색조를 가상 주광 색에 입히는 비율입니다. "
+            + "1이면 방마다 바뀌는 주광 색(RoomKeyLight)을 몬스터와 똑같이 따라가고, 0이면 KeyColor만 씁니다.")]
+        public float MainLightColorInfluence;
+
         [Range(0f, 1f), Tooltip("0이면 광량과 무관하게 원화 밝기를 유지하고, 1이면 광량/기준 광량 비율을 그대로 따릅니다.")]
         public float BrightnessResponse;
 
@@ -139,9 +143,22 @@ namespace CK.SemesterProject.Rendering
                     break;
             }
 
-            Color color = QualitySettings.activeColorSpace == ColorSpace.Linear ? KeyColor.linear : KeyColor;
+            bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            Color color = linear ? KeyColor.linear : KeyColor;
+            Vector3 keyColor = new Vector3(color.r, color.g, color.b) * KeyIntensity;
+            if (DirectionMode == CharacterKeyDirectionMode.FollowMainLight && mainLight != null && MainLightColorInfluence > 0f)
+            {
+                // 주광의 밝기는 빼고 색조만 가져온다(밝기 1). 주광이 흰색이면 아무것도 바뀌지 않는다.
+                Color main = linear ? mainLight.color.linear : mainLight.color;
+                float luminance = main.r * .2126f + main.g * .7152f + main.b * .0722f;
+                if (luminance > 1e-5f)
+                {
+                    Vector3 hue = new Vector3(main.r, main.g, main.b) / luminance;
+                    keyColor = Vector3.Scale(keyColor, Vector3.Lerp(Vector3.one, hue, MainLightColorInfluence));
+                }
+            }
             // 셰이더 규칙: 표면에서 광원을 향하는 방향.
-            return Build((rotation * Vector3.back).normalized, new Vector3(color.r, color.g, color.b) * KeyIntensity, position);
+            return Build((rotation * Vector3.back).normalized, keyColor, position);
         }
 
         // 캐릭터 위치의 간접광(구운 빛)에서 캐릭터 전체에 곱할 색조(xyz, 밝기 1)와 밝기 배율(w)을 구한다.

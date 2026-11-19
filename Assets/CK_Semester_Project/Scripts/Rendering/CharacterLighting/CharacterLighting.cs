@@ -59,6 +59,11 @@ namespace CK.SemesterProject.Rendering
         private bool _needsRendererRefresh = true;
         private int _appliedSlot = -2;
 
+        // 한 프레임에 이 거리(m)보다 멀리 옮겨지면 순간이동으로 본다. RoomKeyLightDirector의 기본값과 같다.
+        private const float SnapDistance = 4f;
+        private Vector3 _lastSamplePosition;
+        private bool _snapRequested;
+
         // SetOverride로 들어온 런타임 덮어쓰기. 인스펙터의 _overrideProfile보다 우선한다.
         private bool _hasRuntimeOverride;
         private CharacterLightSettings _runtimeOverride;
@@ -154,6 +159,12 @@ namespace CK.SemesterProject.Rendering
         {
             _runtimeTarget = 0f;
             _runtimeFadeSpeed = fadeSeconds > 0f ? 1f / fadeSeconds : float.PositiveInfinity;
+        }
+
+        // 다음 갱신에서 섞지 않고 바로 바꾼다. 컷 전환처럼 캐릭터가 움직이지 않는 장면 전환에서 직접 부른다.
+        public void Snap()
+        {
+            _snapRequested = true;
         }
 
         // 장비 교체 등으로 자식 렌더러가 바뀌었을 때 호출한다.
@@ -257,11 +268,17 @@ namespace CK.SemesterProject.Rendering
                 }
             }
 
+            // 전투 진입·종료, 리스폰처럼 한 프레임에 멀리 옮겨지면 장면이 바뀐 것이므로 섞지 않고 바로 바꾼다.
+            Vector3 samplePosition = transform.TransformPoint(_sampleOffset);
+            bool teleported = _hasState && (samplePosition - _lastSamplePosition).sqrMagnitude > SnapDistance * SnapDistance;
+            _lastSamplePosition = samplePosition;
+
             CharacterLightState target = EvaluateTarget();
-            if (!_hasState || !playing || _smoothTime <= 0f)
+            if (!_hasState || !playing || _smoothTime <= 0f || teleported || _snapRequested)
             {
                 _current = target;
                 _hasState = true;
+                _snapRequested = false;
             }
             else
             {
