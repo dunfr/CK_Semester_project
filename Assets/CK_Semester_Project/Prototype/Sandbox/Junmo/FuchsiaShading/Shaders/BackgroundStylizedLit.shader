@@ -506,7 +506,7 @@ Shader "Semester/Background/Stylized Lit"
             // -------------------------------------
             // Shader Stages
             #pragma vertex UniversalVertexMeta
-            #pragma fragment UniversalFragmentMetaLit
+            #pragma fragment BackgroundStylizedFragmentMeta
 
             // -------------------------------------
             // Material Keywords
@@ -523,6 +523,23 @@ Shader "Semester/Background/Stylized Lit"
             // Includes
             #include "BackgroundStylizedInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitMetaPass.hlsl"
+
+            // 굽기용 반사율: 화면에 그릴 때와 같은 금속도(금속 배율을 곱한 값)로 계산한다.
+            // 배율을 빼먹으면 화면에서는 도장처럼 보이는 면이 굽기에서는 금속으로 취급되어, 빛을 덜 되튕기고 주변이 어둡게 구워진다.
+            half4 BackgroundStylizedFragmentMeta(Varyings input) : SV_Target
+            {
+                SurfaceData surfaceData;
+                InitializeStandardLitSurfaceData(input.uv, surfaceData);
+                surfaceData.metallic *= _StyleMetallicScale;
+
+                BRDFData brdfData;
+                InitializeBRDFData(surfaceData.albedo, surfaceData.metallic, surfaceData.specular, surfaceData.smoothness, surfaceData.alpha, brdfData);
+
+                MetaInput metaInput;
+                metaInput.Albedo = brdfData.diffuse + brdfData.specular * brdfData.roughness * 0.5;
+                metaInput.Emission = surfaceData.emission;
+                return UniversalFragmentMeta(input, metaInput);
+            }
 
             ENDHLSL
         }
