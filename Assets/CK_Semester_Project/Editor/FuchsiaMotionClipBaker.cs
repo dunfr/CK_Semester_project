@@ -54,6 +54,8 @@ namespace CK.SemesterProject.Editor
             new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Jump.fbx", "FuchsiaJump", false, true, false),
             new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Normal Skill.fbx", "FuchsiaNormalSkill", false, false, true, "PhysCamera001", "PhysCamera001.Target"),
             new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/Main Skills.fbx", "FuchsiaMainSkill", false, false, true, "PhysCamera001", "PhysCamera001.Target"),
+            // 피격은 전투 대기 자세에서 시작해 같은 자세로 끝나므로 Attack_idle과 같은 보정만 한다.
+            new ClipSpec("Assets/CK_Semester_Project/Animations/Fuchsia/hit.fbx", "FuchsiaHit", false, false, false),
         };
 
         [MenuItem("Tools/Fuchsia/모션 클립 다시 만들기")]

@@ -189,6 +189,7 @@ namespace CK.SemesterProject.Tutorial
         private PlayerBattleAnimation _battleAnimation;
         // 플레이어 행동 모션(궁극기 등)을 재생 중인 행동과 그 길이. 연출은 모션이 끝날 때까지 기다린다.
         private long _playerMotionActionId = -1;
+        private long _playerHitActionId = -1;
         private float _playerMotionSeconds;
         private bool _playerMotionApproaches = true;
         // 연출 카메라(궁극기의 Ult_cam)로 보고 있는지와, 끝나면 되돌아갈 그 직전의 전투 시점.
@@ -468,6 +469,15 @@ namespace CK.SemesterProject.Tutorial
                     {
                         _monsterPresentations[i].Sample(pending, _elapsed / PresentationSeconds,
                             approachTarget: !isSequence, presentationSeconds: PresentationSeconds, playAnimation: !isSequence);
+                        // 공격이 맞는 순간 플레이어 피격 모션을 한 번 재생한다.
+                        if (_monsterPresentations[i].TargetIsReacting && _playerHitActionId != pending.ActionId)
+                        {
+                            _playerHitActionId = pending.ActionId;
+                            if (_battleAnimation != null)
+                            {
+                                _battleAnimation.PlayHit();
+                            }
+                        }
                     }
                 }
             }
@@ -1777,6 +1787,7 @@ namespace CK.SemesterProject.Tutorial
                 _battleAnimation.ExitBattle();
             }
             _playerMotionActionId = -1;
+            _playerHitActionId = -1;
             _playerMotionSeconds = 0f;
             _isCinematicCameraActive = false;
             _movement.enabled = _movementEnabled;

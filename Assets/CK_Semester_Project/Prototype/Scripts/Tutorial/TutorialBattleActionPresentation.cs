@@ -52,6 +52,9 @@ namespace CK.SemesterProject.Tutorial
         public Vector3 ActorHome { get; }
         public Vector3 TargetHome { get; }
 
+        // 이번 Sample에서 대상이 맞아 피격 리액션 구간에 있는지. 플레이어 피격 모션을 시작할 때 본다.
+        public bool TargetIsReacting { get; private set; }
+
         public TutorialBattleActionPresentation(Transform actor, Transform target, float stopDistance,
             string targetId = "monster", string actorId = "player",
             BasicSkillEnhancementAsset enhancement = null, int skillStage = 1)
@@ -108,6 +111,7 @@ namespace CK.SemesterProject.Tutorial
                 && (result.Request.TargetId == _targetId || result.TargetHits.ContainsKey(_targetId));
             if (!isAttack || progress >= 1f || _actor == null || _target == null)
             {
+                TargetIsReacting = false;
                 Restore(isAttack && progress >= 1f);
                 return;
             }
@@ -227,6 +231,7 @@ namespace CK.SemesterProject.Tutorial
             BattleHitResult targetHit = result.TargetHits.TryGetValue(_targetId, out BattleHitResult foundHit) ? foundHit : result.Hit;
             bool reacts = tookDamage && targetHit != null && targetHit.IsHit
                 && progress >= _impactTime && progress < _returnTime;
+            TargetIsReacting = reacts;
             float strength = reacts ? 1f - reaction : 0f;
             Vector3 forward = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up).normalized;
             Vector3 sideways = Vector3.Cross(Vector3.up, forward);

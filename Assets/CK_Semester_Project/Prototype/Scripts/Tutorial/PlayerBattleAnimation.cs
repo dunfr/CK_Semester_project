@@ -39,6 +39,8 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private Animator _animator;
         [SerializeField, Tooltip("전투 대기 모션의 Animator 상태 이름")]
         private string _battleIdleState = "BattleIdle";
+        [SerializeField, Tooltip("피격 모션의 Animator 상태 이름")]
+        private string _hitState = "Hit";
         [SerializeField, Min(0f), Tooltip("모션 사이를 넘어가는 시간(초)")]
         private float _fadeSeconds = .2f;
         [SerializeField, Tooltip("스킬별 행동 모션")]
@@ -136,6 +138,19 @@ namespace CK.SemesterProject.Tutorial
                 return action.Length;
             }
             return 0f;
+        }
+
+        // 피격 모션을 재생하고 그 길이(초)를 돌려준다. 끝나면 전투 대기로 돌아간다.
+        // 전투 중이 아니거나 Controller에 피격 상태가 없으면 지금 모션을 유지하고 0을 돌려준다.
+        public float PlayHit()
+        {
+            if (!IsInBattle || !HasAnimatorState(_hitState))
+            {
+                return 0f;
+            }
+            var hit = new PlayerBattleActionState(_hitState);
+            ChangeState(hit);
+            return hit.Length;
         }
 
         // 지금 재생 중인 행동 모션에 연출 카메라가 있으면 그 시점과 가로 시야각을 돌려준다. 전투 카메라는 이 동안 이 시점을 쓴다.
