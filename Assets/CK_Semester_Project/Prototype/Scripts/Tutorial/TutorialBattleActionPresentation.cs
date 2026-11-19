@@ -55,6 +55,12 @@ namespace CK.SemesterProject.Tutorial
         // 이번 Sample에서 대상이 맞아 피격 리액션 구간에 있는지. 플레이어 피격 모션을 시작할 때 본다.
         public bool TargetIsReacting { get; private set; }
 
+        // 이번 Sample에서 연출이 타격 시점을 지났는지(빗나감·피해 0이어도 참). 공격 모션에 타격 프레임이 없는 몬스터의 피해 표시 시점으로 쓴다.
+        public bool HasReachedImpact { get; private set; }
+
+        // 타격 시점을 바깥(몬스터 공격 모션)에서 정할 때 피격 리액션(밀림·붉은 번쩍임·화면 흔들림)이 이어지는 시간(초).
+        private const float ExternalReactionSeconds = .25f;
+
         public TutorialBattleActionPresentation(Transform actor, Transform target, float stopDistance,
             string targetId = "monster", string actorId = "player",
             BasicSkillEnhancementAsset enhancement = null, int skillStage = 1)
@@ -104,7 +110,9 @@ namespace CK.SemesterProject.Tutorial
         }
 
         // approachTarget이 false면 대상 앞까지 다가갔다 돌아오지 않고 제자리에서 대상을 바라본다(동작이 모션 안에 다 들어 있는 궁극기 등).
-        public void Sample(BattleActionResult result, float progress, bool approachTarget = true, float presentationSeconds = 1.2f, bool playAnimation = true)
+        // secondsSinceImpact를 주면(NaN이 아니면) 피격 리액션을 연출 진행도 대신 그 값으로 맞춘다. 타격 전이면 음수, 타격 뒤면 지난 시간(초)이다.
+        public void Sample(BattleActionResult result, float progress, bool approachTarget = true, float presentationSeconds = 1.2f, bool playAnimation = true,
+            float secondsSinceImpact = float.NaN)
         {
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
                 && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == _actorId
@@ -112,6 +120,7 @@ namespace CK.SemesterProject.Tutorial
             if (!isAttack || progress >= 1f || _actor == null || _target == null)
             {
                 TargetIsReacting = false;
+                HasReachedImpact = isAttack;
                 Restore(isAttack && progress >= 1f);
                 return;
             }
@@ -227,10 +236,14 @@ namespace CK.SemesterProject.Tutorial
                     break;
                 }
             }
-            float reaction = Mathf.Clamp01((progress - _impactTime) / (_returnTime - _impactTime));
+            bool hasExternalImpact = !float.IsNaN(secondsSinceImpact);
+            float reaction = hasExternalImpact ? Mathf.Clamp01(secondsSinceImpact / ExternalReactionSeconds)
+                : Mathf.Clamp01((progress - _impactTime) / (_returnTime - _impactTime));
+            bool isInReactionWindow = hasExternalImpact ? secondsSinceImpact >= 0f && secondsSinceImpact < ExternalReactionSeconds
+                : progress >= _impactTime && progress < _returnTime;
+            HasReachedImpact = hasExternalImpact ? secondsSinceImpact >= 0f : !isCharging && progress >= _impactTime;
             BattleHitResult targetHit = result.TargetHits.TryGetValue(_targetId, out BattleHitResult foundHit) ? foundHit : result.Hit;
-            bool reacts = tookDamage && targetHit != null && targetHit.IsHit
-                && progress >= _impactTime && progress < _returnTime;
+            bool reacts = tookDamage && targetHit != null && targetHit.IsHit && isInReactionWindow;
             TargetIsReacting = reacts;
             float strength = reacts ? 1f - reaction : 0f;
             Vector3 forward = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up).normalized;

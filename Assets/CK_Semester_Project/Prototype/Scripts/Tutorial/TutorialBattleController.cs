@@ -189,7 +189,16 @@ namespace CK.SemesterProject.Tutorial
         private PlayerBattleAnimation _battleAnimation;
         // 플레이어 행동 모션(궁극기 등)을 재생 중인 행동과 그 길이. 연출은 모션이 끝날 때까지 기다린다.
         private long _playerMotionActionId = -1;
-        private long _playerHitActionId = -1;
+        // 몬스터 공격이 플레이어에게 닿는 순간을 기다리는 행동. 닿기 전까지 화면에는 맞기 전 HP를 보여 주고,
+        // 닿는 순간 HP 표시를 줄이며 피격 모션을 재생한다. 전투 계산(세션)은 행동 제출 때 이미 끝나 있다.
+        private const float MaxHitWaitSeconds = 4f;
+        private long _monsterHitActionId = -1;
+        private bool _hasMonsterHitLanded = true;
+        private float _monsterHitElapsed;
+        private float _monsterHitTailSeconds;
+        private int _playerHpBeforeHit;
+        private LevelDesign.MonsterAnimationDriver _monsterHitDriver;
+        private int _monsterHitAttackCount;
         private float _playerMotionSeconds;
         private bool _playerMotionApproaches = true;
         // 연출 카메라(궁극기의 Ult_cam)로 보고 있는지와, 끝나면 되돌아갈 그 직전의 전투 시점.
@@ -452,6 +461,9 @@ namespace CK.SemesterProject.Tutorial
                 ReturnToExploration();
                 return;
             }
+            // 연출 시간이 끝났어도 몬스터 공격이 아직 닿지 않았거나 피격 모션이 재생 중이면 다음 차례로 넘기지 않는다.
+            bool holdsForHit = snapshot.Phase == BattlePhase.AwaitingPresentation && _elapsed >= PresentationSeconds
+                && ShouldHoldPresentationForHit(_session.PendingResult);
             if (snapshot.Phase == BattlePhase.AwaitingPresentation)
             {
                 BattleActionResult pending = _session.PendingResult;
@@ -467,22 +479,31 @@ namespace CK.SemesterProject.Tutorial
                     }
                     else if (pending.Request.ActorId == GetMonsterId(i) && pending.Request.TargetId == "player")
                     {
-                        _monsterPresentations[i].Sample(pending, _elapsed / PresentationSeconds,
-                            approachTarget: !isSequence, presentationSeconds: PresentationSeconds, playAnimation: !isSequence);
-                        // 공격이 맞는 순간 플레이어 피격 모션을 한 번 재생한다.
-                        if (_monsterPresentations[i].TargetIsReacting && _playerHitActionId != pending.ActionId)
+                        bool tracksHit = pending.ActionId == _monsterHitActionId;
+                        // 공격 모션에 타격 프레임이 지정된 몬스터는 피격 리액션도 그 순간에 맞춘다.
+                        bool usesMotionTiming = tracksHit && _monsterHitDriver != null && _monsterHitDriver.HasAttackHitTiming;
+                        float sinceImpact = !usesMotionTiming ? float.NaN : _hasMonsterHitLanded ? _elapsed - _monsterHitElapsed : -1f;
+                        float progress = _elapsed / PresentationSeconds;
+                        // 타격을 기다리는 동안에는 연출을 끝내지 않아야 리액션이 재생된다.
+                        _monsterPresentations[i].Sample(pending, holdsForHit ? Mathf.Min(progress, .999f) : progress,
+                            approachTarget: !isSequence, presentationSeconds: PresentationSeconds, playAnimation: !isSequence,
+                            secondsSinceImpact: sinceImpact);
+                        if (tracksHit && !_hasMonsterHitLanded)
                         {
-                            _playerHitActionId = pending.ActionId;
-                            if (_battleAnimation != null)
+                            bool hasLanded = usesMotionTiming
+                                ? _monsterHitDriver.AttackCount != _monsterHitAttackCount && _monsterHitDriver.HasAttackLanded
+                                : _monsterPresentations[i].HasReachedImpact;
+                            if (hasLanded)
                             {
-                                _battleAnimation.PlayHit();
+                                LandMonsterHit();
                             }
                         }
                     }
                 }
             }
             // 컷신이 끝나기 전에는 결과 연출을 끝내지 않는다(컷신 길이와 연출 시간이 달라도 컷신이 잘리지 않게).
-            if (_elapsed >= PresentationSeconds && snapshot.Phase == BattlePhase.AwaitingPresentation && !IsSkillCutscenePlaying)
+            if (_elapsed >= PresentationSeconds && snapshot.Phase == BattlePhase.AwaitingPresentation && !IsSkillCutscenePlaying
+                && !holdsForHit)
             {
                 _session.CompletePresentation(_session.PendingResult.ActionId);
                 _cachedSnapshot = null;
@@ -1342,6 +1363,7 @@ namespace CK.SemesterProject.Tutorial
             }
             _cachedSnapshot = null;
             _elapsed = 0;
+            BeginMonsterHitWait(request, result);
             RefreshUI();
             bool startedCutscene = request.ActorId == "player" && request.Kind == BattleActionKind.Skill
                 && !result.WasSkipped && TryPlaySkillCutscene(request, result);
@@ -1378,6 +1400,85 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             RefreshUI();
+        }
+
+        /// <summary>
+        /// 화면에 보여 줄 HP. 몬스터 공격이 아직 플레이어에게 닿지 않았으면 맞기 전 HP를, 그 밖에는 실제 HP를 돌려준다.
+        /// </summary>
+        public int GetDisplayedHp(CombatantState unit)
+        {
+            if (unit == null)
+            {
+                return 0;
+            }
+            bool isWaitingForHit = !_hasMonsterHitLanded && unit.InstanceId == "player" && _session != null
+                && _session.PendingResult != null && _session.PendingResult.ActionId == _monsterHitActionId;
+            return isWaitingForHit ? _playerHpBeforeHit : unit.Hp;
+        }
+
+        /// <summary>GetDisplayedHp 값이 바뀔 때마다 늘어난다. HUD가 다시 그릴 때를 아는 데 쓴다.</summary>
+        public int DisplayRevision { get; private set; }
+
+        // 몬스터 공격으로 플레이어 HP가 줄었으면, 공격이 닿는 순간까지 HP 표시와 피격 모션을 미룬다.
+        private void BeginMonsterHitWait(BattleActionRequest request, BattleActionResult result)
+        {
+            _monsterHitActionId = -1;
+            _hasMonsterHitLanded = true;
+            _monsterHitDriver = null;
+            _monsterHitTailSeconds = 0f;
+            if (request.ActorId == "player" || request.Kind != BattleActionKind.Skill || result.WasSkipped || result.IsTurnStartEffect)
+            {
+                return;
+            }
+            BattleStateChange damage = result.Changes.FirstOrDefault(change => change.After.InstanceId == "player" && change.HpDelta < 0);
+            if (damage == null)
+            {
+                return;
+            }
+            _monsterHitActionId = result.ActionId;
+            _hasMonsterHitLanded = false;
+            _playerHpBeforeHit = damage.Before.Hp;
+            if (TryGetMonsterTransform(request.ActorId, out Transform attacker))
+            {
+                _monsterHitDriver = attacker.GetComponentInChildren<LevelDesign.MonsterAnimationDriver>();
+                _monsterHitAttackCount = _monsterHitDriver != null ? _monsterHitDriver.AttackCount : 0;
+            }
+            DisplayRevision++;
+        }
+
+        // 공격이 닿은 순간: HP 표시를 실제 값으로 줄이고 플레이어 피격 모션을 재생한다.
+        private void LandMonsterHit()
+        {
+            if (_hasMonsterHitLanded)
+            {
+                return;
+            }
+            _hasMonsterHitLanded = true;
+            _monsterHitElapsed = _elapsed;
+            _monsterHitTailSeconds = _battleAnimation != null ? _battleAnimation.PlayHit() : 0f;
+            DisplayRevision++;
+            RefreshUI();
+        }
+
+        // 연출 시간이 끝났을 때 부른다. 공격 모션이 시작됐으면 타격 프레임까지 기다리고, 시작하지 못했으면 지금 닿은 것으로 처리한다.
+        // 닿은 뒤에는 피격 모션이 끝날 때까지 다음 차례로 넘기지 않는다.
+        private bool ShouldHoldPresentationForHit(BattleActionResult pending)
+        {
+            if (pending == null || pending.ActionId != _monsterHitActionId || _elapsed >= PresentationSeconds + MaxHitWaitSeconds)
+            {
+                return false;
+            }
+            if (!_hasMonsterHitLanded)
+            {
+                bool hasMotionStarted = _monsterHitDriver != null && _monsterHitDriver.HasAttackHitTiming
+                    && _monsterHitDriver.AttackCount != _monsterHitAttackCount;
+                if (hasMotionStarted)
+                {
+                    return true;
+                }
+                LandMonsterHit();
+            }
+            return _elapsed - _monsterHitElapsed < _monsterHitTailSeconds;
         }
 
         // 스킬에 완성 컷신이 지정돼 있으면 컷신 컴포넌트가 재생한다. 컷신이 카메라·플레이어를 쥐므로 기존 접근·모션은 쓰지 않는다.
@@ -1500,9 +1601,10 @@ namespace CK.SemesterProject.Tutorial
                     }
                 }
             }
+            int shownHp = GetDisplayedHp(player);
             _hpBar.maxValue = player.Data.MaxHp;
-            _hpBar.value = player.Hp;
-            _status.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "  폭주 " + player.RageEnergy
+            _hpBar.value = shownHp;
+            _status.text = "HP " + shownHp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "  폭주 " + player.RageEnergy
                 + (player.ImprintDamage > 0 ? "  각인 " + player.ImprintDamage : "")
                 + (player.HasAfterimageRecovery ? "  다음 방어 회복" : "") + (player.HasMemoryLoss ? "  메모리 고갈" : "");
             _enemyStatus.text = string.Join("\n", monsters.Select((monster, index) =>
@@ -1787,7 +1889,9 @@ namespace CK.SemesterProject.Tutorial
                 _battleAnimation.ExitBattle();
             }
             _playerMotionActionId = -1;
-            _playerHitActionId = -1;
+            _monsterHitActionId = -1;
+            _hasMonsterHitLanded = true;
+            _monsterHitDriver = null;
             _playerMotionSeconds = 0f;
             _isCinematicCameraActive = false;
             _movement.enabled = _movementEnabled;

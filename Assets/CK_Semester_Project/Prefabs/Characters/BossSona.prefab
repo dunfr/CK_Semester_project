@@ -163,6 +163,8 @@ MonoBehaviour:
   _returnDistance: 0.08
   _teleportDistance: 1.2
   _speedSmoothing: 8
+  _attackState: Attack
+  _attackHitFrame: 27
 --- !u!1001 &8823919381475995586
 PrefabInstance:
   m_ObjectHideFlags: 0

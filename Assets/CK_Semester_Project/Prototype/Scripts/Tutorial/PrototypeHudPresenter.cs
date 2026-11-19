@@ -391,6 +391,8 @@ namespace CK.SemesterProject.Tutorial
         private int _selectedSkill;
         private bool _hasSkillSelection;
         private int _previousStage = -1;
+        // 몬스터 공격이 닿는 순간 HP 표시가 바뀌므로, 스냅샷이 그대로여도 다시 그린다.
+        private int _previousDisplayRevision = -1;
         private int _previousFloor = -1;
         private bool _couldChoose;
         private string _previousTarget;
@@ -751,6 +753,7 @@ namespace CK.SemesterProject.Tutorial
             }
             if (state != _previousSnapshot || _couldChoose != _battle.CanChooseAction
                 || _previousStage != _battle.InvestmentStage || _previousTarget != _battle.TargetId
+                || _previousDisplayRevision != _battle.DisplayRevision
                 || _previousTargetSelected != _battle.HasSelectedBattleTarget)
             {
                 RefreshBattle();
@@ -935,6 +938,7 @@ namespace CK.SemesterProject.Tutorial
             _previousSnapshot = state;
             _previousPlayerData = _battle.PlayerData;
             _previousStage = _battle.InvestmentStage;
+            _previousDisplayRevision = _battle.DisplayRevision;
             _previousTarget = _battle.TargetId;
             _previousTargetSelected = _battle.HasSelectedBattleTarget;
             _couldChoose = _battle.CanChooseAction;
@@ -947,7 +951,9 @@ namespace CK.SemesterProject.Tutorial
             CombatantState[] enemies = state.Combatants.Where(unit => unit.Data.Team == BattleTeam.Monster).ToArray();
             CombatantState target = enemies.FirstOrDefault(unit => unit.InstanceId == _battle.TargetId) ?? enemies[0];
             _playerTurn.SetActive(_couldChoose && _battle.HasSelectedBattleTarget);
-            SetBar(_playerHp, player.Hp, player.Data.MaxHp);
+            // 몬스터 공격이 닿기 전에는 맞기 전 HP를 보여 준다.
+            int playerHp = _battle.GetDisplayedHp(player);
+            SetBar(_playerHp, playerHp, player.Data.MaxHp);
             SetBar(_playerMemory, player.Memory, player.Data.MaxMemory);
             if (_enemyHp != null)
             {
@@ -959,7 +965,7 @@ namespace CK.SemesterProject.Tutorial
             }
             if (_playerVitals != null)
             {
-                _playerVitals.text = "HP " + player.Hp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
+                _playerVitals.text = "HP " + playerHp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
                     + "  폭주 " + player.RageEnergy;
             }
             if (_battleResourceText != null)
@@ -1125,7 +1131,7 @@ namespace CK.SemesterProject.Tutorial
                     }
                     if (slot.Hp != null)
                     {
-                        SetBar(slot.Hp, unit.Hp, unit.Data.MaxHp);
+                        SetBar(slot.Hp, _battle.GetDisplayedHp(unit), unit.Data.MaxHp);
                     }
                     if (slot.Portrait != null)
                     {
