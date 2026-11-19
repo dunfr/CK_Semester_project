@@ -21,6 +21,7 @@ namespace CK.SemesterProject.Tutorial
         private FloorTravelButtons _floorTravelButtons;
         private float _yaw;
         private bool _skipMouseDelta;
+        private bool _isCursorFreedByAlt;
 
         private void Awake()
         {
@@ -41,7 +42,13 @@ namespace CK.SemesterProject.Tutorial
         {
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
+                _isCursorFreedByAlt = false;
                 SetCursorLocked(false);
+                return;
+            }
+
+            if (UpdateAltCursor())
+            {
                 return;
             }
 
@@ -74,6 +81,36 @@ namespace CK.SemesterProject.Tutorial
             _yaw = Mathf.Repeat(_yaw + delta.x * _sensitivity, 360f);
             _pitch = Mathf.Clamp(_pitch - delta.y * _sensitivity, _minPitch, _maxPitch);
             ApplyOrbit();
+        }
+
+        // Alt를 누르는 동안 커서를 풀어 HUD(이동 속도, 설정 버튼 등)를 클릭할 수 있게 한다. 떼면 다시 잠근다.
+        // 커서를 Alt로 풀어 둔 동안이면 true를 돌려 카메라 회전과 클릭 재잠금을 건너뛴다.
+        private bool UpdateAltCursor()
+        {
+            Keyboard keyboard = Keyboard.current;
+            bool isAltHeld = keyboard != null && (keyboard.leftAltKey.isPressed || keyboard.rightAltKey.isPressed);
+            if (isAltHeld)
+            {
+                if (Cursor.lockState == CursorLockMode.Locked && Time.timeScale > 0f)
+                {
+                    SetCursorLocked(false);
+                    _isCursorFreedByAlt = true;
+                }
+                return _isCursorFreedByAlt;
+            }
+
+            if (!_isCursorFreedByAlt)
+            {
+                return false;
+            }
+
+            _isCursorFreedByAlt = false;
+            // Alt를 누른 채 설정 메뉴 등을 열어 시간이 멈췄으면 커서를 그 화면에 남겨 둔다.
+            if (Time.timeScale > 0f)
+            {
+                SetCursorLocked(true);
+            }
+            return true;
         }
 
         public void FaceDirection(Vector3 direction)
