@@ -1708,7 +1708,11 @@ namespace CK.SemesterProject.Tutorial
         // 보여 줄 피해 비율(0 = 맞기 전, 1 = 실제 HP)을 올린다. 다 보여 주면 대기를 끝낸다.
         private void ShowEnemyDamage(float shown)
         {
-            ShowEnemyDamageLabels(shown);
+            // 컷신이 타격 시점을 알려 주는 동안에는 피해 숫자를 그 시점에만 띄운다(여기서 남은 피해를 한꺼번에 띄우지 않는다).
+            if (_skillCutscene == null || !_skillCutscene.HasHitTimings)
+            {
+                ShowEnemyDamageLabels(shown);
+            }
             if (_enemyHpBeforeHit.Count == 0 || shown <= _enemyDamageShown)
             {
                 return;

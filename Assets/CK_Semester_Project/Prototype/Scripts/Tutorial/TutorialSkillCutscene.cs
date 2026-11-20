@@ -93,6 +93,9 @@ namespace CK.SemesterProject.Tutorial
         // 컷신 타임라인이 타격 시점(히트 신호 마커)을 지날 때마다 알린다. (이번이 몇 번째 타격인지(0부터), 전체 타격 수)
         public event Action<int, int> HitReached;
 
+        // 재생 중인 컷신 타임라인에 타격 시점(히트 신호 마커)이 있는지. 있으면 피해 숫자는 그 시점에만 띄운다.
+        public bool HasHitTimings => IsPlaying && _hitTimes.Count > 0;
+
         private void Awake()
         {
             _controller = GetComponent<TutorialBattleController>();
