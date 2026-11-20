@@ -11,11 +11,34 @@ namespace CK.SemesterProject.Tutorial
     public sealed class CameraController : MonoBehaviour
     {
         [SerializeField, Min(0.01f)] private float _sensitivity = 0.12f;
-        [SerializeField, Min(0.5f)] private float _distance = 4.5f;
-        [SerializeField] private float _targetHeight = 1.3f;
-        [SerializeField, Range(-80f, 80f)] private float _minPitch = 10f;
+        [SerializeField, Min(0.5f)] private float _distance = 4f;
+        [SerializeField] private float _targetHeight = 1.4f;
+        [SerializeField, Range(-80f, 80f), Tooltip("음수면 캐릭터보다 낮은 곳에서 올려다본다(도)")]
+        private float _minPitch = -35f;
         [SerializeField, Range(-80f, 80f)] private float _maxPitch = 70f;
-        [SerializeField, Range(-80f, 80f)] private float _pitch = 30f;
+        [SerializeField, Range(-80f, 80f)] private float _pitch = 20f;
+
+        [Header("Follow")]
+        [SerializeField, Min(0f), Tooltip("수평 위치가 캐릭터를 따라붙는 데 걸리는 시간(초). 0이면 즉시 붙는다.")]
+        private float _horizontalDamping = 0.2f;
+        [SerializeField, Min(0f), Tooltip("수직 위치 따라붙는 시간(초). 점프·계단에서 화면이 덜 흔들리도록 수평보다 길게 둔다.")]
+        private float _verticalDamping = 0.35f;
+        [SerializeField, Min(0f), Tooltip("벽에 밀려 당겨졌던 카메라가 원래 거리로 돌아가는 시간(초). 당겨지는 쪽은 즉시.")]
+        private float _obstacleReturnDamping = 0.3f;
+
+        [Header("Auto Align")]
+        [SerializeField, Min(0f), Tooltip("마우스 조작 후 이만큼(초) 지나야 이동 방향 뒤로 자동 회전을 시작한다.")]
+        private float _autoAlignDelay = 1.5f;
+        [SerializeField, Min(0f), Tooltip("이동 방향 뒤로 돌아가는 속도(1/초). 0이면 끈다.")]
+        private float _autoAlignSpeed = 1.5f;
+        [SerializeField, Min(0f), Tooltip("이 속도(m/s) 이상 움직일 때만 자동 회전한다.")]
+        private float _autoAlignMinSpeed = 0.5f;
+        [SerializeField, Range(0f, 180f), Tooltip("카메라 정면과 이동 방향의 각도가 이보다 크면(카메라 쪽으로 달려오면) 돌리지 않는다(도).")]
+        private float _autoAlignMaxAngle = 135f;
+
+        [Header("Look Up")]
+        [SerializeField, Min(0.5f), Tooltip("가장 많이 올려다볼 때(최소 피치)의 거리(m). 피치 0°부터 이 값까지 줄어든다.")]
+        private float _lookUpDistance = 2f;
 
         [Header("Zoom")]
         [SerializeField, Min(0.5f), Tooltip("휠로 당길 수 있는 가장 가까운 거리(m)")]
@@ -47,6 +70,7 @@ namespace CK.SemesterProject.Tutorial
         private float _defaultPitch;
         private float _targetDistance;
         private float _lastCameraInputTime;
+        private Vector3 _lastTargetPosition;
 
         private void Awake()
         {
@@ -54,7 +78,10 @@ namespace CK.SemesterProject.Tutorial
             _floorTravelButtons = GetComponentInParent<FloorTravelButtons>();
             CinemachineCamera cinemachineCamera = GetComponent<CinemachineCamera>();
             _followTarget = cinemachineCamera != null ? cinemachineCamera.Follow : null;
+            _lastTargetPosition = _followTarget != null ? _followTarget.position : Vector3.zero;
             _follow.TrackerSettings.BindingMode = BindingMode.WorldSpace;
+            _follow.TrackerSettings.PositionDamping = new Vector3(_horizontalDamping, _verticalDamping, _horizontalDamping);
+            ApplyObstacleDamping();
             Vector3 offset = _follow.FollowOffset;
             _yaw = Mathf.Atan2(-offset.x, -offset.z) * Mathf.Rad2Deg;
             _defaultDistance = _distance;
@@ -118,8 +145,44 @@ namespace CK.SemesterProject.Tutorial
             _yaw = Mathf.Repeat(_yaw + delta.x * _sensitivity, 360f);
             _pitch = Mathf.Clamp(_pitch - delta.y * _sensitivity, _minPitch, _maxPitch);
             UpdateZoom(mouse);
+            UpdateAutoAlign();
             UpdateIdleReturn();
             ApplyOrbit();
+        }
+
+        // 이동 중이고 한동안 마우스를 안 썼으면 이동 방향 뒤로 천천히 돌아간다.
+        // 카메라 쪽으로 달려올 때 화면이 뒤집히지 않도록 일정 각도 이상이면 돌리지 않는다.
+        private void UpdateAutoAlign()
+        {
+            if (_followTarget == null)
+            {
+                return;
+            }
+
+            Vector3 targetPosition = _followTarget.position;
+            Vector3 moveDelta = Vector3.ProjectOnPlane(targetPosition - _lastTargetPosition, Vector3.up);
+            _lastTargetPosition = targetPosition;
+
+            bool isAlignEnabled = _autoAlignSpeed > 0f && Time.deltaTime > 0f;
+            bool isWaitingAfterInput = Time.unscaledTime - _lastCameraInputTime < _autoAlignDelay;
+            if (!isAlignEnabled || isWaitingAfterInput)
+            {
+                return;
+            }
+
+            float speed = moveDelta.magnitude / Time.deltaTime;
+            if (speed < _autoAlignMinSpeed)
+            {
+                return;
+            }
+
+            float moveYaw = Mathf.Atan2(moveDelta.x, moveDelta.z) * Mathf.Rad2Deg;
+            if (Mathf.Abs(Mathf.DeltaAngle(_yaw, moveYaw)) > _autoAlignMaxAngle)
+            {
+                return;
+            }
+
+            _yaw = Mathf.LerpAngle(_yaw, moveYaw, 1f - Mathf.Exp(-_autoAlignSpeed * Time.deltaTime));
         }
 
         private void UpdateZoom(Mouse mouse)
@@ -200,7 +263,32 @@ namespace CK.SemesterProject.Tutorial
         private void ApplyOrbit()
         {
             _follow.FollowOffset = Vector3.up * _targetHeight
-                + Quaternion.Euler(_pitch, _yaw, 0f) * Vector3.back * _distance;
+                + Quaternion.Euler(_pitch, _yaw, 0f) * Vector3.back * GetPitchAdjustedDistance();
+        }
+
+        // 올려다볼수록(피치 0° 아래) 카메라가 캐릭터 쪽으로 다가와 바닥에 파묻히지 않게 한다.
+        private float GetPitchAdjustedDistance()
+        {
+            if (_pitch >= 0f || _minPitch >= 0f)
+            {
+                return _distance;
+            }
+            float lookUpAmount = Mathf.InverseLerp(0f, _minPitch, _pitch);
+            return Mathf.Lerp(_distance, Mathf.Min(_distance, _lookUpDistance), lookUpAmount);
+        }
+
+        // 벽에 가려지면 즉시 당기고, 가림이 풀리면 천천히 원래 거리로 돌려보낸다.
+        private void ApplyObstacleDamping()
+        {
+            CinemachineDeoccluder deoccluder = GetComponent<CinemachineDeoccluder>();
+            if (deoccluder == null)
+            {
+                return;
+            }
+            CinemachineDeoccluder.ObstacleAvoidance avoidance = deoccluder.AvoidObstacles;
+            avoidance.Damping = _obstacleReturnDamping;
+            avoidance.DampingWhenOccluded = 0f;
+            deoccluder.AvoidObstacles = avoidance;
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -221,6 +309,7 @@ namespace CK.SemesterProject.Tutorial
             _maxPitch = Mathf.Max(_minPitch, _maxPitch);
             _pitch = Mathf.Clamp(_pitch, _minPitch, _maxPitch);
             _maxDistance = Mathf.Max(_minDistance, _maxDistance);
+            _lookUpDistance = Mathf.Min(_lookUpDistance, _maxDistance);
         }
 
         private void SetCursorLocked(bool locked)

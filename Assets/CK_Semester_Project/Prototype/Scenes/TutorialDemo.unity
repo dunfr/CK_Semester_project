@@ -8737,11 +8737,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.TutorialCameraLook
   _sensitivity: 0.12
-  _distance: 4.5
-  _targetHeight: 1.3
-  _minPitch: 10
+  _distance: 4
+  _targetHeight: 1.4
+  _minPitch: -35
   _maxPitch: 70
-  _pitch: 30
+  _pitch: 20
 --- !u!114 &964235278
 MonoBehaviour:
   m_ObjectHideFlags: 0
