@@ -29,11 +29,14 @@ Material:
         m_Offset: {x: 0, y: 0.5}
     m_Ints: []
     m_Floats:
+    - _BackFaceStrength: 0.5
     - _BackingOpacity: 0.55
     - _Beam: 0
     - _BeamBottomWidth: 0.35
-    - _FillStrength: 0.22
+    - _FillStrength: 0.3
     - _Flicker: 0.05
+    - _NearFadeEnd: 4.5
+    - _NearFadeStart: 1.5
     - _ScanCount: 90
     - _ScanSpeed: 0.4
     - _ScanStrength: 0.14
