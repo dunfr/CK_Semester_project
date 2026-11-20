@@ -4,6 +4,7 @@ using CK.SemesterProject.SkillSequence;
 using Semester.Enemies;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Timeline;
 using UnityEngine.UI;
 
 namespace CK.SemesterProject.Tutorial
@@ -58,6 +59,9 @@ namespace CK.SemesterProject.Tutorial
         private float _fadeInSeconds = 0.5f;
         [SerializeField, Tooltip("화면 전환 색. 검정이면 페이드, 흰색이면 플래시처럼 보입니다")]
         private Color _fadeColor = Color.black;
+        [Header("Hit")]
+        [SerializeField, Tooltip("타임라인의 신호(Signal) 마커 가운데 신호 에셋 이름에 이 글자가 들어 있는 것을 타격 시점으로 봅니다(예: SIG_Ult_Hit). 타격 시점마다 피해 숫자를 띄웁니다. 비우면 타격 시점을 알리지 않습니다")]
+        private string _hitSignalKeyword = "Hit";
         [Header("Background")]
         [SerializeField, Tooltip("컷신 동안 숨길 배경 루트(전투 아레나의 벽·소품). 컷신 테스트 씬처럼 빈 공간에 포그와 검은 배경만 보이게 하며 끝나면 복구합니다. 벽이 있으면 포그 돔이 깊이 테스트로 가려집니다")]
         private Transform _hiddenRoot;
@@ -78,11 +82,19 @@ namespace CK.SemesterProject.Tutorial
         private Vector3 _enemyShift;
         private Image _fadeImage;
         private float _duration;
+        private readonly List<double> _hitTimes = new List<double>();
+        private int _nextHit;
         // 페이드 인 경과 시간. 음수면 페이드 인 중이 아니다.
         private float _fadeInElapsed = -1f;
 
         // 컷신이 카메라·플레이어를 쥐고 있는 동안 참.
         public bool IsPlaying { get; private set; }
+
+        // 컷신 타임라인이 타격 시점(히트 신호 마커)을 지날 때마다 알린다. (이번이 몇 번째 타격인지(0부터), 전체 타격 수)
+        public event Action<int, int> HitReached;
+
+        // 재생 중인 컷신 타임라인에 타격 시점(히트 신호 마커)이 있는지. 있으면 피해 숫자는 그 시점에만 띄운다.
+        public bool HasHitTimings => IsPlaying && _hitTimes.Count > 0;
 
         private void Awake()
         {
@@ -138,6 +150,7 @@ namespace CK.SemesterProject.Tutorial
             _cutscenePlayer.Director.Evaluate();
             IsPlaying = true;
             _duration = cutscene.Duration;
+            CollectHitTimes(_cutscenePlayer.Director.playableAsset as TimelineAsset);
             _cutscenePlayer.Finished += OnFinished;
             _controller.SetBattleUiVisible(false);
             seconds = Mathf.Max(cutscene.Duration, 0.01f);
@@ -173,8 +186,55 @@ namespace CK.SemesterProject.Tutorial
             if (IsPlaying && _cutscenePlayer != null)
             {
                 HoldPlacements();
+                RaiseReachedHits();
             }
             UpdateFade();
+        }
+
+        // 타임라인의 히트 신호 마커 시각을 모은다. 컷신 프리팹에 Signal Receiver가 없어도 되도록 신호를 받지 않고 재생 시간으로 직접 확인한다.
+        private void CollectHitTimes(TimelineAsset timeline)
+        {
+            _hitTimes.Clear();
+            _nextHit = 0;
+            if (timeline == null || string.IsNullOrEmpty(_hitSignalKeyword))
+            {
+                return;
+            }
+            AddHitTimes(timeline.markerTrack);
+            foreach (TrackAsset track in timeline.GetOutputTracks())
+            {
+                if (track != timeline.markerTrack)
+                {
+                    AddHitTimes(track);
+                }
+            }
+            _hitTimes.Sort();
+        }
+
+        private void AddHitTimes(TrackAsset track)
+        {
+            if (track == null || track.muted)
+            {
+                return;
+            }
+            foreach (IMarker marker in track.GetMarkers())
+            {
+                if (marker is SignalEmitter emitter && emitter.asset != null
+                    && emitter.asset.name.IndexOf(_hitSignalKeyword, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    _hitTimes.Add(emitter.time);
+                }
+            }
+        }
+
+        private void RaiseReachedHits()
+        {
+            double time = _cutscenePlayer.Director.time;
+            while (IsPlaying && _cutscenePlayer != null && _nextHit < _hitTimes.Count && time >= _hitTimes[_nextHit])
+            {
+                int index = _nextHit++;
+                HitReached?.Invoke(index, _hitTimes.Count);
+            }
         }
 
         private void OnFinished()
