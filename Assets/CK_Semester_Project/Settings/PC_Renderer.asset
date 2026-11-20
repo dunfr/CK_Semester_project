@@ -44,7 +44,8 @@ MonoBehaviour:
   - {fileID: 2619529776430619122}
   - {fileID: -4868196162227943526}
   - {fileID: 4955804704251749946}
-  m_RendererFeatureMap: ad6b866f10d7b46cf299b4ea73705a249ac77b1d62b170bc3aa6221d1f8ec644
+  - {fileID: 8185851191337264771}
+  m_RendererFeatureMap: ad6b866f10d7b46cf299b4ea73705a249ac77b1d62b170bc3aa6221d1f8ec64483a6ddbb49fc9971
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
@@ -127,3 +128,17 @@ MonoBehaviour:
     BlurQuality: 0
     Falloff: 100
     SampleCount: -1
+--- !u!114 &8185851191337264771
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 597d1cb24d5bc3949ab628282fc58f87, type: 3}
+  m_Name: Lamp Bloom
+  m_EditorClassIdentifier: CK.Rendering.LampBloom::CK.SemesterProject.Rendering.LampBloomFeature
+  m_Active: 1
+  _shader: {fileID: 4800000, guid: 3ca5f79ba08374944b3e2aefc7b8f59a, type: 3}
