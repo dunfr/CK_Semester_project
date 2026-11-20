@@ -31,6 +31,8 @@ namespace CK.SemesterProject.SkillSequence
         private float _lifetime;
         [SerializeField, Min(0.01f), Tooltip("파티클 재생 속도 배율")]
         private float _playbackSpeed = 1f;
+        [SerializeField, Tooltip("플레이어 베기 타임라인이 연결되어 있으면 타임라인에서 이 이펙트를 재생합니다.")]
+        private bool _controlledBySlashTimeline;
 
         public string Name => _name;
         public float Time => _time;
@@ -44,6 +46,7 @@ namespace CK.SemesterProject.SkillSequence
         public float Scale => _scale;
         public float Lifetime => _lifetime;
         public float PlaybackSpeed => _playbackSpeed;
+        public bool ControlledBySlashTimeline => _controlledBySlashTimeline;
         public bool UsesTarget => _anchor == SkillVfxAnchorPoint.TargetCenter || _anchor == SkillVfxAnchorPoint.TargetFeet;
 
         /// <summary>실제 유지 시간. 직접 지정하지 않았으면 프리팹의 파티클 길이로 추정한다.</summary>

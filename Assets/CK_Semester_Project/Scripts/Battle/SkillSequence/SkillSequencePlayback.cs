@@ -18,9 +18,13 @@ namespace CK.SemesterProject.SkillSequence
         private bool _isDisposed;
 
         /// <param name="playCasterClip">false면 시전자 클립을 덮어쓰지 않는다(몬스터가 플레이어용 시퀀스를 빌려 쓸 때 자기 공격 모션 유지).</param>
-        public SkillSequencePlayback(SkillSequenceAsset sequence, SkillSequenceContext context, bool playCasterClip = true)
+        private readonly bool _slashTimelineControlsVfx;
+
+        public SkillSequencePlayback(SkillSequenceAsset sequence, SkillSequenceContext context, bool playCasterClip = true,
+            bool slashTimelineControlsVfx = false)
         {
             _sequence = sequence ?? throw new ArgumentNullException(nameof(sequence));
+            _slashTimelineControlsVfx = slashTimelineControlsVfx;
             _sampler = new SkillSequenceSampler(sequence, context, playCasterClip);
             _sampler.Sample(0f);
             SpawnEventsBetween(-1f, 0f);
@@ -95,7 +99,8 @@ namespace CK.SemesterProject.SkillSequence
         {
             foreach (SkillVfxEvent vfxEvent in _sequence.VfxEvents)
             {
-                if (vfxEvent.Prefab == null || vfxEvent.Time <= previous || vfxEvent.Time > current)
+                if (vfxEvent.Prefab == null || vfxEvent.Time <= previous || vfxEvent.Time > current
+                    || (_slashTimelineControlsVfx && vfxEvent.ControlledBySlashTimeline))
                 {
                     continue;
                 }

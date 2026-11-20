@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CK.SemesterProject.Battle;
 using CK.SemesterProject.SkillSequence;
+using Unity.Cinemachine;
 using UnityEngine;
+using UnityEngine.Playables;
+using UnityEngine.Timeline;
 
 namespace CK.SemesterProject.Tutorial
 {
@@ -36,11 +40,18 @@ namespace CK.SemesterProject.Tutorial
         private List<PlayerSkillBinding> _playerSkills = new List<PlayerSkillBinding>();
         [SerializeField, Tooltip("몬스터 공격 시퀀스. 몬스터 정의가 맞는 줄을 먼저, 없으면 속성이 맞는 줄을 씁니다.")]
         private List<MonsterSkillBinding> _monsterSkills = new List<MonsterSkillBinding>();
+        [Header("In-game Slash Cutscene")]
+        [SerializeField] private PlayableDirector _slashCutscenePrefab;
 
         private SkillSequencePlayback _playback;
         private SkillSequenceAsset _currentSequence;
 
         private int _hitCount;
+
+        private TutorialSlashCameraTimeline _slashCamera;
+        private TutorialSlashCutscenePool _slashPool;
+        private float _elapsed;
+        private float _duration;
 
         public bool IsPlaying => _playback != null;
         public SkillSequenceAsset CurrentSequence => _playback != null ? _currentSequence : null;
@@ -48,6 +59,12 @@ namespace CK.SemesterProject.Tutorial
 
         /// <summary>재생 중인 시퀀스의 타격 지점에 닿았을 때(타격 번호, 전체 타격 수). 피해 표시를 타격에 맞추는 데 쓴다.</summary>
         public event Action<int, int> HitReached;
+        public bool IsSlashCameraActive => _slashCamera != null && _slashCamera.IsActive;
+
+        public static double GetSlashCameraEnd(TimelineAsset timeline)
+        {
+            return timeline.GetOutputTracks().OfType<CinemachineTrack>().Select(track => track.end).DefaultIfEmpty().Max();
+        }
 
         public SkillSequenceAsset FindPlayerSequence(string skillId)
         {
@@ -109,16 +126,37 @@ namespace CK.SemesterProject.Tutorial
                 return 0f;
             }
             var context = new SkillSequenceContext(caster, targets, null, selectedTargetIndex);
+            _duration = sequence.Duration;
+            if (!casterIsMonster && sequence.UseMovement && sequence.Cutscene == null
+                && _slashCutscenePrefab != null && _slashCutscenePrefab.playableAsset is TimelineAsset timeline
+                && context.SelectedTarget != null
+                && TryGetComponent(out TutorialBattleController controller))
+            {
+                double cameraEnd = GetSlashCameraEnd(timeline);
+                if (cameraEnd > 0d && sequence.ReturnEnd > sequence.ApproachStart)
+                {
+                    _slashPool ??= new TutorialSlashCutscenePool(_slashCutscenePrefab, transform);
+                    _slashCamera = new TutorialSlashCameraTimeline(_slashPool, timeline, sequence,
+                        controller.BattleCamera, controller.BattleBrain, context);
+                    // 히트스톱 동안 시퀀스 시간이 거의 멈추므로 그만큼 실시간 길이가 늘어난다.
+                    _duration = Mathf.Max(_duration + _slashCamera.ExtraRealSeconds, _slashCamera.Duration);
+                }
+            }
+            _elapsed = 0f;
             _currentSequence = sequence;
-            _playback = new SkillSequencePlayback(sequence, context, playCasterClip: !casterIsMonster || sequence.IsEnemySkill);
+            _playback = new SkillSequencePlayback(sequence, context,
+                playCasterClip: !casterIsMonster || sequence.IsEnemySkill,
+                slashTimelineControlsVfx: _slashCamera != null);
             _hitCount = sequence.HitTimes.Count;
             _playback.HitReached += OnHitReached;
-            return sequence.Duration;
+            return _duration;
         }
 
         /// <summary>재생 중인 시퀀스를 멈추고 시전자를 제자리로 돌린다.</summary>
         public void Abort()
         {
+            _slashCamera?.Dispose();
+            _slashCamera = null;
             if (_playback == null)
             {
                 _currentSequence = null;
@@ -142,8 +180,15 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            _playback.Advance(Time.deltaTime);
-            if (_playback.IsFinished)
+            float previousElapsed = _elapsed;
+            _elapsed += Time.deltaTime;
+            // 히트스톱 구간에서는 시퀀스(플레이어 이동·애니메이션·이펙트) 시계가 거의 멈춘다.
+            float sequenceDelta = _slashCamera != null
+                ? _slashCamera.ToSequenceTime(_elapsed) - _slashCamera.ToSequenceTime(previousElapsed)
+                : Time.deltaTime;
+            _playback.Advance(sequenceDelta);
+            _slashCamera?.Sample(_elapsed);
+            if (_elapsed >= _duration && _playback.IsFinished)
             {
                 Abort();
             }
@@ -152,6 +197,11 @@ namespace CK.SemesterProject.Tutorial
         private void OnDisable()
         {
             Abort();
+        }
+
+        private void OnDestroy()
+        {
+            _slashPool?.Dispose();
         }
     }
 }

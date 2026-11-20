@@ -401,6 +401,9 @@ namespace CK.SemesterProject.Tutorial
         public int SelectedSkill => _selectedSkill;
         public bool HasSkillSelection => _hasSkillSelection;
         public bool IsCommandPhase => HasCommandMenu && _isCommandPhase;
+        public event Action<int> SkillSelected;
+        public event Action InvestmentCycled;
+        public event Action SkillUseRequested;
 
         // 연결하지 않은 기존 씬은 스킬 메뉴를 그대로 사용한다.
         private bool HasCommandMenu => _commandPanel != null && _skillPanel != null && _backHint != null
@@ -457,7 +460,7 @@ namespace CK.SemesterProject.Tutorial
             _sprint.onClick.AddListener(_movement.ToggleSprint);
             _fieldAttack.onClick.AddListener(InitiateFieldBattle);
             _execute.onClick.AddListener(ExecuteSelectedSkill);
-            _investment.onClick.AddListener(_battle.CycleInvestment);
+            _investment.onClick.AddListener(CycleInvestment);
             _defend.onClick.AddListener(_battle.Defend);
             // 청사진 미니맵(FieldMinimapBlueprint)이 붙어 있으면 그쪽이 지도를 그린다. 없는 씬만 위에서 찍는 카메라를 쓴다.
             if (_minimap.GetComponent<FieldMinimapBlueprint>() == null)
@@ -568,7 +571,7 @@ namespace CK.SemesterProject.Tutorial
             }
             if (keyboard.aKey.wasPressedThisFrame)
             {
-                _battle.CycleInvestment();
+                CycleInvestment();
             }
             if (confirm)
             {
@@ -800,7 +803,7 @@ namespace CK.SemesterProject.Tutorial
             _sprint.onClick.RemoveListener(_movement.ToggleSprint);
             _fieldAttack.onClick.RemoveListener(InitiateFieldBattle);
             _execute.onClick.RemoveListener(ExecuteSelectedSkill);
-            _investment.onClick.RemoveListener(_battle.CycleInvestment);
+            _investment.onClick.RemoveListener(CycleInvestment);
             _defend.onClick.RemoveListener(_battle.Defend);
             if (_mapTexture != null)
             {
@@ -828,6 +831,17 @@ namespace CK.SemesterProject.Tutorial
             RefreshBattle();
             _selectedSkill = index;
             EnterSkillPhase(true);
+            SkillSelected?.Invoke(index);
+        }
+
+        private void CycleInvestment()
+        {
+            int previous = _battle.InvestmentStage;
+            _battle.CycleInvestment();
+            if (_battle.InvestmentStage != previous)
+            {
+                InvestmentCycled?.Invoke();
+            }
         }
 
         public void MoveSkillSelection(int direction)
@@ -849,6 +863,7 @@ namespace CK.SemesterProject.Tutorial
                 {
                     EnterSkillPhase(_hasSkillSelection);
                 }
+                SkillUseRequested?.Invoke();
                 _battle.UseSkill(_selectedSkill);
             }
         }
@@ -901,6 +916,14 @@ namespace CK.SemesterProject.Tutorial
             _isCommandPhase = true;
             _hasSkillSelection = false;
             RefreshBattle();
+        }
+
+        internal void OpenSkillMenuForTutorial()
+        {
+            if (IsCommandPhase)
+            {
+                EnterSkillPhase(false);
+            }
         }
 
         private void EnterSkillPhase(bool showDetails)

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -86,6 +86,8 @@ namespace CK.SemesterProject.Tutorial
         [Header("Weakness Highlight")]
         [SerializeField, Tooltip("HUD 스킬 버튼. 순서는 TutorialBattleController.Skills와 같다.")]
         private RectTransform[] _skillButtons = Array.Empty<RectTransform>();
+        [SerializeField, Tooltip("기존 노란 테두리와 문구를 사용한다.")]
+        private bool _useLegacyWeaknessHighlight = false;
         [SerializeField] private RectTransform _highlight;
         [SerializeField] private CanvasGroup _highlightGroup;
         [SerializeField, Tooltip("테두리 옆 \"약점 속성 공격!\" 꼬리표. 약점 스킬을 이미 고르고 있으면 숨긴다.")]
@@ -122,6 +124,38 @@ namespace CK.SemesterProject.Tutorial
         private readonly Vector3[] _corners = new Vector3[4];
         private float _pageShownAt;
 
+        [Header("Weakness Spotlight")]
+        [SerializeField] private PrototypeHudPresenter _spotlightHud;
+        [SerializeField] private string _spotlightSkillId = "SK01";
+        [SerializeField, Tooltip("비워 두면 안내 대상 스킬 버튼을 따라간다.")]
+        private RectTransform _spotlightRegion;
+        [SerializeField] private RectTransform _investmentSpotlightRegion;
+        [SerializeField] private RectTransform _executeSpotlightRegion;
+        [SerializeField, Tooltip("강조 영역의 가로·세로 여백(튜토리얼 캔버스 단위).")]
+        private Vector2 _spotlightPadding = new Vector2(10f, 10f);
+        [SerializeField, Tooltip("강조 영역의 회전 방향을 기준으로 한 가로·세로 위치 조정.")]
+        private Vector2 _spotlightOffset;
+        [SerializeField, Range(0f, 1f)] private float _weaknessDimAlpha = 0.72f;
+        [SerializeField, Min(0.01f)] private float _spotlightDimInSeconds = 0.14f;
+        [SerializeField, Min(0.01f)] private float _spotlightRingInSeconds = 0.32f;
+        [SerializeField] private TutorialSpotlightGraphic.Style _skillSpotlightStyle = TutorialSpotlightGraphic.Style.Mint;
+        [SerializeField] private TutorialSpotlightGraphic.Style _investmentSpotlightStyle = TutorialSpotlightGraphic.Style.Mint;
+        [SerializeField] private TutorialSpotlightGraphic.Style _executeSpotlightStyle = TutorialSpotlightGraphic.Style.Mint;
+
+        [Header("Enemy Target Reticle")]
+        [SerializeField] private Color _enemyReticleColor = new Color(1f, 0.32f, 0.12f);
+        [SerializeField, Range(0f, 1f)] private float _enemyReticleGlow = 0.85f;
+        [SerializeField, Min(1f)] private float _enemyReticleSize = 104f;
+        [SerializeField, Min(0f)] private float _enemyReticleHeight = 1.05f;
+
+        private TutorialEnemyReticle _enemyReticle;
+        private float _enemyReticleStartedAt;
+        private const float LegacyHighlightPadding = 10f;
+        private RectTransform _legacyHighlightParent;
+        private readonly Vector3[] _skillCorners = new Vector3[4];
+        private TutorialSpotlightGraphic _weaknessSpotlight;
+        private float _spotlightStartedAt;
+
         private static readonly HashSet<string> UnlockedFeatures = new HashSet<string>();
         private static readonly HashSet<string> CompletedTutorials = new HashSet<string>();
         private static int _battleCount;
@@ -136,6 +170,12 @@ namespace CK.SemesterProject.Tutorial
         private bool _isOpen;
         private bool _openedDetail;
         private bool _detailPending;
+        private enum SpotlightStep { None, Skill, Investment, Execute }
+
+        private SpotlightStep _spotlightStep;
+        private long? _spotlightTurnId;
+        private bool _openSpotlightSkillMenu;
+        private bool _firstBattle;
         private bool _guideWeakness;
         private bool _wasInBattle;
         private float _savedTimeScale = 1f;
@@ -169,6 +209,7 @@ namespace CK.SemesterProject.Tutorial
 
         private void Awake()
         {
+            _legacyHighlightParent = _highlight != null ? _highlight.parent as RectTransform : null;
             if (_resetOnPlay)
             {
                 UnlockedFeatures.Clear();
@@ -192,7 +233,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 _popup.SetActive(false);
             }
-            SetHighlightVisible(false);
+            HideWeaknessGuide();
         }
 
         private void OnDestroy()
@@ -213,6 +254,12 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnEnable()
         {
+            if (_spotlightHud != null)
+            {
+                _spotlightHud.SkillSelected += OnGuideSkillSelected;
+                _spotlightHud.InvestmentCycled += OnGuideInvestmentCycled;
+                _spotlightHud.SkillUseRequested += FinishSpotlight;
+            }
             if (_battle != null)
             {
                 _battle.FieldBattleEnded += OnFieldBattleEnded;
@@ -231,6 +278,12 @@ namespace CK.SemesterProject.Tutorial
 
         private void OnDisable()
         {
+            if (_spotlightHud != null)
+            {
+                _spotlightHud.SkillSelected -= OnGuideSkillSelected;
+                _spotlightHud.InvestmentCycled -= OnGuideInvestmentCycled;
+                _spotlightHud.SkillUseRequested -= FinishSpotlight;
+            }
             if (_battle != null)
             {
                 _battle.FieldBattleEnded -= OnFieldBattleEnded;
@@ -239,7 +292,8 @@ namespace CK.SemesterProject.Tutorial
             {
                 Close();
             }
-            SetHighlightVisible(false);
+            FinishSpotlight();
+            HideEnemyReticle();
         }
 
         private void Update()
@@ -261,7 +315,6 @@ namespace CK.SemesterProject.Tutorial
                 {
                     LayoutCoachMark();
                 }
-                SetHighlightVisible(false);
                 return;
             }
             if (inBattle && _detailPending && _opening == null && _battle.HasSelectedBattleTarget)
@@ -271,15 +324,32 @@ namespace CK.SemesterProject.Tutorial
                 Open(_detailPage, _current.Texts.Length, true);
                 return;
             }
-            UpdateHighlight(inBattle);
+        }
+
+        private void LateUpdate()
+        {
+            bool inBattle = _battle != null && _battle.IsInBattle;
+            UpdateEnemyReticle(inBattle);
+            if (_spotlightStep != SpotlightStep.None)
+            {
+                UpdateSpotlight(inBattle);
+            }
+            else
+            {
+                UpdateWeaknessHighlight(inBattle);
+            }
         }
 
         private void OnBattleStarted()
         {
             int index = _battleCount++;
+            _firstBattle = index == 0;
+            _guideWeakness = false;
             _current = _entries.FirstOrDefault(entry => entry.Condition == index && !CompletedTutorials.Contains(entry.Id));
             _detailPending = false;
-            _guideWeakness = false;
+            _spotlightStep = SpotlightStep.None;
+            _spotlightTurnId = null;
+            _openSpotlightSkillMenu = false;
             if (_current == null || _current.Texts.Length == 0)
             {
                 _current = null;
@@ -330,9 +400,11 @@ namespace CK.SemesterProject.Tutorial
                 Close();
             }
             _detailPending = false;
+            _firstBattle = false;
             _guideWeakness = false;
             _current = null;
-            SetHighlightVisible(false);
+            FinishSpotlight();
+            HideEnemyReticle();
         }
 
         private void Open(int start, int end, bool isDetail)
@@ -390,6 +462,11 @@ namespace CK.SemesterProject.Tutorial
             if (_current != null && _current.HasFeature(WeaknessChain) && (_openedDetail || !_detailPending))
             {
                 _guideWeakness = true;
+                if (_firstBattle)
+                {
+                    _spotlightStep = SpotlightStep.Skill;
+                    _openSpotlightSkillMenu = true;
+                }
             }
         }
 
@@ -598,9 +675,159 @@ namespace CK.SemesterProject.Tutorial
             return best;
         }
 
-        private void UpdateHighlight(bool inBattle)
+        private void OnGuideSkillSelected(int index)
         {
-            if (!_guideWeakness || !inBattle || _highlight == null || !_battle.CanChooseAction
+            if (_spotlightStep == SpotlightStep.Skill && !_isOpen && _battle.Skills[index].Id == _spotlightSkillId)
+            {
+                HideWeaknessGuide();
+                _spotlightStep = SpotlightStep.Investment;
+            }
+        }
+
+        private void OnGuideInvestmentCycled()
+        {
+            if (_spotlightStep == SpotlightStep.Investment && !_isOpen)
+            {
+                HideWeaknessGuide();
+                _spotlightStep = SpotlightStep.Execute;
+            }
+        }
+
+        private void FinishSpotlight()
+        {
+            _spotlightStep = SpotlightStep.None;
+            _spotlightTurnId = null;
+            _openSpotlightSkillMenu = false;
+            HideWeaknessGuide();
+        }
+
+        private RectTransform GetGuideSkillButton()
+        {
+            for (int index = 0; index < _skillButtons.Length && index < _battle.Skills.Count; index++)
+            {
+                if (_battle.Skills[index].Id == _spotlightSkillId)
+                {
+                    return _skillButtons[index];
+                }
+            }
+            return null;
+        }
+
+        private void UpdateEnemyReticle(bool inBattle)
+        {
+            if (!inBattle || !_firstBattle || !_detailPending || _opening != null || _isOpen
+                || _battle.HasSelectedBattleTarget || !_battle.CanChooseAction
+                || !_battle.TryGetMonsterTransform(TutorialBattleController.FirstMonsterId, out Transform enemy))
+            {
+                HideEnemyReticle();
+                return;
+            }
+
+            Camera camera = _battle.BattleCamera;
+            RectTransform canvasRect = (RectTransform)transform;
+            Vector3 point = camera.WorldToScreenPoint(enemy.position + Vector3.up * _enemyReticleHeight);
+            if (point.z <= 0f || !camera.pixelRect.Contains(point)
+                || !RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, point, null, out Vector2 center))
+            {
+                HideEnemyReticle();
+                return;
+            }
+            if (_enemyReticle == null)
+            {
+                var marker = new GameObject("Tutorial Enemy Reticle", typeof(TutorialEnemyReticle));
+                marker.layer = gameObject.layer;
+                marker.transform.SetParent(canvasRect, false);
+                marker.transform.SetAsFirstSibling();
+                _enemyReticle = marker.GetComponent<TutorialEnemyReticle>();
+                _enemyReticle.Clicked += SelectReticleTarget;
+                _enemyReticleStartedAt = Time.unscaledTime;
+            }
+
+            _enemyReticle.gameObject.SetActive(true);
+            RenderEnemyReticle(_enemyReticle, center, Time.unscaledTime - _enemyReticleStartedAt);
+        }
+
+        private void SelectReticleTarget()
+        {
+            _battle.SelectTarget(0);
+            if (_battle.HasSelectedBattleTarget)
+            {
+                HideEnemyReticle();
+            }
+        }
+
+        private void HideEnemyReticle()
+        {
+            if (_enemyReticle != null && _enemyReticle.gameObject.activeSelf)
+            {
+                _enemyReticle.gameObject.SetActive(false);
+            }
+        }
+
+        public void RenderEnemyReticle(TutorialEnemyReticle reticle, Vector2 center, float elapsed)
+        {
+            reticle.rectTransform.localPosition = center;
+            reticle.SetFrame(_enemyReticleSize, _enemyReticleColor, _enemyReticleGlow, elapsed);
+        }
+
+        private void UpdateSpotlight(bool inBattle)
+        {
+            if (_spotlightTurnId.HasValue && inBattle && _battle.Snapshot?.TurnId != _spotlightTurnId)
+            {
+                FinishSpotlight();
+            }
+            if (_spotlightStep == SpotlightStep.None || !inBattle || _isOpen || !_battle.CanChooseAction
+                || !_battle.HasSelectedBattleTarget)
+            {
+                HideWeaknessGuide();
+                return;
+            }
+
+            if (_openSpotlightSkillMenu)
+            {
+                _openSpotlightSkillMenu = false;
+                _spotlightHud?.OpenSkillMenuForTutorial();
+            }
+            if (_spotlightHud != null && _spotlightHud.IsCommandPhase)
+            {
+                HideWeaknessGuide();
+                return;
+            }
+
+            RectTransform region = _spotlightStep switch
+            {
+                SpotlightStep.Skill => _spotlightRegion != null ? _spotlightRegion : GetGuideSkillButton(),
+                SpotlightStep.Investment => _investmentSpotlightRegion,
+                SpotlightStep.Execute => _executeSpotlightRegion,
+                _ => null,
+            };
+            if (region == null || !region.gameObject.activeInHierarchy)
+            {
+                HideWeaknessGuide();
+                return;
+            }
+
+            _spotlightTurnId = _battle.Snapshot.TurnId;
+            if (!_useLegacyWeaknessHighlight)
+            {
+                SetHighlightVisible(false);
+                UpdateWeaknessSpotlight(region);
+                return;
+            }
+
+            if (_weaknessSpotlight != null)
+            {
+                _weaknessSpotlight.gameObject.SetActive(false);
+            }
+            if (_highlight != null)
+            {
+                UpdateLegacyHighlight(region);
+            }
+        }
+
+        private void UpdateWeaknessHighlight(bool inBattle)
+        {
+            if (!_guideWeakness || _isOpen || !inBattle || _highlight == null || !_battle.CanChooseAction
                 || !_battle.HasSelectedBattleTarget)
             {
                 SetHighlightVisible(false);
@@ -656,6 +883,107 @@ namespace CK.SemesterProject.Tutorial
             if (_highlightGroup != null)
             {
                 _highlightGroup.alpha = 0.55f + 0.45f * Mathf.PingPong(Time.unscaledTime * 2.2f, 1f);
+            }
+        }
+
+        private void UpdateWeaknessSpotlight(RectTransform region)
+        {
+            RectTransform canvasRect = (RectTransform)transform;
+            if (_weaknessSpotlight == null)
+            {
+                var spotlight = new GameObject("Weakness Spotlight", typeof(TutorialSpotlightGraphic));
+                spotlight.SetActive(false);
+                spotlight.layer = gameObject.layer;
+                _weaknessSpotlight = spotlight.GetComponent<TutorialSpotlightGraphic>();
+                _weaknessSpotlight.raycastTarget = false;
+                _weaknessSpotlight.rectTransform.SetParent(canvasRect, false);
+                _weaknessSpotlight.rectTransform.SetAsFirstSibling();
+            }
+            if (!_weaknessSpotlight.gameObject.activeSelf)
+            {
+                _spotlightStartedAt = Time.unscaledTime;
+                _weaknessSpotlight.gameObject.SetActive(true);
+            }
+
+            RenderSpotlight(_weaknessSpotlight, region, _spotlightStep, Time.unscaledTime - _spotlightStartedAt);
+        }
+
+        private void RenderSpotlight(TutorialSpotlightGraphic graphic, RectTransform region, SpotlightStep step, float elapsed)
+        {
+            RectTransform canvasRect = (RectTransform)transform;
+            // Follow the current region, including the rotation of buttons on the skill arc.
+            region.GetWorldCorners(_skillCorners);
+            Vector2 bottomLeft = canvasRect.InverseTransformPoint(_skillCorners[0]);
+            Vector2 topLeft = canvasRect.InverseTransformPoint(_skillCorners[1]);
+            Vector2 bottomRight = canvasRect.InverseTransformPoint(_skillCorners[3]);
+            Vector2 right = bottomRight - bottomLeft;
+            Vector2 up = topLeft - bottomLeft;
+            Vector2 center = bottomLeft + (right + up) * 0.5f
+                + right.normalized * _spotlightOffset.x + up.normalized * _spotlightOffset.y;
+            Vector2 halfSize = new Vector2(right.magnitude, up.magnitude) * 0.5f
+                + Vector2.Max(Vector2.zero, _spotlightPadding);
+            RectTransform spotlightRect = graphic.rectTransform;
+            spotlightRect.localPosition = center;
+            spotlightRect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(right.y, right.x) * Mathf.Rad2Deg);
+
+            Vector2 offset = canvasRect.rect.center - center;
+            Vector2 farthest = new Vector2(Mathf.Abs(offset.x), Mathf.Abs(offset.y)) + canvasRect.rect.size * 0.5f;
+            float dimProgress = Mathf.Clamp01(elapsed / Mathf.Max(0.01f, _spotlightDimInSeconds));
+            float ringProgress = Mathf.Clamp01(elapsed / Mathf.Max(0.01f, _spotlightRingInSeconds));
+            TutorialSpotlightGraphic.Style style = step switch
+            {
+                SpotlightStep.Investment => _investmentSpotlightStyle,
+                SpotlightStep.Execute => _executeSpotlightStyle,
+                _ => _skillSpotlightStyle,
+            };
+            graphic.SetFrame(halfSize, farthest.magnitude, style,
+                _weaknessDimAlpha * Mathf.SmoothStep(0f, 1f, dimProgress), ringProgress, elapsed);
+        }
+
+#if UNITY_EDITOR
+        public void RenderSpotlightPreview(TutorialSpotlightGraphic graphic, RectTransform region, int stage, float elapsed)
+        {
+            RenderSpotlight(graphic, region, (SpotlightStep)(stage + 1), elapsed);
+        }
+#endif
+
+        private void UpdateLegacyHighlight(RectTransform button)
+        {
+            // 두 캔버스 모두 Screen Space Overlay이므로 버튼의 화면 사각형을 그대로 옮긴다.
+            if (_legacyHighlightParent == null)
+            {
+                return;
+            }
+            if (_highlight.parent != _legacyHighlightParent)
+            {
+                _highlight.SetParent(_legacyHighlightParent, false);
+            }
+            button.GetWorldCorners(_skillCorners);
+            RectTransform parent = _legacyHighlightParent;
+            Vector2 min, max;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, _skillCorners[0], null, out min);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, _skillCorners[2], null, out max);
+            _highlight.anchorMin = _highlight.anchorMax = new Vector2(0.5f, 0.5f);
+            _highlight.pivot = new Vector2(0.5f, 0.5f);
+            _highlight.localPosition = new Vector3((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f, 0f);
+            _highlight.sizeDelta = new Vector2(max.x - min.x, max.y - min.y) + Vector2.one * (LegacyHighlightPadding * 2f);
+            SetHighlightVisible(true);
+            if (_highlightTag != null)
+            {
+                _highlightTag.SetActive(false);
+            }
+            if (_highlightGroup != null)
+            {
+                _highlightGroup.alpha = 0.55f + 0.45f * Mathf.PingPong(Time.unscaledTime * 2.2f, 1f);
+            }
+        }
+
+        private void HideWeaknessGuide()
+        {
+            SetHighlightVisible(false);
+            if (_weaknessSpotlight != null)
+            {
+                _weaknessSpotlight.gameObject.SetActive(false);
             }
         }
 

@@ -644,7 +644,8 @@ namespace CK.SemesterProject.Tutorial
             SetBattleCameraActive(_debugBattleCamera);
             UpdateHitImpulse();
             // 컷신 재생 중에는 Cinemachine Brain이 카메라를 쥐고 있으므로 전투 카메라를 움직이지 않는다.
-            if (IsSkillCutscenePlaying || !_isBattleCameraActive || UpdateCinematicCamera())
+            if (IsSkillCutscenePlaying || (_sequenceRunner != null && _sequenceRunner.IsSlashCameraActive)
+                || !_isBattleCameraActive || UpdateCinematicCamera())
             {
                 return;
             }
@@ -1236,9 +1237,11 @@ namespace CK.SemesterProject.Tutorial
             return false;
         }
 
+        internal const string FirstMonsterId = "monster";
+
         private static string GetMonsterId(int index)
         {
-            return index == 0 ? "monster" : "monster_" + index;
+            return index == 0 ? FirstMonsterId : "monster_" + index;
         }
 
         private CombatantData GetMonsterData(EnemyStateMachine enemy)
