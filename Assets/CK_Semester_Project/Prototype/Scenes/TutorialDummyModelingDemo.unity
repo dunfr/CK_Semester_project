@@ -561171,6 +561171,7 @@ GameObject:
   - component: {fileID: 1440850439}
   - component: {fileID: 1440850440}
   - component: {fileID: 1440850441}
+  - component: {fileID: 1440850499}
   m_Layer: 0
   m_Name: Tutorial Battle
   m_TagString: Untagged
@@ -561559,6 +561560,30 @@ MonoBehaviour:
   _hiddenRoot: {fileID: 1489619404}
   _keptRenderers:
   - {fileID: 501366399}
+--- !u!114 &1440850499
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1440850436}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2089c73305d924c4e861d0fd8d3d25e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Tutorial.BattleDamageLabels
+  _enemyLabel: {fileID: 7328033035839509081, guid: 6ad7445bbc92f494d884fcf41b53ef73, type: 3}
+  _enemyWeakLabel: {fileID: 1779928471207038609, guid: 2a266fe1d722d1f4fa9875b87b59cb27, type: 3}
+  _playerLabel: {fileID: 706622655404427601, guid: 9d61fdec54294394fac804ceb5a6a48e, type: 3}
+  _playerWeakLabel: {fileID: 6827956613354339470, guid: 2c5a95d47be765b48b2feb8e3f8cadbc, type: 3}
+  _bodyHeight: 0.6
+  _scatterPixels: 45
+  _referenceResolution: {x: 1920, y: 1080}
+  _sortingOrder: 60
+  _lifetime: 0.9
+  _risePixels: 70
+  _popScale: 1.5
+  _fadeFraction: 0.35
 --- !u!114 &1440850441
 MonoBehaviour:
   m_ObjectHideFlags: 0

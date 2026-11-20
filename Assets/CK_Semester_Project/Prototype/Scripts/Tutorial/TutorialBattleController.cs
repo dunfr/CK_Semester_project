@@ -220,6 +220,11 @@ namespace CK.SemesterProject.Tutorial
         private EnemyStateMachine[] _encounterMembers = Array.Empty<EnemyStateMachine>();
         private TutorialBattleActionPresentation[] _presentations = Array.Empty<TutorialBattleActionPresentation>();
         private TutorialBattleActionPresentation[] _monsterPresentations = Array.Empty<TutorialBattleActionPresentation>();
+        private BattleDamageLabels _damageLabels;
+        // 이번 플레이어 공격으로 적마다 띄울 피해 숫자 합계·약점 여부와, 그중 이미 띄운 비율(0 = 아직 안 띄움, 1 = 다 띄움).
+        private readonly Dictionary<string, int> _enemyLabelDamage = new Dictionary<string, int>();
+        private readonly Dictionary<string, bool> _enemyLabelWeak = new Dictionary<string, bool>();
+        private float _enemyLabelShown = 1f;
         private string _targetId = "monster";
         private Vector3 _playerHome;
         private Vector3 _enemyCenter;
@@ -398,6 +403,11 @@ namespace CK.SemesterProject.Tutorial
             {
                 _skillCutscene = GetComponent<TutorialSkillCutscene>();
             }
+            if (_skillCutscene != null)
+            {
+                _skillCutscene.HitReached += OnCutsceneHitReached;
+            }
+            _damageLabels = GetComponent<BattleDamageLabels>();
             _sequenceRunner = GetComponent<TutorialSkillSequenceRunner>();
             if (_sequenceRunner != null)
             {
@@ -1662,16 +1672,31 @@ namespace CK.SemesterProject.Tutorial
         {
             _enemyHpBeforeHit.Clear();
             _enemyDamageShown = 1f;
+            _enemyLabelDamage.Clear();
+            _enemyLabelWeak.Clear();
+            _enemyLabelShown = 1f;
             if (request.ActorId != "player" || request.Kind != BattleActionKind.Skill || result.WasSkipped || result.IsTurnStartEffect)
             {
                 return;
             }
             foreach (BattleStateChange change in result.Changes)
             {
-                if (change.After.InstanceId != "player" && change.HpDelta < 0 && !_enemyHpBeforeHit.ContainsKey(change.After.InstanceId))
+                string id = change.After.InstanceId;
+                if (id == "player" || change.HpDelta >= 0)
                 {
-                    _enemyHpBeforeHit.Add(change.After.InstanceId, change.Before.Hp);
+                    continue;
                 }
+                if (!_enemyHpBeforeHit.ContainsKey(id))
+                {
+                    _enemyHpBeforeHit.Add(id, change.Before.Hp);
+                }
+                _enemyLabelDamage.TryGetValue(id, out int total);
+                _enemyLabelDamage[id] = total - change.HpDelta;
+                _enemyLabelWeak[id] = IsWeakHit(result, id);
+            }
+            if (_enemyLabelDamage.Count > 0)
+            {
+                _enemyLabelShown = 0f;
             }
             if (_enemyHpBeforeHit.Count > 0)
             {
@@ -1683,6 +1708,7 @@ namespace CK.SemesterProject.Tutorial
         // 보여 줄 피해 비율(0 = 맞기 전, 1 = 실제 HP)을 올린다. 다 보여 주면 대기를 끝낸다.
         private void ShowEnemyDamage(float shown)
         {
+            ShowEnemyDamageLabels(shown);
             if (_enemyHpBeforeHit.Count == 0 || shown <= _enemyDamageShown)
             {
                 return;
@@ -1694,6 +1720,51 @@ namespace CK.SemesterProject.Tutorial
                 _enemyHpBeforeHit.Clear();
             }
             DisplayRevision++;
+        }
+
+        // 타격 순간 맞은 적마다 피해 숫자를 띄운다. shown은 지금까지 보여 준 피해 비율이며, 다단 히트는 이번에 늘어난 만큼만 띄운다.
+        private void ShowEnemyDamageLabels(float shown)
+        {
+            shown = Mathf.Clamp01(shown);
+            if (_enemyLabelDamage.Count == 0 || shown <= _enemyLabelShown)
+            {
+                return;
+            }
+            if (_damageLabels != null)
+            {
+                foreach (KeyValuePair<string, int> pair in _enemyLabelDamage)
+                {
+                    int amount = Mathf.RoundToInt(pair.Value * shown) - Mathf.RoundToInt(pair.Value * _enemyLabelShown);
+                    if (amount > 0 && TryGetMonsterTransform(pair.Key, out Transform monster))
+                    {
+                        _damageLabels.Show(monster, amount, false, _enemyLabelWeak[pair.Key], _camera);
+                    }
+                }
+            }
+            _enemyLabelShown = shown;
+            if (shown >= 1f)
+            {
+                _enemyLabelDamage.Clear();
+                _enemyLabelWeak.Clear();
+            }
+        }
+
+        // 약점을 맞았는지(속성 배율이 1보다 큼). 약점 연쇄 중에도 배율이 올라가므로 함께 잡힌다.
+        private static bool IsWeakHit(BattleActionResult result, string targetId)
+        {
+            BattleHitResult hit = result.TargetHits.TryGetValue(targetId, out BattleHitResult found) ? found : result.Hit;
+            return hit != null && hit.IsHit && hit.ElementMultiplier > 1.0001;
+        }
+
+        // 컷신(궁극기) 타임라인의 타격 시점마다 피해 숫자를 나눠 띄운다. 전투 UI가 꺼져 있는 동안이라 HP 바는 컷신이 끝난 뒤 기존대로 줄어든다.
+        private void OnCutsceneHitReached(int index, int count)
+        {
+            if (_session == null || _session.PendingResult == null || _session.PendingResult.ActionId != _playerMotionActionId
+                || _session.PendingResult.Request.ActorId != "player")
+            {
+                return;
+            }
+            ShowEnemyDamageLabels(count > 0 ? (index + 1f) / count : 1f);
         }
 
         // 스킬 시퀀스의 타격 지점마다 피해를 나눠 보여 주고(다단 히트는 여러 번에 걸쳐 줄어든다), 타격 임팩트도 함께 준다.
@@ -1749,9 +1820,29 @@ namespace CK.SemesterProject.Tutorial
             }
             _hasMonsterHitLanded = true;
             _monsterHitElapsed = _elapsed;
+            ShowPlayerDamageLabel();
             _monsterHitTailSeconds = _battleAnimation != null ? _battleAnimation.PlayHit() : 0f;
             DisplayRevision++;
             RefreshUI();
+        }
+
+        // 몬스터 공격이 닿은 순간 플레이어 캐릭터가 맞은 자리에 피해 숫자를 띄운다.
+        private void ShowPlayerDamageLabel()
+        {
+            BattleActionResult pending = _session != null ? _session.PendingResult : null;
+            if (_damageLabels == null || pending == null || pending.ActionId != _monsterHitActionId)
+            {
+                return;
+            }
+            int damage = 0;
+            foreach (BattleStateChange change in pending.Changes)
+            {
+                if (change.After.InstanceId == "player" && change.HpDelta < 0)
+                {
+                    damage -= change.HpDelta;
+                }
+            }
+            _damageLabels.Show(_movement.transform, damage, true, IsWeakHit(pending, "player"), _camera);
         }
 
         // 연출 시간이 끝났을 때 부른다. 공격 모션이 시작됐으면 타격 프레임까지 기다리고, 시작하지 못했으면 지금 닿은 것으로 처리한다.
