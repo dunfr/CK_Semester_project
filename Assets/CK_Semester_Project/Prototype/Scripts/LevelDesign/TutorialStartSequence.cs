@@ -1,9 +1,12 @@
 using System.Collections;
 using CK.SemesterProject.Battle;
 using Semester.Enemies;
+using TMPro;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace CK.SemesterProject.LevelDesign
 {
@@ -103,6 +106,14 @@ namespace CK.SemesterProject.LevelDesign
         private Renderer[] _alarmRenderers;
         [SerializeField] private Color _alarmColor = new Color(1f, 0.08f, 0.05f);
 
+        [Header("Skip")]
+        [SerializeField, Tooltip("시작 연출을 건너뛰는 키. 길게 누르고 있어야 합니다. Esc(메뉴)·숫자 1~3(전투 대상 선택)은 피하세요.")]
+        private Key _skipKey = Key.Space;
+        [SerializeField, Min(0.1f), Tooltip("스킵 키를 누르고 있어야 하는 시간(초)")]
+        private float _skipHoldSeconds = 1f;
+        [SerializeField, Tooltip("화면 오른쪽 아래에 표시할 스킵 안내 문구(앞에 키 이름이 붙습니다)")]
+        private string _skipHintMessage = "길게 눌러 건너뛰기";
+
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
         private NavMeshAgent _guardAgent;
@@ -121,6 +132,22 @@ namespace CK.SemesterProject.LevelDesign
         private const float HipHeight = 0.97f;
         private Renderer[] _hiddenPlayerRenderers = System.Array.Empty<Renderer>();
         private CK.SemesterProject.Tutorial.PlayerCameraFade _playerFade;
+        private Quaternion _lidClosedRotation;
+        private bool _isOpeningPlaying;
+        private bool _hasGuardSequence;
+        private float _skipHeldSeconds;
+        private CinemachineBrain _cutBrain;
+        private CinemachineBlendDefinition _savedBlend;
+        private CinemachineBlenderSettings _savedCustomBlends;
+        private GameObject _skipHintRoot;
+        private RectTransform _skipHintFill;
+        private const int SkipHintSortingOrder = 32000;
+
+        /// <summary>시작 연출(캡슐에서 나와 조작이 풀릴 때까지)이 재생 중인지.</summary>
+        public bool IsOpeningPlaying => _isOpeningPlaying;
+
+        /// <summary>시작 연출이 끝나 조작이 풀렸을 때. 끝까지 보았을 때와 스킵했을 때 모두 한 번 호출된다.</summary>
+        public event System.Action OpeningFinished;
 
         private void Awake()
         {
@@ -145,6 +172,7 @@ namespace CK.SemesterProject.LevelDesign
                 _fadeOverlay.alpha = 1f;
                 _fadeOverlay.gameObject.SetActive(true);
             }
+            _lidClosedRotation = _podLidPivot != null ? _podLidPivot.localRotation : Quaternion.identity;
             _playerFade = _progress.Player != null ? _progress.Player.GetComponent<CK.SemesterProject.Tutorial.PlayerCameraFade>() : null;
             PlacePlayerLying();
             // 첫 프레임부터 1인칭으로 시작하도록 Awake에서 켠다(시작 시 블렌드 없이 바로 컷).
@@ -160,15 +188,23 @@ namespace CK.SemesterProject.LevelDesign
             }
         }
 
-        private IEnumerator Start()
+        private void Start()
         {
             _progress.LockControls(this);
             _progress.SetObjective("상황 지켜보기");
-            bool hasGuard = _guard != null && _guardButtonPoint != null;
-            if (hasGuard)
+            _hasGuardSequence = _guard != null && _guardButtonPoint != null;
+            if (_hasGuardSequence)
             {
                 _guard.enabled = false;
             }
+            _isOpeningPlaying = true;
+            CreateSkipHint();
+            StartCoroutine(PlayOpening());
+        }
+
+        private IEnumerator PlayOpening()
+        {
+            bool hasGuard = _hasGuardSequence;
             yield return null;
             // 1단계: 플레이 시작 - 캡슐 안에서 눈을 뜬다(페이드 인, 천장을 보다가 경비병 쪽으로 시선).
             yield return FadeOverlay(1f, 0f, _fadeInSeconds);
@@ -207,17 +243,7 @@ namespace CK.SemesterProject.LevelDesign
             StartCoroutine(FadeOverlay(1f, 0f, _cutFadeInSeconds));
             yield return RiseFromPod();
             yield return StepOutOfPod();
-            _progress.UnlockControls(this);
-            if (!hasGuard)
-            {
-                // 경비병이 배치되지 않았으면 처치 조건 없이 카드 키를 올린다.
-                _hasRaisedCardKey = true;
-                yield return RaiseCardKey();
-                yield break;
-            }
-            _progress.SetObjective("경비병을 처치하거나 출입문 확인", _exitDoorTarget);
-            _guard.enabled = true;
-            _isWaitingForAttack = true;
+            FinishOpening();
         }
 
         private void LateUpdate()
@@ -331,12 +357,25 @@ namespace CK.SemesterProject.LevelDesign
         // 화면이 어두운 동안 블렌드 없이 3인칭 카메라로 컷하고 숨겼던 얼굴·머리를 다시 보인다.
         private IEnumerator ExitFirstPerson()
         {
+            BeginCameraCut();
+            // 브레인이 컷을 반영할 때까지 한 프레임 기다린 뒤 원래 블렌드 설정을 돌려놓는다.
+            yield return RestoreBlendNextFrame();
+            if (_playerFade != null)
+            {
+                _playerFade.SetSuppressed(false);
+            }
+        }
+
+        // 블렌드를 컷으로 바꾸고 1인칭 카메라를 끈다. 원래 블렌드 설정은 필드에 보관해, 스킵으로 중간에 끊겨도 복원할 수 있게 한다.
+        private void BeginCameraCut()
+        {
             _isFirstPerson = false;
             CinemachineBrain brain = Camera.main != null ? Camera.main.GetComponent<CinemachineBrain>() : null;
-            CinemachineBlendDefinition savedBlend = brain != null ? brain.DefaultBlend : default;
-            CinemachineBlenderSettings savedCustomBlends = brain != null ? brain.CustomBlends : null;
-            if (brain != null)
+            if (brain != null && _cutBrain == null)
             {
+                _cutBrain = brain;
+                _savedBlend = brain.DefaultBlend;
+                _savedCustomBlends = brain.CustomBlends;
                 brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.Cut, 0f);
                 brain.CustomBlends = null;
             }
@@ -352,21 +391,26 @@ namespace CK.SemesterProject.LevelDesign
                 }
             }
             _hiddenPlayerRenderers = System.Array.Empty<Renderer>();
-            // 브레인이 컷을 반영할 때까지 한 프레임 기다린 뒤 원래 블렌드 설정을 돌려놓는다.
+        }
+
+        private IEnumerator RestoreBlendNextFrame()
+        {
             yield return null;
-            if (brain != null)
+            if (_cutBrain != null)
             {
-                brain.DefaultBlend = savedBlend;
-                brain.CustomBlends = savedCustomBlends;
-            }
-            if (_playerFade != null)
-            {
-                _playerFade.SetSuppressed(false);
+                _cutBrain.DefaultBlend = _savedBlend;
+                _cutBrain.CustomBlends = _savedCustomBlends;
+                _cutBrain = null;
             }
         }
 
         private void Update()
         {
+            if (_isOpeningPlaying)
+            {
+                UpdateSkipInput();
+                return;
+            }
             if (!_isWaitingForAttack || _guard == null)
             {
                 return;
@@ -672,6 +716,222 @@ namespace CK.SemesterProject.LevelDesign
             yield return new WaitForSeconds(Mathf.Max(0f, _cardFocusSeconds - 0.5f));
             _progress.UnlockControls(this);
             _progress.SetObjective("콘솔 데스크에서 카드 키 획득", _desk.transform);
+        }
+
+        // 연출이 끝난 뒤 상태(끝까지 보았을 때와 스킵했을 때 공통).
+        private void FinishOpening()
+        {
+            _isOpeningPlaying = false;
+            _skipHeldSeconds = 0f;
+            if (_skipHintRoot != null)
+            {
+                Destroy(_skipHintRoot);
+                _skipHintRoot = null;
+                _skipHintFill = null;
+            }
+            _progress.UnlockControls(this);
+            if (!_hasGuardSequence)
+            {
+                // 경비병이 배치되지 않았으면 처치 조건 없이 카드 키를 올린다.
+                _hasRaisedCardKey = true;
+                StartCoroutine(RaiseCardKey());
+            }
+            else
+            {
+                _progress.SetObjective("경비병을 처치하거나 출입문 확인", _exitDoorTarget);
+                _guard.enabled = true;
+                _isWaitingForAttack = true;
+            }
+            OpeningFinished?.Invoke();
+        }
+
+        private void UpdateSkipInput()
+        {
+            Keyboard keyboard = Keyboard.current;
+            bool isHeld = Application.isFocused && keyboard != null && keyboard[_skipKey].isPressed;
+            // 메뉴로 일시정지(timeScale 0)된 동안에는 진행되지 않도록 deltaTime을 쓴다.
+            _skipHeldSeconds = isHeld ? _skipHeldSeconds + Time.deltaTime : 0f;
+            if (_skipHintFill != null)
+            {
+                _skipHintFill.anchorMax = new Vector2(Mathf.Clamp01(_skipHeldSeconds / _skipHoldSeconds), 1f);
+            }
+            if (_skipHeldSeconds >= _skipHoldSeconds)
+            {
+                SkipOpening();
+            }
+        }
+
+        /// <summary>
+        /// 시작 연출을 즉시 끝낸다. 진행 중인 연출 코루틴을 모두 멈추고, 연출이 끝났을 때의 상태
+        /// (3인칭, 덮개 열림, 경보·가스 꺼짐, 출구에 선 플레이어, 버튼 앞 경비병)로 맞춘 뒤 조작을 푼다.
+        /// </summary>
+        public void SkipOpening()
+        {
+            if (!_isOpeningPlaying)
+            {
+                return;
+            }
+            // 연출 중에는 시작 연출 코루틴(및 그 안의 페이드·이동)만 돌고 있다.
+            StopAllCoroutines();
+            _cameraShake = 0f;
+            if (_hasGuardSequence)
+            {
+                PlaceGuardAtButton();
+            }
+            SetAlarm(false);
+            foreach (ParticleSystem gas in _gasVents)
+            {
+                if (gas != null)
+                {
+                    gas.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                }
+            }
+            if (_errorSparks != null)
+            {
+                _errorSparks.Clear(true);
+            }
+            if (_podLidPivot != null)
+            {
+                _podLidPivot.localRotation = _lidClosedRotation * Quaternion.Euler(0f, 0f, _podLidOpenAngle);
+            }
+            _progress.HideMessage();
+            BeginCameraCut();
+            if (_playerFade != null)
+            {
+                _playerFade.SetSuppressed(false);
+            }
+            PlacePlayerAtExit();
+            if (_fadeOverlay != null)
+            {
+                _fadeOverlay.alpha = 0f;
+                _fadeOverlay.gameObject.SetActive(false);
+            }
+            StartCoroutine(RestoreBlendNextFrame());
+            FinishOpening();
+        }
+
+        private void PlaceGuardAtButton()
+        {
+            if (_guardAgent != null && _guardAgent.isOnNavMesh)
+            {
+                _guardAgent.ResetPath();
+                _guardAgent.Warp(_guardButtonPoint.position);
+            }
+            else
+            {
+                _guard.transform.position = _guardButtonPoint.position;
+            }
+            _guard.transform.rotation = Quaternion.Euler(0f, _guardButtonPoint.eulerAngles.y, 0f);
+            if (_guardAnimator != null)
+            {
+                _guardAnimator.SetFloat("Speed", 0f);
+            }
+            if (_guardDriver != null)
+            {
+                _guardDriver.IsCutsceneControlled = false;
+            }
+        }
+
+        private void PlacePlayerAtExit()
+        {
+            Transform player = _progress.Player;
+            if (player == null)
+            {
+                return;
+            }
+            if (_podExitPoint != null)
+            {
+                player.SetPositionAndRotation(_podExitPoint.position, _podExitPoint.rotation);
+            }
+            if (_playerVisual != null)
+            {
+                _playerVisual.localPosition = _visualRestPosition;
+                _playerVisual.localRotation = _visualRestRotation;
+            }
+            Physics.SyncTransforms();
+            var controller = player.GetComponent<CharacterController>();
+            if (controller != null)
+            {
+                controller.enabled = true;
+            }
+        }
+
+        // 화면 오른쪽 아래 "[Space] 길게 눌러 건너뛰기" 안내와 누른 시간 막대. 씬을 수정하지 않도록 실행 중에 만든다.
+        private void CreateSkipHint()
+        {
+            var root = new GameObject("OpeningSkipHint", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+            root.transform.SetParent(transform, false);
+            var canvas = root.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            // 시작 페이드(검은 화면) 위에 보이도록 가장 위에 그린다.
+            canvas.sortingOrder = SkipHintSortingOrder;
+            var scaler = root.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            var panel = new GameObject("Panel", typeof(RectTransform));
+            var panelRect = (RectTransform)panel.transform;
+            panelRect.SetParent(root.transform, false);
+            panelRect.anchorMin = new Vector2(1f, 0f);
+            panelRect.anchorMax = new Vector2(1f, 0f);
+            panelRect.pivot = new Vector2(1f, 0f);
+            panelRect.anchoredPosition = new Vector2(-48f, 48f);
+            panelRect.sizeDelta = new Vector2(360f, 52f);
+
+            var label = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+            var labelRect = (RectTransform)label.transform;
+            labelRect.SetParent(panelRect, false);
+            labelRect.anchorMin = new Vector2(0f, 0f);
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = new Vector2(0f, 12f);
+            labelRect.offsetMax = Vector2.zero;
+            var text = label.GetComponent<TextMeshProUGUI>();
+            TMP_FontAsset font = _progress.HudFont;
+            if (font != null)
+            {
+                text.font = font;
+            }
+            text.text = "[" + GetSkipKeyLabel() + "] " + _skipHintMessage;
+            text.fontSize = 26f;
+            text.alignment = TextAlignmentOptions.BottomRight;
+            text.color = new Color(1f, 1f, 1f, 0.85f);
+            text.raycastTarget = false;
+
+            var track = new GameObject("Track", typeof(RectTransform), typeof(Image));
+            var trackRect = (RectTransform)track.transform;
+            trackRect.SetParent(panelRect, false);
+            trackRect.anchorMin = new Vector2(0f, 0f);
+            trackRect.anchorMax = new Vector2(1f, 0f);
+            trackRect.pivot = new Vector2(0.5f, 0f);
+            trackRect.anchoredPosition = Vector2.zero;
+            trackRect.sizeDelta = new Vector2(0f, 4f);
+            var trackImage = track.GetComponent<Image>();
+            trackImage.color = new Color(1f, 1f, 1f, 0.2f);
+            trackImage.raycastTarget = false;
+
+            var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            _skipHintFill = (RectTransform)fill.transform;
+            _skipHintFill.SetParent(trackRect, false);
+            _skipHintFill.anchorMin = Vector2.zero;
+            _skipHintFill.anchorMax = new Vector2(0f, 1f);
+            _skipHintFill.offsetMin = Vector2.zero;
+            _skipHintFill.offsetMax = Vector2.zero;
+            var fillImage = fill.GetComponent<Image>();
+            fillImage.color = Color.white;
+            fillImage.raycastTarget = false;
+
+            _skipHintRoot = root;
+        }
+
+        private string GetSkipKeyLabel()
+        {
+            if (_skipKey == Key.Space)
+            {
+                return "Space";
+            }
+            Keyboard keyboard = Keyboard.current;
+            return keyboard != null ? keyboard[_skipKey].displayName : _skipKey.ToString();
         }
 
         private void SetAlarm(bool isOn)

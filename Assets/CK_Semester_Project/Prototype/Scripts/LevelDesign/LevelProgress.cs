@@ -166,6 +166,18 @@ namespace CK.SemesterProject.LevelDesign
             _feedbackUntil = Time.unscaledTime + Mathf.Max(0.1f, seconds);
         }
 
+        /// <summary>표시 중인 안내 문구를 즉시 숨긴다(연출 스킵 등).</summary>
+        public void HideMessage()
+        {
+            if (_isReady)
+            {
+                _feedbackPanel.SetActive(false);
+            }
+        }
+
+        /// <summary>HUD 문구에 쓰는 글꼴. 런타임에 만드는 안내 UI가 같은 한글 글꼴을 쓰도록 노출한다.</summary>
+        public TMP_FontAsset HudFont => _feedbackText != null ? _feedbackText.font : null;
+
         public void SetArea(string name, string englishName)
         {
             if (!string.IsNullOrEmpty(name))
