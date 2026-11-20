@@ -5,8 +5,8 @@ using UnityEngine.UI;
 
 namespace CK.SemesterProject.Tutorial
 {
-    // 공격이 닿는 순간 맞은 대상의 몸 바로 옆(목업처럼 머리~어깨 높이의 좌우)에 피해 숫자(DamageLabel 프리팹)를 띄운다.
-    // 숫자는 그 자리에서 위로 떠오르며 사라진다.
+    // 공격이 닿는 순간 맞은 대상의 머리 둘레에 그린 원 안 아무 곳에나 피해 숫자(DamageLabel 프리팹)를 띄운다.
+    // 플레이어와 적 모두 같은 방식이며, 숫자는 그 자리에서 위로 떠오르며 사라진다.
     // 언제 띄울지는 TutorialBattleController가 정하고(타격 시점), 이 컴포넌트는 프리팹 선택·위치·움직임만 맡는다.
     // 전투 UI가 꺼지는 컷신(궁극기) 중에도 보이도록 전용 캔버스를 쓴다.
     [DisallowMultipleComponent]
@@ -33,18 +33,24 @@ namespace CK.SemesterProject.Tutorial
         private GameObject _playerWeakLabel;
 
         [Header("Placement")]
-        [SerializeField, Tooltip("숫자가 뜨는 높이(X = 왼쪽에 뜰 때, Y = 오른쪽에 뜰 때). 몸 높이 비율이며 0 = 발, 1 = 머리 끝. 목업처럼 왼쪽은 어깨, 오른쪽은 머리 높이가 기본입니다. 연속으로 맞으면 먼저 뜬 숫자가 위로 떠올라 자리를 비켜 줍니다")]
-        private Vector2 _sideHeights = new Vector2(0.74f, 0.86f);
-        [SerializeField, Min(0f), Tooltip("몸 중심에서 숫자까지 옆으로 띄우는 거리. 화면에 보이는 몸 높이에 대한 비율이라 멀리 있는 대상은 그만큼 가깝게 붙습니다. 숫자는 좌우 번갈아 뜹니다")]
-        private float _sideGap = 0.28f;
-        [SerializeField, Min(0f), Tooltip("숫자가 매번 똑같은 자리에 찍히지 않게 살짝 흩뿌리는 범위(1920x1080 기준 픽셀)")]
-        private float _jitterPixels = 8f;
-        [SerializeField, Min(0f), Tooltip("숫자가 화면 밖으로 나가지 않게 두는 가장자리 여백(1920x1080 기준 픽셀). 한쪽이 화면 밖이면 반대쪽에 띄웁니다")]
+        [SerializeField, Tooltip("숫자가 흩어지는 원의 중심으로 쓸 뼈 이름. 위에서부터 찾아 처음 나오는 뼈의 위치가 중심입니다(기본값은 머리 → 목 → 가슴). 자세가 바뀌어도 그 뼈를 따라갑니다")]
+        private string[] _hitBoneNames = { "Bip001 Head", "Bip001 Neck", "Bip001 Spine2" };
+        [SerializeField, Range(0f, 1f), Tooltip("위 뼈를 찾지 못한 대상의 원 중심 높이. 몸 높이 비율이며 0 = 발, 0.5 = 허리, 1 = 머리 끝")]
+        private float _hitHeight = 0.9f;
+        [SerializeField, Min(0f), Tooltip("숫자가 흩어지는 원의 반지름(1920x1080 기준 픽셀). 대상이 멀든 가깝든 화면에서 같은 크기이며, 숫자는 이 원 안 아무 곳에나 뜹니다")]
+        private float _spreadRadiusPixels = 80f;
+        [SerializeField, Min(0f), Tooltip("숫자가 화면 밖으로 나가지 않게 두는 가장자리 여백(1920x1080 기준 픽셀)")]
         private float _screenMargin = 24f;
         [SerializeField, Tooltip("숫자 크기를 맞출 기준 해상도(전투 HUD 캔버스와 같게 둡니다)")]
         private Vector2 _referenceResolution = new Vector2(1920f, 1080f);
         [SerializeField, Tooltip("전용 캔버스의 정렬 순서. 전투 HUD(50)보다 크면 HUD 위에 그려집니다")]
         private int _sortingOrder = 60;
+
+        [Header("Size")]
+        [SerializeField, Min(0f), Tooltip("피해가 클수록 숫자 글자를 키우는 최대 폭. 프리팹에 정해 둔 글자 크기가 가장 작은 크기이고, 여기에 이 값까지 더해집니다. 약점 숫자(WEAK)는 키우지 않습니다")]
+        private float _fontGrowMax = 4f;
+        [SerializeField, Tooltip("글자가 커지는 피해 범위(X = 이 피해 이하면 프리팹 크기 그대로, Y = 이 피해 이상이면 가장 큰 크기). 그 사이는 피해에 비례해 커집니다")]
+        private Vector2 _fontGrowDamageRange = new Vector2(10f, 200f);
 
         [Header("Motion")]
         [SerializeField, Min(0.1f), Tooltip("숫자가 떠 있는 시간(초)")]
@@ -59,10 +65,10 @@ namespace CK.SemesterProject.Tutorial
         private const float PopSeconds = 0.12f;
         private readonly List<Label> _labels = new List<Label>();
         private readonly List<Renderer> _rendererBuffer = new List<Renderer>();
+        // 대상마다 찾아 둔 피격 지점 뼈(없으면 null).
+        private readonly Dictionary<Transform, Transform> _hitBones = new Dictionary<Transform, Transform>();
         private RectTransform _canvasRect;
         private Camera _camera;
-        // 다음 숫자가 뜰 쪽(-1 = 왼쪽, 1 = 오른쪽). 뜰 때마다 뒤집는다.
-        private int _nextSide = -1;
 
         private void Awake()
         {
@@ -91,6 +97,12 @@ namespace CK.SemesterProject.Tutorial
             if (number != null)
             {
                 number.text = damage.ToString();
+                // 피해가 클수록 글자를 키운다. 프리팹 크기가 최소이고, 약점 숫자는 프리팹 크기 그대로 둔다.
+                if (!isWeak)
+                {
+                    number.enableAutoSizing = false;
+                    number.fontSize += _fontGrowMax * Mathf.InverseLerp(_fontGrowDamageRange.x, _fontGrowDamageRange.y, damage);
+                }
             }
             foreach (Graphic graphic in instance.GetComponentsInChildren<Graphic>(true))
             {
@@ -103,30 +115,16 @@ namespace CK.SemesterProject.Tutorial
             }
             group.blocksRaycasts = false;
             Bounds body = GetBodyBounds(target);
-            // 가로 중심은 대상이 서 있는 자리(루트)로 잡는다. 메시 범위의 중심은 든 무기 쪽으로 치우쳐 좌우 간격이 달라진다.
+            // 가로 중심은 대상이 서 있는 자리(루트)로 잡는다. 메시 범위의 중심은 든 무기 쪽으로 치우친다.
             body.center = new Vector3(target.position.x, body.center.y, target.position.z);
-            var bodyCenter = body.center;
-            // 화면에 보이는 몸 높이를 기준으로 옆 간격을 정해, 가까운 대상과 먼 대상 모두 몸 바로 옆에 붙게 한다.
-            float bodyPixels = Vector2.Distance(ToCanvas(new Vector3(body.center.x, body.min.y, body.center.z)),
-                ToCanvas(new Vector3(body.center.x, body.max.y, body.center.z)));
-            float halfWidth = number != null ? number.preferredWidth * 0.5f : 0f;
-            float distance = bodyPixels * _sideGap + halfWidth;
-            int side = _nextSide;
-            _nextSide = -_nextSide;
-            float anchorX = ToCanvas(bodyCenter).x;
-            float limit = _canvasRect.rect.width * 0.5f - halfWidth - _screenMargin;
-            if (Mathf.Abs(anchorX + side * distance) > limit && Mathf.Abs(anchorX - side * distance) <= limit)
-            {
-                side = -side;
-            }
-            float height = side < 0 ? _sideHeights.x : _sideHeights.y;
             var label = new Label
             {
                 Rect = (RectTransform)instance.transform,
                 Group = group,
-                WorldPoint = new Vector3(body.center.x, Mathf.Lerp(body.min.y, body.max.y, height), body.center.z),
-                ScreenOffset = new Vector2(side * distance, 0f) + Random.insideUnitCircle * _jitterPixels,
-                HalfWidth = halfWidth,
+                WorldPoint = GetHitPoint(target, body),
+                // 중심 둘레의 원 안 아무 곳(원 안에 고르게 퍼진다)
+                ScreenOffset = Random.insideUnitCircle * _spreadRadiusPixels,
+                HalfWidth = number != null ? number.preferredWidth * 0.5f : 0f,
             };
             _labels.Add(label);
             Place(label);
@@ -201,6 +199,41 @@ namespace CK.SemesterProject.Tutorial
         {
             RectTransformUtility.ScreenPointToLocalPointInRectangle(_canvasRect, _camera.WorldToScreenPoint(worldPoint), null, out Vector2 local);
             return local;
+        }
+
+        // 피격 지점: 대상의 가슴 뼈 위치. 뼈를 찾지 못하면 서 있는 자리 위로 Hit Height 비율만큼 올라간 곳.
+        private Vector3 GetHitPoint(Transform target, Bounds body)
+        {
+            if (!_hitBones.TryGetValue(target, out Transform bone))
+            {
+                foreach (string boneName in _hitBoneNames)
+                {
+                    bone = FindChild(target, boneName);
+                    if (bone != null)
+                    {
+                        break;
+                    }
+                }
+                _hitBones[target] = bone;
+            }
+            return bone != null ? bone.position
+                : new Vector3(body.center.x, Mathf.Lerp(body.min.y, body.max.y, _hitHeight), body.center.z);
+        }
+
+        private static Transform FindChild(Transform root, string childName)
+        {
+            if (string.IsNullOrEmpty(childName))
+            {
+                return null;
+            }
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(false))
+            {
+                if (child.name == childName)
+                {
+                    return child;
+                }
+            }
+            return null;
         }
 
         // 대상 몸(캐릭터 메시)이 차지하는 범위. 메시가 없으면 발 위로 사람 크기만큼 잡는다.
