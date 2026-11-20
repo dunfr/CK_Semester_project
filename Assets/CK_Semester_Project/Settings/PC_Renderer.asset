@@ -15,6 +15,23 @@ MonoBehaviour:
   m_Active: 1
   _slotResolution: 2048
   _boundsPadding: 0.05
+--- !u!114 &-2594648814704030370
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d90d331e8b55e8045bb9c775dc3e0298, type: 3}
+  m_Name: Scene Bloom
+  m_EditorClassIdentifier: CK.Rendering.SceneBloom::CK.SemesterProject.Rendering.SceneBloomFeature
+  m_Active: 1
+  _shader: {fileID: 4800000, guid: 1b601dfcd53e1bc49921d66e9f4eb093, type: 3}
+  _extraDynamicLayers:
+    serializedVersion: 2
+    m_Bits: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -45,7 +62,8 @@ MonoBehaviour:
   - {fileID: -4868196162227943526}
   - {fileID: 4955804704251749946}
   - {fileID: 8185851191337264771}
-  m_RendererFeatureMap: ad6b866f10d7b46cf299b4ea73705a249ac77b1d62b170bc3aa6221d1f8ec64483a6ddbb49fc9971
+  - {fileID: -2594648814704030370}
+  m_RendererFeatureMap: ad6b866f10d7b46cf299b4ea73705a249ac77b1d62b170bc3aa6221d1f8ec64483a6ddbb49fc99715e8dad6aa6f4fddb
   m_UseNativeRenderPass: 1
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}

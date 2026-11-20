@@ -152,8 +152,17 @@ public sealed class CorridorPlanarReflection : MonoBehaviour
 
     private void RenderReflection(ScriptableRenderContext context, Camera camera)
     {
-        if (_isRendering || camera != _sourceCamera || camera.cameraType == CameraType.Reflection)
+        if (_isRendering || camera.cameraType == CameraType.Reflection)
         {
+            return;
+        }
+
+        if (camera != _sourceCamera)
+        {
+            // 반사는 게임 카메라 시점으로만 그린다. 다른 카메라(씬 뷰, 미리보기, 캡처용)가 그 텍스처를 쓰면
+            // 엉뚱한 자리에 엉뚱한 반사가 얹혀 바닥 일부가 어둡게 보이므로, 그런 카메라에서는 반사를 끈다.
+            Shader.SetGlobalFloat(ReflectionAvailableId, 0);
+            Shader.SetGlobalFloat(SecondAvailableId, 0);
             return;
         }
 

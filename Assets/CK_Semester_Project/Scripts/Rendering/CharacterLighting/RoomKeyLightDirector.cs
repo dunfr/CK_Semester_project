@@ -2,8 +2,13 @@ using UnityEngine;
 
 namespace CK.SemesterProject.Rendering
 {
-    // 씬의 주광(캐릭터·몬스터를 비추는 방향광)에 붙인다. 대상(플레이어)이 있는 방의 RoomKeyLight 값으로
-    // 방향광의 방향·색·세기를 바꾸고, 방이 바뀌면 시간을 두고 부드럽게 섞는다.
+    // 씬의 주광(캐릭터·몬스터를 비추는 방향광)에 붙인다.
+    //
+    // 기본 동작(맵 단위 고정 방향): 주광의 방향은 방향광에 적어 둔 Rotation 하나로 맵 전체에서 고정하고,
+    // 대상(플레이어)이 있는 방의 RoomKeyLight 값으로는 색·세기만 바꾼다. 방을 옮겨도 캐릭터의 명암 경계와 바닥 그림자가 돌지 않는다.
+    // (캐릭터 빛의 방향을 맵 단위로 정해 두는 방식. 방마다 방향을 섞으면 문을 지날 때 명암 경계가 몸 위를 쓸고 지나가 어색하다.)
+    //
+    // Blend Direction Per Room을 켜면 예전처럼 방마다 방향도 바꾸고, 방이 바뀌면 시간을 두고 섞는다.
     // 어느 방에도 없으면 방향광에 원래 적어 둔 값으로 돌아간다. 방향광 하나를 바꾸므로 플레이어·몬스터·그림자가 모두 같이 따라간다.
     // 플레이 중에만 동작한다(편집 중에는 방향광을 건드리지 않는다).
     // 전투 진입·종료처럼 대상이 순간이동하는 장면 전환에서는 섞지 않고 그 프레임에 바로 바꾼다.
@@ -18,6 +23,10 @@ namespace CK.SemesterProject.Rendering
 
         [SerializeField, Tooltip("판정 지점의 로컬 오프셋(m)입니다. 보통 가슴 높이입니다.")]
         private Vector3 _targetOffset = new Vector3(0f, 1f, 0f);
+
+        [SerializeField, Tooltip("끄면(기본) 주광 방향은 이 방향광의 Rotation으로 맵 전체에서 고정하고, 방마다 색·세기만 바꿉니다. "
+            + "켜면 방마다 RoomKeyLight의 방향으로 바꾸고 방 사이에서 섞습니다(문을 지날 때 명암 경계와 그림자가 돕니다).")]
+        private bool _blendDirectionPerRoom;
 
         [SerializeField, Min(0f), Tooltip("방이 바뀔 때 주광이 새 방의 값으로 넘어가는 시간(초)입니다. 0이면 즉시 바뀝니다.")]
         private float _blendSeconds = 1f;
@@ -87,7 +96,10 @@ namespace CK.SemesterProject.Rendering
                 {
                     continue;
                 }
-                targetDirection = BlendDirection(targetDirection, room.GetLightRotation(position) * Vector3.forward, weight);
+                if (_blendDirectionPerRoom)
+                {
+                    targetDirection = BlendDirection(targetDirection, room.GetLightRotation(position) * Vector3.forward, weight);
+                }
                 targetColor = Color.Lerp(targetColor, room.Color, weight);
                 if (room.OverrideIntensity)
                 {
