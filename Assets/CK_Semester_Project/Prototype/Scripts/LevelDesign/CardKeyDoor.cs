@@ -21,6 +21,10 @@ namespace CK.SemesterProject.LevelDesign
         private float _lockedFocusSeconds = 0.5f;
         [SerializeField, Tooltip("문을 연 직후 실행(덕트 파손음 T01 등)")]
         private UnityEvent _opened;
+        [SerializeField, Tooltip("문을 연 뒤 바꿀 현재 목표. 비우면 유지합니다(열린 문을 계속 가리키지 않게 다음 목표를 넣습니다).")]
+        private string _nextObjective;
+        [SerializeField, Tooltip("다음 목표를 미니맵과 화면 길 안내가 가리킬 곳")]
+        private Transform _nextObjectiveTarget;
 
         public override bool CanInteract => _door != null && !_door.IsOpen;
         public override string Prompt => _requiresCardKey && !HasRequiredCard ? "카드 리더 확인" : base.Prompt;
@@ -47,6 +51,10 @@ namespace CK.SemesterProject.LevelDesign
             }
             _door.Open();
             _opened.Invoke();
+            if (!string.IsNullOrEmpty(_nextObjective))
+            {
+                Progress.SetObjective(_nextObjective, _nextObjectiveTarget);
+            }
         }
     }
 }

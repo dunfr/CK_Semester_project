@@ -12,6 +12,8 @@ namespace CK.SemesterProject.Tutorial
     {
         private const float EffectTailSeconds = .9f;
         private const float DefaultSlashLeadFraction = .12f;
+        private const float KnockbackDistance = .3f;
+        private const float WhiteFlashFraction = .3f;
         private readonly List<GameObject> _effectTails = new List<GameObject>();
         private readonly Transform _actor;
         private readonly Transform _target;
@@ -188,7 +190,8 @@ namespace CK.SemesterProject.Tutorial
                 _animationPlayable.SetTime(progress * _animation.length);
                 _animationGraph.Evaluate(0f);
             }
-            float approach = progress < _impactTime ? Mathf.SmoothStep(0f, 1f, progress / _impactTime)
+            // 접근은 처음에 확 튀어 나가는 돌진(ease-out), 복귀는 부드럽게.
+            float approach = progress < _impactTime ? 1f - Mathf.Pow(1f - progress / _impactTime, 3f)
                 : progress < _returnTime ? 1f : 1f - Mathf.SmoothStep(0f, 1f, (progress - _returnTime) / (1f - _returnTime));
             bool primaryTarget = result.Request.TargetId == _targetId;
             if (primaryTarget && approachTarget)
@@ -248,7 +251,7 @@ namespace CK.SemesterProject.Tutorial
             float strength = reacts ? 1f - reaction : 0f;
             Vector3 forward = Vector3.ProjectOnPlane(TargetHome - ActorHome, Vector3.up).normalized;
             Vector3 sideways = Vector3.Cross(Vector3.up, forward);
-            _target.position = TargetHome + forward * (Mathf.Sin(reaction * Mathf.PI) * 0.18f * strength)
+            _target.position = TargetHome + forward * (Mathf.Sin(reaction * Mathf.PI) * KnockbackDistance * strength)
                 + sideways * (Mathf.Sin(reaction * Mathf.PI * 8f) * 0.09f * strength);
             for (int i = 0; i < _renderers.Length; i++)
             {
@@ -258,7 +261,11 @@ namespace CK.SemesterProject.Tutorial
                 }
                 if (strength > 0f)
                 {
-                    Color flash = Color.Lerp(_baseColors[i], new Color(1f, 0.15f, 0.15f), strength);
+                    // 맞는 순간은 하얗게 번쩍인 뒤 붉게 식는다.
+                    Color hitColor = reaction < WhiteFlashFraction
+                        ? Color.Lerp(Color.white, new Color(1f, 0.15f, 0.15f), reaction / WhiteFlashFraction)
+                        : new Color(1f, 0.15f, 0.15f);
+                    Color flash = Color.Lerp(_baseColors[i], hitColor, strength);
                     _flashBlocks[i].SetColor(_baseColorId, flash);
                     _flashBlocks[i].SetColor(_colorId, flash);
                     _renderers[i].SetPropertyBlock(_flashBlocks[i]);

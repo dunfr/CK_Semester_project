@@ -18,6 +18,8 @@ namespace CK.SemesterProject.LevelDesign
         private float _floorHeight = 5f;
         [SerializeField, Tooltip("출발 시 닫을 문(선택)")]
         private LevelDoor _departureDoor;
+        [SerializeField, Tooltip("켜면 출발 시 닫은 문이 카와 함께 내려가고, 도착하면 도착 문과 같이 열린다.")]
+        private bool _departureDoorRidesCar = true;
         [SerializeField, Tooltip("도착 후 열 문")]
         private LevelDoor _arrivalDoor;
         [SerializeField, Tooltip("층수 패널 표시")]
@@ -27,6 +29,9 @@ namespace CK.SemesterProject.LevelDesign
 
         private bool _hasArrived;
         private bool _isMoving;
+        private Vector3 _doorOffset;
+
+        private bool MovesDepartureDoor => _departureDoorRidesCar && _departureDoor != null;
 
         public override bool CanInteract => !_hasArrived && !_isMoving;
 
@@ -82,6 +87,10 @@ namespace CK.SemesterProject.LevelDesign
             controller.enabled = true;
             _hasArrived = true;
             _arrivalDoor.Open();
+            if (MovesDepartureDoor)
+            {
+                _departureDoor.Open();
+            }
             Progress.Battle.SetRespawnPoint(player.position);
             Progress.UnlockControls(this);
             Progress.SetObjective("복도 구역 통과", _objectiveTarget);
@@ -96,6 +105,11 @@ namespace CK.SemesterProject.LevelDesign
                 _carParts[i].position = starts[i] + offset;
             }
             Progress.Player.position = playerStart + offset;
+            if (MovesDepartureDoor)
+            {
+                _departureDoor.Translate(offset - _doorOffset);
+                _doorOffset = offset;
+            }
             SetFloorDisplays(Mathf.Abs(_travelHeight * progress));
         }
 

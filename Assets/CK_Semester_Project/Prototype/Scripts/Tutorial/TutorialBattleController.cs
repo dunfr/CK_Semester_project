@@ -45,6 +45,35 @@ namespace CK.SemesterProject.Tutorial
         private float _cameraDrift = 0.18f;
         [SerializeField, Min(0f), Tooltip("행동 시 카메라의 이동 폭(m)")]
         private float _cameraActionTravel = 0.45f;
+        [Header("Battle Camera Lock-On")]
+        [SerializeField, Range(0f, 1f), Tooltip("전투 카메라 시선이 선택한 적 쪽으로 옮겨 가는 정도. 0이면 적 무리 중심, 1이면 선택한 적")]
+        private float _lockOnWeight = 0.65f;
+        [SerializeField, Min(0.1f), Tooltip("타깃을 바꿨을 때 록온 시선이 따라가는 속도(1/초)")]
+        private float _lockOnFollowSpeed = 5f;
+        [SerializeField, Range(0f, 90f), Tooltip("우클릭 드래그로 돌릴 수 있는 최대 좌우 각도(도). 적 뒤쪽이 보이지 않게 제한한다.")]
+        private float _maxBattleYaw = 30f;
+        [SerializeField, Min(0f), Tooltip("드래그를 놓으면 기본 구도로 돌아오는 속도(1/초). 0이면 돌아오지 않는다.")]
+        private float _battleCameraRecenterSpeed = 1.5f;
+        [Header("Hit Feel")]
+        [SerializeField, Range(1f, 2f), Tooltip("플레이어 공격 연출 속도 배율. 클수록 빠르다(궁극기 모션·스킬 시퀀스는 제외).")]
+        private float _attackTempo = 1.25f;
+        [SerializeField, Range(0f, 0.2f), Tooltip("플레이어 공격이 적중한 순간 동작을 멈추는 시간(초)")]
+        private float _hitStopSeconds = 0.07f;
+        [SerializeField, Range(0f, 0.3f), Tooltip("적중 순간 화면 흔들림 세기(m)")]
+        private float _hitShake = 0.08f;
+        [SerializeField, Range(0f, 1f), Tooltip("적중 순간 카메라가 앞으로 튀어 나가는 거리(m)")]
+        private float _hitPunch = 0.32f;
+        [Header("Attack Camera")]
+        [SerializeField, Tooltip("플레이어 공격 시 타격 지점 기준 클로즈업 카메라 오프셋(우/상/전방, m)")]
+        private Vector3 _attackCameraOffset = new Vector3(3.2f, 1.1f, -3.95f);
+        [SerializeField, Range(0f, 20f), Tooltip("플레이어 공격 클로즈업 시 좁아지는 시야각(도)")]
+        private float _attackCameraFovDrop = 2.5f;
+        [SerializeField, Range(4f, 30f), Tooltip("공격 클로즈업으로 파고드는 카메라 속도")]
+        private float _attackCameraEnterSpeed = 16f;
+        [SerializeField, Range(4f, 25f), Tooltip("공격 후 기본 전투 구도로 돌아오는 카메라 속도")]
+        private float _attackCameraReturnSpeed = 11f;
+        [SerializeField, Range(0.2f, 3f), Tooltip("몬스터 처치 후 HP 바 감소·잔상 연출을 보여 주고 전투를 종료하기까지의 대기 시간(초)")]
+        private float _finishDelaySeconds = 1.15f;
         [Header("Battle Setup")]
         [SerializeField, Min(1), Tooltip("DT 미제공 몬스터의 임시 HP. 밸런스 확정값이 아닙니다.")]
         private int _monsterHp = 600;
@@ -159,9 +188,20 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Min(0f), Tooltip("달리기 발소리 반경(m)")]
         private float _sprintNoiseRadius = 8f;
 
+        private const float HitImpulseDecay = 14f;
+        private const float HitShakeFrequency = 55f;
+
         private float _battleYaw;
         private float _battlePitch;
         private bool _isCameraDragging;
+        private Vector3 _lockOnPoint;
+        private bool _hasLockOnPoint;
+        private float _hitStopRemaining;
+        private float _hitImpulse;
+        private long _hitStopActionId = -1;
+        private float _attackCameraWeight;
+        private float _finishDelayRemaining = -1f;
+        private float _lastEnemyDamageTime = float.NegativeInfinity;
         private BattleSnapshot _cachedSnapshot;
         private readonly Dictionary<GameObject, bool> _backgroundEnemyStates = new Dictionary<GameObject, bool>();
         private readonly MonsterAi _ai = new MonsterAi();
@@ -198,6 +238,10 @@ namespace CK.SemesterProject.Tutorial
         private float _monsterHitTailSeconds;
         private int _playerHpBeforeHit;
         private LevelDesign.MonsterAnimationDriver _monsterHitDriver;
+        // 플레이어 공격이 적에게 닿는 순간을 기다리는 행동. 닿기 전까지 적 HP는 맞기 전 값으로 보이고,
+        // 타격마다(다단 히트면 나눠서) 줄어든다. 키는 적 InstanceId, 값은 맞기 전 HP.
+        private readonly Dictionary<string, int> _enemyHpBeforeHit = new Dictionary<string, int>();
+        private float _enemyDamageShown = 1f;
         private int _monsterHitAttackCount;
         private float _playerMotionSeconds;
         private bool _playerMotionApproaches = true;
@@ -265,6 +309,11 @@ namespace CK.SemesterProject.Tutorial
                 _timedPresentation = pending;
                 _presentationSeconds = isPlayerSkill ? _basicSkillEnhancement.GetPresentationSeconds(pending.Request.SkillId,
                     TestSkillStage, _actionSeconds) : _actionSeconds;
+                // 스킬 시퀀스는 자체 타임라인 길이를 따르므로 빠르게 돌리지 않는다.
+                if (isPlayerSkill && pending.ActionId != _sequenceActionId)
+                {
+                    _presentationSeconds /= _attackTempo;
+                }
                 return GetMotionAwareSeconds(pending, _presentationSeconds);
             }
         }
@@ -350,6 +399,10 @@ namespace CK.SemesterProject.Tutorial
                 _skillCutscene = GetComponent<TutorialSkillCutscene>();
             }
             _sequenceRunner = GetComponent<TutorialSkillSequenceRunner>();
+            if (_sequenceRunner != null)
+            {
+                _sequenceRunner.HitReached += OnSequenceHitReached;
+            }
             // 에디터에서 지운 적이 목록에 빈 칸으로 남아 있을 수 있으므로 빼고 쓴다.
             _enemies = _enemies == null ? Array.Empty<EnemyStateMachine>() : _enemies.Where(enemy => enemy != null).ToArray();
             if (_movement == null || _orbit == null || _camera == null || _brain == null || _characters == null
@@ -454,13 +507,33 @@ namespace CK.SemesterProject.Tutorial
             {
                 TrySelectBattleTargetAtScreenPoint(targetingMouse.position.ReadValue());
             }
-            _elapsed += Time.deltaTime;
+            // 히트스톱 동안에는 연출 시간을 멈춰 공격 모션·밀림이 그 자리에 잠깐 멈춘다.
+            if (_hitStopRemaining > 0f)
+            {
+                _hitStopRemaining -= Time.unscaledDeltaTime;
+            }
+            else
+            {
+                _elapsed += Time.deltaTime;
+            }
             BattleSnapshot snapshot = Snapshot;
             if (snapshot != null && snapshot.Phase == BattlePhase.Finished)
             {
-                ReturnToExploration();
+                // 몬스터가 쓰러진 직후에는 HP 바 감소·잔상 연출이 끝날 때까지 잠시 기다린 뒤 전투를 종료한다.
+                if (_finishDelayRemaining < 0f)
+                {
+                    float elapsedSinceDamage = Time.unscaledTime - _lastEnemyDamageTime;
+                    _finishDelayRemaining = Mathf.Max(0.45f, _finishDelaySeconds - elapsedSinceDamage);
+                }
+                _finishDelayRemaining -= Time.unscaledDeltaTime;
+                if (_finishDelayRemaining <= 0f)
+                {
+                    _finishDelayRemaining = -1f;
+                    ReturnToExploration();
+                }
                 return;
             }
+            _finishDelayRemaining = -1f;
             // 연출 시간이 끝났어도 몬스터 공격이 아직 닿지 않았거나 피격 모션이 재생 중이면 다음 차례로 넘기지 않는다.
             bool holdsForHit = snapshot.Phase == BattlePhase.AwaitingPresentation && _elapsed >= PresentationSeconds
                 && ShouldHoldPresentationForHit(_session.PendingResult);
@@ -476,6 +549,10 @@ namespace CK.SemesterProject.Tutorial
                         bool approach = !isSequence && (pending.ActionId != _playerMotionActionId || _playerMotionApproaches);
                         _presentations[i].Sample(pending, _elapsed / PresentationSeconds,
                             approach, PresentationSeconds, playAnimation: !isSequence);
+                        if (!isSequence && _presentations[i].TargetIsReacting && pending.ActionId != _hitStopActionId)
+                        {
+                            StartHitImpact(pending.ActionId);
+                        }
                     }
                     else if (pending.Request.ActorId == GetMonsterId(i) && pending.Request.TargetId == "player")
                     {
@@ -505,6 +582,8 @@ namespace CK.SemesterProject.Tutorial
             if (_elapsed >= PresentationSeconds && snapshot.Phase == BattlePhase.AwaitingPresentation && !IsSkillCutscenePlaying
                 && !holdsForHit)
             {
+                // 타격 신호가 없던 연출(컷신 등)도 끝날 때는 피해를 모두 보여 준다.
+                ShowEnemyDamage(1f);
                 _session.CompletePresentation(_session.PendingResult.ActionId);
                 _cachedSnapshot = null;
                 _elapsed = 0;
@@ -533,6 +612,7 @@ namespace CK.SemesterProject.Tutorial
                 RefreshUI();
             }
             SetBattleCameraActive(_debugBattleCamera);
+            UpdateHitImpulse();
             // 컷신 재생 중에는 Cinemachine Brain이 카메라를 쥐고 있으므로 전투 카메라를 움직이지 않는다.
             if (IsSkillCutscenePlaying || !_isBattleCameraActive || UpdateCinematicCamera())
             {
@@ -541,6 +621,7 @@ namespace CK.SemesterProject.Tutorial
             float previousYaw = _battleYaw;
             float previousPitch = _battlePitch;
             ReadBattleCameraInput();
+            UpdateLockOnPoint();
             BattleActionResult result = _session.PendingResult;
             // 플레이어 피격 중에는 공격에 따른 카메라 이동·줌을 적용하지 않는다.
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
@@ -550,35 +631,176 @@ namespace CK.SemesterProject.Tutorial
             float opening = 1f - Mathf.SmoothStep(0f, 1f, _cameraTime / _cameraEntrySeconds);
             Vector3 offset = TutorialBattleCamera.GetMotionOffset(ConfiguredCameraOffset,
                 _cameraTime, opening, progress, direction, _cameraDrift, _cameraActionTravel);
-            float fieldOfView = _battleFieldOfView - 2f * Mathf.Sin(progress * Mathf.PI);
+            float actionFieldOfView = _battleFieldOfView - 2f * Mathf.Sin(progress * Mathf.PI);
+            float fieldOfView;
             Pose target;
-            if (!TryGetGroupPose(_playerHome, _enemyCenter, _formation.EnemySlots, offset, fieldOfView, out target))
-            {
-                target = _battleCameraPose;
-                fieldOfView = _battleFieldOfView;
-            }
-            Pose orbitPose;
-            if (!TutorialBattleCamera.TryGetOrbitPose(target, _playerHome, _enemyCenter,
-                _movement.transform, _encounter.transform,
-                _battleYaw, _battlePitch, fieldOfView, _camera.aspect, out orbitPose)
-                || !IsGroupFramed(orbitPose, _formation.EnemySlots, fieldOfView)
-                || !TutorialBattleCamera.CanTravel(_camera.transform.position, orbitPose.position,
-                    _movement.transform, _encounter.transform))
+            // 선택한 적 쪽으로 옮긴 시선이 막히거나 다른 적이 화면 밖으로 나가면 적 무리 중심 구도로 돌아간다.
+            if (!TryGetBattleOrbitPose(_lockOnPoint, offset, actionFieldOfView, out target, out fieldOfView)
+                && !TryGetBattleOrbitPose(_enemyCenter, offset, actionFieldOfView, out target, out fieldOfView))
             {
                 _battleYaw = previousYaw;
                 _battlePitch = previousPitch;
                 return;
             }
-            target = orbitPose;
-            float blend = 1f - Mathf.Exp(-6f * Time.deltaTime);
+            float desiredAttackWeight = isAttack ? EvaluateAttackCameraWeight(result, progress) : 0f;
+            float weightSpeed = desiredAttackWeight > _attackCameraWeight ? _attackCameraEnterSpeed : _attackCameraReturnSpeed;
+            _attackCameraWeight = Mathf.Lerp(_attackCameraWeight, desiredAttackWeight, 1f - Mathf.Exp(-weightSpeed * Time.deltaTime));
+            if (_attackCameraWeight < 0.001f && desiredAttackWeight <= 0f)
+            {
+                _attackCameraWeight = 0f;
+            }
+            bool inAttackCloseup = _attackCameraWeight > 0.001f;
+            if (inAttackCloseup)
+            {
+                Transform targetTransform = _encounter != null ? _encounter.transform : null;
+                Vector3 targetPos = _enemyCenter;
+                string attackTargetId = result != null && !string.IsNullOrEmpty(result.Request.TargetId)
+                    ? result.Request.TargetId
+                    : _targetId;
+                if (!string.IsNullOrEmpty(attackTargetId) && TryGetMonsterTransform(attackTargetId, out Transform monsterTransform))
+                {
+                    targetTransform = monsterTransform;
+                    targetPos = monsterTransform.position;
+                }
+                Pose closeupPose = TutorialBattleCamera.GetAttackCloseupPose(_playerHome, _movement.transform.position,
+                    targetPos, _attackCameraOffset, _movement.transform, targetTransform);
+                target = new Pose(
+                    Vector3.Lerp(target.position, closeupPose.position, _attackCameraWeight),
+                    Quaternion.Slerp(target.rotation, closeupPose.rotation, _attackCameraWeight));
+                fieldOfView = Mathf.Lerp(fieldOfView, _battleFieldOfView - _attackCameraFovDrop, _attackCameraWeight);
+            }
+            // 적중 순간 짧은 FOV 펀치로 베는 타격감을 더한다.
+            fieldOfView = Mathf.Max(28f, fieldOfView - _hitImpulse * 1.5f);
+            float blendSpeed = inAttackCloseup
+                ? (desiredAttackWeight >= _attackCameraWeight ? _attackCameraEnterSpeed : _attackCameraReturnSpeed)
+                : 6f;
+            float blend = 1f - Mathf.Exp(-blendSpeed * Time.deltaTime);
             Vector3 position = Vector3.Lerp(_camera.transform.position, target.position, blend);
-            if (TutorialBattleCamera.CanTravel(_camera.transform.position, position,
+            if (inAttackCloseup || TutorialBattleCamera.CanTravel(_camera.transform.position, position,
                 _movement.transform, _encounter.transform))
             {
                 _camera.transform.SetPositionAndRotation(position,
                     Quaternion.Slerp(_camera.transform.rotation, target.rotation, blend));
                 _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fieldOfView, blend);
             }
+        }
+
+        // 공격 돌진·타격 구간에 맞춰 빠르게 파고들고 복귀하는 카메라 가중치(0 = 기본 구도, 1 = 클로즈업).
+        private float EvaluateAttackCameraWeight(BattleActionResult result, float fallbackProgress)
+        {
+            if (result != null && result.ActionId == _sequenceActionId
+                && _sequenceRunner != null && _sequenceRunner.IsPlaying
+                && _sequenceRunner.CurrentSequence != null)
+            {
+                CK.SemesterProject.SkillSequence.SkillSequenceAsset seq = _sequenceRunner.CurrentSequence;
+                float t = _sequenceRunner.CurrentTime;
+                if (seq.UseMovement && seq.ApproachEnd > seq.ApproachStart && seq.ReturnEnd > seq.ReturnStart)
+                {
+                    // 돌진 시작 직전부터 빠르게 스냅 진입해 타격 구간 동안 클로즈업을 유지한다.
+                    float enterStart = Mathf.Max(0f, seq.ApproachStart - 0.08f);
+                    if (t < enterStart)
+                    {
+                        return 0f;
+                    }
+                    if (t < seq.ApproachEnd)
+                    {
+                        float u = Mathf.Clamp01((t - enterStart) / Mathf.Max(0.05f, seq.ApproachEnd - enterStart));
+                        return 1f - Mathf.Pow(1f - u, 3f);
+                    }
+                    if (t < seq.ReturnStart)
+                    {
+                        return 1f;
+                    }
+                    if (t < seq.ReturnEnd)
+                    {
+                        float u = Mathf.Clamp01((t - seq.ReturnStart) / Mathf.Max(0.05f, seq.ReturnEnd - seq.ReturnStart));
+                        return 1f - Mathf.SmoothStep(0f, 1f, u);
+                    }
+                    return 0f;
+                }
+            }
+            // 일반 공격 연출: 초반(0~0.22) 빠르게 진입 → 타격 구간(0.22~0.72) 유지 → 복귀(0.72~1.0)
+            if (fallbackProgress < 0.22f)
+            {
+                float u = Mathf.Clamp01(fallbackProgress / 0.22f);
+                return 1f - Mathf.Pow(1f - u, 3f);
+            }
+            if (fallbackProgress < 0.72f)
+            {
+                return 1f;
+            }
+            float back = Mathf.Clamp01((fallbackProgress - 0.72f) / 0.28f);
+            return 1f - Mathf.SmoothStep(0f, 1f, back);
+        }
+
+        private bool TryGetBattleOrbitPose(Vector3 enemyFocus, Vector3 offset, float actionFieldOfView,
+            out Pose pose, out float fieldOfView)
+        {
+            fieldOfView = actionFieldOfView;
+            if (!TryGetGroupPose(_playerHome, enemyFocus, _formation.EnemySlots, offset, fieldOfView, out Pose basePose))
+            {
+                basePose = _battleCameraPose;
+                fieldOfView = _battleFieldOfView;
+            }
+            return TutorialBattleCamera.TryGetOrbitPose(basePose, _playerHome, enemyFocus,
+                    _movement.transform, _encounter.transform,
+                    _battleYaw, _battlePitch, fieldOfView, _camera.aspect, out pose)
+                && IsGroupFramed(pose, _formation.EnemySlots, fieldOfView)
+                && TutorialBattleCamera.CanTravel(_camera.transform.position, pose.position,
+                    _movement.transform, _encounter.transform);
+        }
+
+        // 전투 카메라 시선을 선택한 적의 전투 자리 쪽으로 부드럽게 옮긴다(록온). 적이 공격하러 움직여도 시선은 자리 기준이라 흔들리지 않는다.
+        private void UpdateLockOnPoint()
+        {
+            Vector3 desired = _enemyCenter;
+            Vector3[] slots = _formation != null ? _formation.EnemySlots : null;
+            for (int i = 0; slots != null && i < slots.Length; i++)
+            {
+                if (GetMonsterId(i) == _targetId)
+                {
+                    Vector3 slot = slots[i];
+                    slot.y = _enemyCenter.y;
+                    desired = Vector3.Lerp(_enemyCenter, slot, _lockOnWeight);
+                    break;
+                }
+            }
+            if (!_hasLockOnPoint)
+            {
+                _lockOnPoint = desired;
+                _hasLockOnPoint = true;
+                return;
+            }
+            _lockOnPoint = Vector3.Lerp(_lockOnPoint, desired, 1f - Mathf.Exp(-_lockOnFollowSpeed * Time.deltaTime));
+        }
+
+        private void StartHitImpact(long actionId)
+        {
+            ShowEnemyDamage(1f);
+            _hitStopActionId = actionId;
+            _hitStopRemaining = _hitStopSeconds;
+            _hitImpulse = 1f;
+        }
+
+        // 적중 순간의 화면 흔들림과 앞으로 튀는 카메라 펀치. 렌더링 직전에만 더하므로 전투 카메라 계산에는 섞이지 않는다.
+        private void UpdateHitImpulse()
+        {
+            if (_hitImpulse <= 0f)
+            {
+                return;
+            }
+            _hitImpulse *= Mathf.Exp(-HitImpulseDecay * Time.unscaledDeltaTime);
+            if (_hitImpulse < 0.01f || _camera == null)
+            {
+                _hitImpulse = 0f;
+                CK.SemesterProject.SkillSequence.SkillCameraShake.Clear();
+                return;
+            }
+            float time = Time.unscaledTime * HitShakeFrequency;
+            Vector3 position = new Vector3(Mathf.Sin(time) * _hitShake, Mathf.Cos(time * 1.3f) * _hitShake * 0.6f, _hitPunch)
+                * _hitImpulse;
+            Vector3 rotation = new Vector3(0f, 0f, Mathf.Sin(time * 0.8f) * 1.5f * _hitImpulse);
+            CK.SemesterProject.SkillSequence.SkillCameraShake.SetOffset(_camera, position, rotation);
         }
 
         // 플레이어 행동 모션에 연출 카메라가 있으면(궁극기의 Ult_cam) 재생하는 동안 그 시점으로 바꾸고, 참을 돌려준다.
@@ -714,6 +936,10 @@ namespace CK.SemesterProject.Tutorial
                     Cursor.visible = true;
                 }
                 _isCameraDragging = false;
+                // 손을 떼면 타깃을 정면으로 보는 기본 구도로 천천히 돌아온다.
+                float recenter = 1f - Mathf.Exp(-_battleCameraRecenterSpeed * Time.deltaTime);
+                _battleYaw = Mathf.Lerp(_battleYaw, 0f, recenter);
+                _battlePitch = Mathf.Lerp(_battlePitch, 0f, recenter);
                 return;
             }
             if (!_isCameraDragging)
@@ -724,7 +950,7 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             Vector2 delta = mouse.delta.ReadValue();
-            _battleYaw = Mathf.Repeat(_battleYaw + delta.x * _battleMouseSensitivity + 180f, 360f) - 180f;
+            _battleYaw = Mathf.Clamp(_battleYaw + delta.x * _battleMouseSensitivity, -_maxBattleYaw, _maxBattleYaw);
             _battlePitch = Mathf.Clamp(_battlePitch - delta.y * _battleMouseSensitivity, -10f, 30f);
         }
 
@@ -877,6 +1103,12 @@ namespace CK.SemesterProject.Tutorial
             _hasRecordedBattleResult = false;
             _cachedSnapshot = null;
             _battleYaw = 0f;
+            _hasLockOnPoint = false;
+            _hitStopRemaining = 0f;
+            _hitStopActionId = -1;
+            _attackCameraWeight = 0f;
+            _finishDelayRemaining = -1f;
+            _lastEnemyDamageTime = float.NegativeInfinity;
             _battlePitch = 0f;
             _isCameraDragging = false;
             _formation = formation;
@@ -1364,6 +1596,7 @@ namespace CK.SemesterProject.Tutorial
             _cachedSnapshot = null;
             _elapsed = 0;
             BeginMonsterHitWait(request, result);
+            BeginEnemyHitWait(request, result);
             RefreshUI();
             bool startedCutscene = request.ActorId == "player" && request.Kind == BattleActionKind.Skill
                 && !result.WasSkipped && TryPlaySkillCutscene(request, result);
@@ -1413,7 +1646,68 @@ namespace CK.SemesterProject.Tutorial
             }
             bool isWaitingForHit = !_hasMonsterHitLanded && unit.InstanceId == "player" && _session != null
                 && _session.PendingResult != null && _session.PendingResult.ActionId == _monsterHitActionId;
-            return isWaitingForHit ? _playerHpBeforeHit : unit.Hp;
+            if (isWaitingForHit)
+            {
+                return _playerHpBeforeHit;
+            }
+            if (_enemyHpBeforeHit.TryGetValue(unit.InstanceId, out int before))
+            {
+                return Mathf.RoundToInt(Mathf.Lerp(before, unit.Hp, _enemyDamageShown));
+            }
+            return unit.Hp;
+        }
+
+        // 플레이어 공격으로 적 HP가 줄었으면, 공격이 닿을 때까지 적 HP 표시를 맞기 전 값으로 둔다.
+        private void BeginEnemyHitWait(BattleActionRequest request, BattleActionResult result)
+        {
+            _enemyHpBeforeHit.Clear();
+            _enemyDamageShown = 1f;
+            if (request.ActorId != "player" || request.Kind != BattleActionKind.Skill || result.WasSkipped || result.IsTurnStartEffect)
+            {
+                return;
+            }
+            foreach (BattleStateChange change in result.Changes)
+            {
+                if (change.After.InstanceId != "player" && change.HpDelta < 0 && !_enemyHpBeforeHit.ContainsKey(change.After.InstanceId))
+                {
+                    _enemyHpBeforeHit.Add(change.After.InstanceId, change.Before.Hp);
+                }
+            }
+            if (_enemyHpBeforeHit.Count > 0)
+            {
+                _enemyDamageShown = 0f;
+                DisplayRevision++;
+            }
+        }
+
+        // 보여 줄 피해 비율(0 = 맞기 전, 1 = 실제 HP)을 올린다. 다 보여 주면 대기를 끝낸다.
+        private void ShowEnemyDamage(float shown)
+        {
+            if (_enemyHpBeforeHit.Count == 0 || shown <= _enemyDamageShown)
+            {
+                return;
+            }
+            _enemyDamageShown = Mathf.Clamp01(shown);
+            _lastEnemyDamageTime = Time.unscaledTime;
+            if (_enemyDamageShown >= 1f)
+            {
+                _enemyHpBeforeHit.Clear();
+            }
+            DisplayRevision++;
+        }
+
+        // 스킬 시퀀스의 타격 지점마다 피해를 나눠 보여 주고(다단 히트는 여러 번에 걸쳐 줄어든다), 타격 임팩트도 함께 준다.
+        private void OnSequenceHitReached(int index, int count)
+        {
+            if (_session == null || _session.PendingResult == null || _session.PendingResult.ActionId != _sequenceActionId
+                || _session.PendingResult.Request.ActorId != "player")
+            {
+                return;
+            }
+            ShowEnemyDamage(count > 0 ? (index + 1f) / count : 1f);
+            _hitStopActionId = _session.PendingResult.ActionId;
+            _hitStopRemaining = _hitStopSeconds;
+            _hitImpulse = 1f;
         }
 
         /// <summary>GetDisplayedHp 값이 바뀔 때마다 늘어난다. HUD가 다시 그릴 때를 아는 데 쓴다.</summary>
@@ -1847,8 +2141,16 @@ namespace CK.SemesterProject.Tutorial
                 _sequenceRunner.Abort();
             }
             _sequenceActionId = -1;
+            _enemyHpBeforeHit.Clear();
+            _enemyDamageShown = 1f;
             _debugBattleCamera = false;
             _isBattleCameraActive = false;
+            _hitStopRemaining = 0f;
+            _hitImpulse = 0f;
+            _attackCameraWeight = 0f;
+            _finishDelayRemaining = -1f;
+            _lastEnemyDamageTime = float.NegativeInfinity;
+            CK.SemesterProject.SkillSequence.SkillCameraShake.Clear();
             // 필드에서는 HP를 보존하고 메모리만 최초값으로 회복한다.
             _playerState.RestoreFieldMemory();
             if (_isCameraDragging)
@@ -1981,6 +2283,10 @@ namespace CK.SemesterProject.Tutorial
         private void OnDestroy()
         {
             _targetHighlight.Dispose();
+            if (_sequenceRunner != null)
+            {
+                _sequenceRunner.HitReached -= OnSequenceHitReached;
+            }
             if (_playerState != null)
             {
                 _playerState.Changed -= RefreshFieldVitals;

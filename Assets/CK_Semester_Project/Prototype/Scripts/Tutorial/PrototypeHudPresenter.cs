@@ -248,10 +248,6 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private Slider _playerHp;
         [SerializeField] private Slider _playerMemory;
         [SerializeField] private TMP_Text _playerVitals;
-        [SerializeField, Tooltip("전투 화면 하단 '보유 메모리 : n / 폭주 : n' 표시. 비어 있으면 건너뛴다.")]
-        private TMP_Text _battleResourceText;
-        [SerializeField, Min(0f), Tooltip("조작 안내 문구 왼쪽 끝과 메모리·폭주 표시 사이 간격(px)")]
-        private float _battleResourceGap = 24f;
         [SerializeField] private TMP_Text _memoryCurrent;
         [SerializeField] private TMP_Text _memoryCapacity;
         [SerializeField] private TMP_Text _skillMemory;
@@ -284,7 +280,8 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField] private GameObject _commandPanel;
         [SerializeField] private GameObject _skillPanel;
         [SerializeField] private GameObject _backHint;
-        [SerializeField] private TMP_Text _skillNavigationHint;
+        [SerializeField, Tooltip("전투 화면 하단 조작 키 안내 문구. 비우면 표시하지 않는다.")]
+        private TMP_Text _skillNavigationHint;
         [SerializeField] private Button[] _commands = Array.Empty<Button>();
         [SerializeField] private Image[] _commandImages = Array.Empty<Image>();
         [SerializeField] private TMP_Text[] _commandLabels = Array.Empty<TMP_Text>();
@@ -407,7 +404,7 @@ namespace CK.SemesterProject.Tutorial
 
         // 연결하지 않은 기존 씬은 스킬 메뉴를 그대로 사용한다.
         private bool HasCommandMenu => _commandPanel != null && _skillPanel != null && _backHint != null
-            && _skillNavigationHint != null && _normalCommand != null && _selectedCommandSprite != null
+            && _normalCommand != null && _selectedCommandSprite != null
             && _commands != null && _commands.Length == 4 && _commands.All(button => button != null)
             && _commandImages != null && _commandImages.Length == 4 && _commandImages.All(image => image != null)
             && _commandLabels != null && _commandLabels.Length == 4 && _commandLabels.All(label => label != null);
@@ -417,6 +414,13 @@ namespace CK.SemesterProject.Tutorial
             if (_skillDetailsPanel == null)
             {
                 _skillDetailsPanel = _skillName.transform.parent.gameObject;
+            }
+            // 적 HP 바는 타격 순간 줄어든 만큼 잔상을 남긴다.
+            HpBarDamageTrail.Attach(_enemyHp);
+            HpBarDamageTrail.Attach(_enemyCardHp);
+            foreach (EnemyHeadBar bar in _enemyHeadBars)
+            {
+                HpBarDamageTrail.Attach(bar != null ? bar.Hp : null);
             }
             _selectActions = new UnityAction[_skills.Length];
             CacheSkillButtonVisuals();
@@ -671,7 +675,16 @@ namespace CK.SemesterProject.Tutorial
                 {
                     continue;
                 }
-                if (unit.IsDead || camera == null || !_battle.TryGetMonsterTransform(unit.InstanceId, out Transform monster))
+                int displayedHp = _battle.GetDisplayedHp(unit);
+                if (bar.Hp != null)
+                {
+                    SetBar(bar.Hp, displayedHp, unit.Data.MaxHp);
+                }
+                HpBarDamageTrail trail = bar.Hp != null ? bar.Hp.GetComponent<HpBarDamageTrail>() : null;
+                bool trailAnimating = trail != null && trail.IsAnimating;
+                // 쓰러뜨린 공격이 아직 닿지 않았거나 데미지 잔상 바가 내려가는 중이면 HP 바를 유지한다.
+                bool isGone = unit.IsDead && displayedHp <= 0 && !trailAnimating;
+                if (isGone || camera == null || !_battle.TryGetMonsterTransform(unit.InstanceId, out Transform monster))
                 {
                     bar.Root.gameObject.SetActive(false);
                     continue;
@@ -682,10 +695,6 @@ namespace CK.SemesterProject.Tutorial
                 if (bar.Background != null && background != null)
                 {
                     bar.Background.sprite = background;
-                }
-                if (bar.Hp != null)
-                {
-                    SetBar(bar.Hp, unit.Hp, unit.Data.MaxHp);
                 }
                 Vector3 screen = camera.WorldToScreenPoint(bar.GetWorldPosition(monster, _enemyHeadBarHeight));
                 RectTransform parent = bar.Root.parent as RectTransform;
@@ -957,20 +966,16 @@ namespace CK.SemesterProject.Tutorial
             SetBar(_playerMemory, player.Memory, player.Data.MaxMemory);
             if (_enemyHp != null)
             {
-                SetBar(_enemyHp, target.Hp, target.Data.MaxHp);
+                SetBar(_enemyHp, _battle.GetDisplayedHp(target), target.Data.MaxHp);
             }
             if (_enemyCardHp != null)
             {
-                SetBar(_enemyCardHp, target.Hp, target.Data.MaxHp);
+                SetBar(_enemyCardHp, _battle.GetDisplayedHp(target), target.Data.MaxHp);
             }
             if (_playerVitals != null)
             {
                 _playerVitals.text = "HP " + playerHp + "/" + player.Data.MaxHp + "  메모리 " + player.Memory + "/" + player.Data.MaxMemory
                     + "  폭주 " + player.RageEnergy;
-            }
-            if (_battleResourceText != null)
-            {
-                _battleResourceText.text = "보유 메모리 : " + player.Memory + "  /  폭주 : " + player.RageEnergy;
             }
             if (_memoryCurrent != null)
             {
@@ -1000,7 +1005,7 @@ namespace CK.SemesterProject.Tutorial
             }
             if (_enemyDetails != null)
             {
-                _enemyDetails.text = element + " · HP " + target.Hp + "/" + target.Data.MaxHp + "\n메모리 " + target.Memory
+                _enemyDetails.text = element + " · HP " + _battle.GetDisplayedHp(target) + "/" + target.Data.MaxHp + "\n메모리 " + target.Memory
                     + "  연쇄 " + target.ChainStep + "/4\n약점 순서: "
                     + string.Join(" → ", target.Data.WeaknessChain.Select(TutorialMonster.GetElementName));
             }
@@ -1195,10 +1200,12 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             _backHint.SetActive(!IsCommandPhase);
-            _skillNavigationHint.text = IsCommandPhase
-                ? "W / S 행동 선택   ·   Enter 확인"
-                : "W / S 행동 선택   ·   Enter 확인   ·   A 메모리 투자   ·   Esc 뒤로";
-            PlaceBattleResourceText();
+            if (_skillNavigationHint != null)
+            {
+                _skillNavigationHint.text = IsCommandPhase
+                    ? "W / S 행동 선택   ·   Enter 확인"
+                    : "W / S 행동 선택   ·   Enter 확인   ·   A 메모리 투자   ·   Esc 뒤로";
+            }
             for (int index = 0; index < _commands.Length; index++)
             {
                 _commands[index].interactable = _couldChoose && _battle.HasSelectedBattleTarget
@@ -1208,20 +1215,6 @@ namespace CK.SemesterProject.Tutorial
                 float scale = index == _selectedCommand ? _selectedCommandScale : _normalCommandScale;
                 _commands[index].transform.localScale = Vector3.one * scale;
             }
-        }
-
-        // 안내 문구는 오른쪽 정렬이라 단계마다 왼쪽 끝이 달라진다. 메모리·폭주 표시를 그 왼쪽 끝에 붙인다.
-        private void PlaceBattleResourceText()
-        {
-            if (_battleResourceText == null)
-            {
-                return;
-            }
-            RectTransform hint = _skillNavigationHint.rectTransform;
-            RectTransform label = _battleResourceText.rectTransform;
-            float hintRight = hint.anchoredPosition.x + hint.sizeDelta.x * (1f - hint.pivot.x);
-            float labelRight = hintRight - _skillNavigationHint.preferredWidth - _battleResourceGap;
-            label.anchoredPosition = new Vector2(labelRight + label.sizeDelta.x * (label.pivot.x - 1f), label.anchoredPosition.y);
         }
 
         private void RefreshSkillDetails(SkillData skill)

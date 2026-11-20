@@ -38,8 +38,16 @@ namespace CK.SemesterProject.Tutorial
         private List<MonsterSkillBinding> _monsterSkills = new List<MonsterSkillBinding>();
 
         private SkillSequencePlayback _playback;
+        private SkillSequenceAsset _currentSequence;
+
+        private int _hitCount;
 
         public bool IsPlaying => _playback != null;
+        public SkillSequenceAsset CurrentSequence => _playback != null ? _currentSequence : null;
+        public float CurrentTime => _playback != null ? _playback.Time : 0f;
+
+        /// <summary>재생 중인 시퀀스의 타격 지점에 닿았을 때(타격 번호, 전체 타격 수). 피해 표시를 타격에 맞추는 데 쓴다.</summary>
+        public event Action<int, int> HitReached;
 
         public SkillSequenceAsset FindPlayerSequence(string skillId)
         {
@@ -101,7 +109,10 @@ namespace CK.SemesterProject.Tutorial
                 return 0f;
             }
             var context = new SkillSequenceContext(caster, targets, null, selectedTargetIndex);
+            _currentSequence = sequence;
             _playback = new SkillSequencePlayback(sequence, context, playCasterClip: !casterIsMonster || sequence.IsEnemySkill);
+            _hitCount = sequence.HitTimes.Count;
+            _playback.HitReached += OnHitReached;
             return sequence.Duration;
         }
 
@@ -110,10 +121,18 @@ namespace CK.SemesterProject.Tutorial
         {
             if (_playback == null)
             {
+                _currentSequence = null;
                 return;
             }
+            _playback.HitReached -= OnHitReached;
             _playback.Dispose();
             _playback = null;
+            _currentSequence = null;
+        }
+
+        private void OnHitReached(int index)
+        {
+            HitReached?.Invoke(index, _hitCount);
         }
 
         // Animator가 이번 프레임 포즈를 계산한 뒤에 시퀀스 포즈를 덮어써야 보이므로 LateUpdate에서 진행한다.

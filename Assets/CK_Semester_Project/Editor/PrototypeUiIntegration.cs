@@ -190,7 +190,6 @@ namespace CK.SemesterProject.Editor
             Find<TMP_Text>(combat, "PowerValueText").text = "";
             Find<TMP_Text>(combat, "DescriptionText").fontSize = 18f;
             Find<TMP_Text>(combat, "PowerLabelText").text = "기본 위력";
-            Find<TMP_Text>(combat, "DetailPromptText").text = "Enter로 사용";
             Find<TMP_Text>(combat, "DetailKeyText").text = "";
             Transform turn = Find<Transform>(combat, "PlayerTurnUI");
             Set(hudSettings, "_execute", ActionButton(turn, "Use Selected Skill", "사용 [Enter]", new Vector2(-315f, -361f), new Vector2(190f, 28f), font));
@@ -410,7 +409,6 @@ namespace CK.SemesterProject.Editor
             Find<TMP_Text>(combat, "DetailKeyText").text = "ENT";
             Find<TMP_Text>(combat, "DetailKeyText").fontSize = 8;
             Find<TMP_Text>(combat, "DetailKeyText").color = new Color(.03f, .1f, .25f);
-            Find<TMP_Text>(combat, "DetailPromptText").text = "Enter로 사용";
             Place(combat, "MemoryThrowPanel", Vector2.zero, 656, 686, 300, 116);
             Place(combat, "Runtime Investment", new Vector2(.5f, .5f), -8, 25, 230, 26);
             Find<TMP_Text>(combat, "Runtime Investment").fontSize = 17;

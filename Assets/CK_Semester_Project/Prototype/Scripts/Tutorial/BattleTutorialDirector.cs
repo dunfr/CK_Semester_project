@@ -38,6 +38,18 @@ namespace CK.SemesterProject.Tutorial
             }
         }
 
+        // 안내 한 장이 가리킬 HUD와 상자 옆 꼬리표 문구.
+        [Serializable]
+        public sealed class PageFocus
+        {
+            public string TutorialId;
+            [Min(0), Tooltip("이 HUD를 가리킬 페이지(0부터)")] public int Page;
+            [Tooltip("노란 상자로 감쌀 HUD. 비우거나 꺼져 있으면 상자 없이 안내 카드만 기본 위치에 띄운다.")]
+            public RectTransform Target;
+            [Tooltip("상자 위 노란 꼬리표 문구. 비우면 꼬리표를 숨긴다.")]
+            public string Tag;
+        }
+
         [Header("Data")]
         [SerializeField, Tooltip("Tutorial_DT.csv (기획 xlsx와 같은 열 순서)")]
         private TextAsset _table;
@@ -76,7 +88,39 @@ namespace CK.SemesterProject.Tutorial
         private RectTransform[] _skillButtons = Array.Empty<RectTransform>();
         [SerializeField] private RectTransform _highlight;
         [SerializeField] private CanvasGroup _highlightGroup;
-        [SerializeField, Min(0f)] private float _highlightPadding = 10f;
+        [SerializeField, Tooltip("테두리 옆 \"약점 속성 공격!\" 꼬리표. 약점 스킬을 이미 고르고 있으면 숨긴다.")]
+        private GameObject _highlightTag;
+        [SerializeField, Tooltip("지금 고른 스킬을 알기 위한 HUD")]
+        private PrototypeHudPresenter _hud;
+        [SerializeField, Min(0f), Tooltip("네온 테두리를 버튼 바깥으로 넓히는 여백(px)")]
+        private float _highlightPadding = 22f;
+        [SerializeField, Min(0f), Tooltip("버튼 이미지 오른쪽의 투명한 부분만큼 테두리 오른쪽을 줄이는 양(px)")]
+        private float _highlightRightTrim = 150f;
+
+        [Header("Coach Mark")]
+        [SerializeField, Tooltip("페이지별로 가리킬 HUD. 목록에 없는 페이지는 안내 카드만 띄운다.")]
+        private PageFocus[] _focuses = Array.Empty<PageFocus>();
+        [SerializeField, Tooltip("안내 대상을 감싸는 노란 상자")]
+        private RectTransform _focusBox;
+        [SerializeField, Tooltip("상자 위 노란 꼬리표(부모 오브젝트째 켜고 끈다)")]
+        private TMP_Text _focusTag;
+        [SerializeField, Tooltip("제목·본문·페이지 표시가 든 안내 카드")]
+        private RectTransform _callout;
+        [SerializeField, Tooltip("안내 전체 투명도(나타날 때 페이드)")]
+        private CanvasGroup _coachGroup;
+        [SerializeField, Min(0f), Tooltip("상자와 대상 사이 여백(px)")]
+        private float _focusPadding = 10f;
+        [SerializeField, Min(0f), Tooltip("상자와 안내 카드 사이 간격(px)")]
+        private float _calloutGap = 28f;
+        [SerializeField, Tooltip("가리킬 대상이 없을 때 안내 카드 위치(화면 중앙 기준 px)")]
+        private Vector2 _calloutFallbackPosition = new Vector2(0f, 250f);
+        [SerializeField, Min(0.01f), Tooltip("페이지가 바뀔 때 상자가 조여 들고 카드가 미끄러져 들어오는 시간(초)")]
+        private float _revealSeconds = 0.25f;
+
+        private const float FocusStartScale = 1.18f;
+        private const float CalloutSlide = 36f;
+        private readonly Vector3[] _corners = new Vector3[4];
+        private float _pageShownAt;
 
         private static readonly HashSet<string> UnlockedFeatures = new HashSet<string>();
         private static readonly HashSet<string> CompletedTutorials = new HashSet<string>();
@@ -105,6 +149,8 @@ namespace CK.SemesterProject.Tutorial
 
         public static int BattleCount => _battleCount;
         public bool IsOpen => _isOpen;
+        /// <summary>약점 스킬 분홍 테두리가 떠 있는지. 떠 있는 동안 스킬 선택 테두리는 겹치지 않게 숨긴다.</summary>
+        public bool IsWeaknessHintVisible => _highlight != null && _highlight.gameObject.activeInHierarchy;
 
         /// <summary>새 게임을 시작할 때 튜토리얼 진행(해금·완료·전투 횟수)을 처음으로 되돌린다.</summary>
         public static void ResetForNewGame()
@@ -211,6 +257,10 @@ namespace CK.SemesterProject.Tutorial
             if (_isOpen)
             {
                 ReadPopupInput();
+                if (_isOpen)
+                {
+                    LayoutCoachMark();
+                }
                 SetHighlightVisible(false);
                 return;
             }
@@ -388,6 +438,10 @@ namespace CK.SemesterProject.Tutorial
             {
                 _title.text = GetTitle(_current.Id, _page);
             }
+            if (_callout != null)
+            {
+                _callout.localRotation = Quaternion.identity;
+            }
             if (_body != null)
             {
                 _body.text = "•  " + _current.Texts[_page];
@@ -409,9 +463,128 @@ namespace CK.SemesterProject.Tutorial
             {
                 _previous.interactable = _page > _pageStart;
             }
+            PageFocus focus = FindFocus(_current.Id, _page);
+            if (_focusTag != null)
+            {
+                bool hasTag = focus != null && !string.IsNullOrEmpty(focus.Tag);
+                _focusTag.transform.parent.gameObject.SetActive(hasTag);
+                if (hasTag)
+                {
+                    _focusTag.text = focus.Tag;
+                }
+            }
+            _pageShownAt = Time.unscaledTime;
+            LayoutCoachMark();
+        }
+
+        private PageFocus FindFocus(string id, int page)
+        {
+            foreach (PageFocus focus in _focuses)
+            {
+                if (focus != null && focus.TutorialId == id && focus.Page == page)
+                {
+                    return focus;
+                }
+            }
+            return null;
+        }
+
+        // 가리킬 HUD를 노란 상자로 감싸고 그 옆에 안내 카드를 붙인다. HUD가 움직여도 따라가도록 열려 있는 동안 매 프레임 부른다.
+        private void LayoutCoachMark()
+        {
+            if (_callout == null || _current == null)
+            {
+                return;
+            }
+            float reveal = Mathf.Clamp01((Time.unscaledTime - _pageShownAt) / _revealSeconds);
+            float eased = 1f - (1f - reveal) * (1f - reveal) * (1f - reveal);
+            if (_coachGroup != null)
+            {
+                _coachGroup.alpha = eased;
+            }
+            PageFocus focus = FindFocus(_current.Id, _page);
+            RectTransform area = (RectTransform)_callout.parent;
+            Rect areaRect = area.rect;
+            Vector2 calloutSize = _callout.rect.size;
+            Rect target = default;
+            bool hasTarget = focus != null && focus.Target != null && focus.Target.gameObject.activeInHierarchy
+                && TryGetLocalRect(focus.Target, area, out target);
+            if (_focusBox != null)
+            {
+                _focusBox.gameObject.SetActive(hasTarget);
+            }
+            _callout.anchorMin = _callout.anchorMax = new Vector2(0.5f, 0.5f);
+            _callout.pivot = new Vector2(0.5f, 0.5f);
+            Rect box = default;
+            if (hasTarget)
+            {
+                box = new Rect(target.xMin - _focusPadding, target.yMin - _focusPadding,
+                    target.width + _focusPadding * 2f, target.height + _focusPadding * 2f);
+                PlaceFocusBox(box, eased);
+            }
+            if (!hasTarget)
+            {
+                _callout.anchoredPosition = _calloutFallbackPosition + Vector2.down * (CalloutSlide * (1f - eased));
+                return;
+            }
+            // 카드는 상자 오른쪽에 두고, 화면 밖으로 나가면 왼쪽, 그래도 안 되면 아래(위)로 옮긴다.
+            float halfWidth = calloutSize.x * 0.5f;
+            float halfHeight = calloutSize.y * 0.5f;
+            Vector2 position;
+            float slideDirection;
+            if (box.xMax + _calloutGap + calloutSize.x <= areaRect.xMax)
+            {
+                position = new Vector2(box.xMax + _calloutGap + halfWidth, box.center.y);
+                slideDirection = 1f;
+            }
+            else if (box.xMin - _calloutGap - calloutSize.x >= areaRect.xMin)
+            {
+                position = new Vector2(box.xMin - _calloutGap - halfWidth, box.center.y);
+                slideDirection = -1f;
+            }
+            else
+            {
+                bool below = box.yMin - _calloutGap - calloutSize.y >= areaRect.yMin;
+                position = new Vector2(box.center.x,
+                    below ? box.yMin - _calloutGap - halfHeight : box.yMax + _calloutGap + halfHeight);
+                slideDirection = 0f;
+            }
+            position.x = Mathf.Clamp(position.x, areaRect.xMin + halfWidth, areaRect.xMax - halfWidth);
+            position.y = Mathf.Clamp(position.y, areaRect.yMin + halfHeight, areaRect.yMax - halfHeight);
+            _callout.anchoredPosition = position + Vector2.right * (slideDirection * CalloutSlide * (1f - eased));
+        }
+
+        private void PlaceFocusBox(Rect box, float eased)
+        {
+            if (_focusBox == null)
+            {
+                return;
+            }
+            _focusBox.anchorMin = _focusBox.anchorMax = new Vector2(0.5f, 0.5f);
+            _focusBox.pivot = new Vector2(0.5f, 0.5f);
+            _focusBox.anchoredPosition = box.center;
+            _focusBox.sizeDelta = box.size;
+            float pulse = 1f + 0.015f * Mathf.Sin(Time.unscaledTime * 6f);
+            _focusBox.localScale = Vector3.one * (Mathf.Lerp(FocusStartScale, 1f, eased) * pulse);
+        }
+
+        private bool TryGetLocalRect(RectTransform target, RectTransform space, out Rect rect)
+        {
+            // 두 캔버스 모두 Screen Space Overlay이므로 화면 좌표를 그대로 옮긴다.
+            target.GetWorldCorners(_corners);
+            bool hasMin = RectTransformUtility.ScreenPointToLocalPointInRectangle(space, _corners[0], null, out Vector2 min);
+            bool hasMax = RectTransformUtility.ScreenPointToLocalPointInRectangle(space, _corners[2], null, out Vector2 max);
+            rect = Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+            return hasMin && hasMax && rect.width > 1f && rect.height > 1f;
         }
 
         private string GetTitle(string id, int page)
+        {
+            PageTitle title = FindTitle(id, page);
+            return title != null ? title.Title : "튜토리얼";
+        }
+
+        private PageTitle FindTitle(string id, int page)
         {
             PageTitle best = null;
             foreach (PageTitle title in _titles)
@@ -422,7 +595,7 @@ namespace CK.SemesterProject.Tutorial
                     best = title;
                 }
             }
-            return best != null ? best.Title : "튜토리얼";
+            return best;
         }
 
         private void UpdateHighlight(bool inBattle)
@@ -444,12 +617,14 @@ namespace CK.SemesterProject.Tutorial
             int step = target.ChainStep < target.Data.WeaknessChain.Count ? target.ChainStep : 0;
             BattleElement weakness = target.Data.WeaknessChain[step];
             RectTransform button = null;
+            int buttonIndex = -1;
             for (int index = 0; index < _skillButtons.Length && index < _battle.Skills.Count; index++)
             {
                 if (_skillButtons[index] != null && _skillButtons[index].gameObject.activeInHierarchy
                     && _battle.Skills[index].Element == weakness)
                 {
                     button = _skillButtons[index];
+                    buttonIndex = index;
                     break;
                 }
             }
@@ -458,18 +633,26 @@ namespace CK.SemesterProject.Tutorial
                 SetHighlightVisible(false);
                 return;
             }
-            // 두 캔버스 모두 Screen Space Overlay이므로 버튼의 화면 사각형을 그대로 옮긴다.
-            var corners = new Vector3[4];
-            button.GetWorldCorners(corners);
-            RectTransform parent = (RectTransform)_highlight.parent;
-            Vector2 min, max;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, corners[0], null, out min);
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, corners[2], null, out max);
-            _highlight.anchorMin = _highlight.anchorMax = new Vector2(0.5f, 0.5f);
-            _highlight.pivot = new Vector2(0.5f, 0.5f);
-            _highlight.localPosition = new Vector3((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f, 0f);
-            _highlight.sizeDelta = new Vector2(max.x - min.x, max.y - min.y) + Vector2.one * (_highlightPadding * 2f);
+            // 기울어진 스킬 버튼을 그대로 감싸도록 버튼의 자식으로 붙인다(분홍 네온 테두리).
+            if (_highlight.parent != button)
+            {
+                _highlight.SetParent(button, false);
+                _highlight.anchorMin = Vector2.zero;
+                _highlight.anchorMax = Vector2.one;
+                _highlight.pivot = new Vector2(0.5f, 0.5f);
+                _highlight.offsetMin = new Vector2(-_highlightPadding, -_highlightPadding);
+                _highlight.offsetMax = new Vector2(_highlightPadding - _highlightRightTrim, _highlightPadding);
+                _highlight.localRotation = Quaternion.identity;
+                _highlight.localScale = Vector3.one;
+            }
+            _highlight.SetAsLastSibling();
             SetHighlightVisible(true);
+            if (_highlightTag != null)
+            {
+                // 이미 약점 스킬에 커서가 있으면 꼬리표가 설명 패널을 가리지 않게 테두리만 남긴다.
+                bool isOnWeakness = _hud != null && _hud.SelectedSkill == buttonIndex;
+                _highlightTag.SetActive(!isOnWeakness);
+            }
             if (_highlightGroup != null)
             {
                 _highlightGroup.alpha = 0.55f + 0.45f * Mathf.PingPong(Time.unscaledTime * 2.2f, 1f);

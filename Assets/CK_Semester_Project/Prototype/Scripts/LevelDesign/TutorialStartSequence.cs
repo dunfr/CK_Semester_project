@@ -33,8 +33,10 @@ namespace CK.SemesterProject.LevelDesign
         private float _lidOpenSeconds = 0.35f;
         [SerializeField, Min(0f), Tooltip("덮개가 열린 뒤 3인칭으로 바뀌기까지의 시간(초)")]
         private float _openToThirdPersonSeconds = 0.5f;
-        [SerializeField, Min(0f), Tooltip("3인칭 전환 후 캐릭터를 다시 보여 주기까지의 시간(초). 카메라가 몸을 통과하는 장면을 가립니다.")]
-        private float _revealPlayerDelay = 0.6f;
+        [SerializeField, Min(0.01f), Tooltip("3인칭으로 넘어가기 전 화면이 어두워지는 시간(초). 카메라가 몸을 통과하는 장면 대신 암전 후 바로 컷합니다.")]
+        private float _cutFadeOutSeconds = 0.25f;
+        [SerializeField, Min(0.01f), Tooltip("3인칭으로 컷한 뒤 화면이 다시 밝아지는 시간(초). 캐릭터가 일어나는 동안 밝아집니다.")]
+        private float _cutFadeInSeconds = 0.45f;
         [SerializeField, Min(0.01f), Tooltip("캐릭터가 누운 자세에서 일어나는 시간(초)")]
         private float _riseSeconds = 1.4f;
         [SerializeField, Min(0.01f), Tooltip("캐릭터가 캡슐 밖으로 뛰어내리는 시간(초)")]
@@ -118,6 +120,7 @@ namespace CK.SemesterProject.LevelDesign
         private Quaternion _visualRestRotation;
         private const float HipHeight = 0.97f;
         private Renderer[] _hiddenPlayerRenderers = System.Array.Empty<Renderer>();
+        private CK.SemesterProject.Tutorial.PlayerCameraFade _playerFade;
 
         private void Awake()
         {
@@ -142,6 +145,7 @@ namespace CK.SemesterProject.LevelDesign
                 _fadeOverlay.alpha = 1f;
                 _fadeOverlay.gameObject.SetActive(true);
             }
+            _playerFade = _progress.Player != null ? _progress.Player.GetComponent<CK.SemesterProject.Tutorial.PlayerCameraFade>() : null;
             PlacePlayerLying();
             // 첫 프레임부터 1인칭으로 시작하도록 Awake에서 켠다(시작 시 블렌드 없이 바로 컷).
             _gaze = Gaze.Canopy;
@@ -194,11 +198,14 @@ namespace CK.SemesterProject.LevelDesign
             }
             yield return OpenLid();
             yield return new WaitForSeconds(_openToThirdPersonSeconds);
-            // 3단계: 3인칭 전환 - 캐릭터가 일어나 캡슐 밖으로 나온 뒤 조작 해제.
-            ExitFirstPerson();
+            // 3단계: 3인칭 전환 - 짧게 암전한 뒤 3인칭으로 바로 컷하고, 밝아지며 캐릭터가 일어나 캡슐 밖으로 나온다.
+            yield return FadeOverlay(0f, 1f, _cutFadeOutSeconds);
+            yield return ExitFirstPerson();
             SetAlarm(false);
-            yield return RiseFromPod();
+            // 컷 시점에 분출을 멈춰, 일어나는 동안 가스가 걷히며 캐릭터가 뿌옇게 가려지지 않게 한다.
             SetGas(false);
+            StartCoroutine(FadeOverlay(1f, 0f, _cutFadeInSeconds));
+            yield return RiseFromPod();
             yield return StepOutOfPod();
             _progress.UnlockControls(this);
             if (!hasGuard)
@@ -298,6 +305,11 @@ namespace CK.SemesterProject.LevelDesign
             cameraTransform.position = GetEyePosition();
             cameraTransform.rotation = GetGazeRotation();
             _firstPersonCamera.gameObject.SetActive(true);
+            // 1인칭에서 내려다보는 몸이 카메라 근접 반투명 처리로 비쳐 보이지 않게 한다.
+            if (_playerFade != null)
+            {
+                _playerFade.SetSuppressed(true);
+            }
             // 1인칭 동안 얼굴·머리카락처럼 카메라를 가리는 부분만 숨긴다(몸은 보이게 둔다).
             Transform player = _progress.Player;
             if (_firstPersonHiddenRenderers != null && _firstPersonHiddenRenderers.Length > 0)
@@ -316,27 +328,40 @@ namespace CK.SemesterProject.LevelDesign
             }
         }
 
-        private void ExitFirstPerson()
+        // 화면이 어두운 동안 블렌드 없이 3인칭 카메라로 컷하고 숨겼던 얼굴·머리를 다시 보인다.
+        private IEnumerator ExitFirstPerson()
         {
             _isFirstPerson = false;
+            CinemachineBrain brain = Camera.main != null ? Camera.main.GetComponent<CinemachineBrain>() : null;
+            CinemachineBlendDefinition savedBlend = brain != null ? brain.DefaultBlend : default;
+            CinemachineBlenderSettings savedCustomBlends = brain != null ? brain.CustomBlends : null;
+            if (brain != null)
+            {
+                brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.Cut, 0f);
+                brain.CustomBlends = null;
+            }
             if (_firstPersonCamera != null)
             {
                 _firstPersonCamera.gameObject.SetActive(false);
             }
-            StartCoroutine(RevealPlayer(_hiddenPlayerRenderers));
-            _hiddenPlayerRenderers = System.Array.Empty<Renderer>();
-        }
-
-        private IEnumerator RevealPlayer(Renderer[] renderers)
-        {
-            // 블렌드 초반 카메라가 아직 머리 위치 근처라 몸을 통과해 보이지 않도록 잠시 뒤에 보인다.
-            yield return new WaitForSeconds(_revealPlayerDelay);
-            foreach (Renderer r in renderers)
+            foreach (Renderer r in _hiddenPlayerRenderers)
             {
                 if (r != null)
                 {
                     r.enabled = true;
                 }
+            }
+            _hiddenPlayerRenderers = System.Array.Empty<Renderer>();
+            // 브레인이 컷을 반영할 때까지 한 프레임 기다린 뒤 원래 블렌드 설정을 돌려놓는다.
+            yield return null;
+            if (brain != null)
+            {
+                brain.DefaultBlend = savedBlend;
+                brain.CustomBlends = savedCustomBlends;
+            }
+            if (_playerFade != null)
+            {
+                _playerFade.SetSuppressed(false);
             }
         }
 

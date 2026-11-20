@@ -51,8 +51,12 @@ namespace CK.SemesterProject.UI
         private float _closeStartedAt;
         private float _savedTimeScale = 1f;
 
+        private static int _escapeHandledFrame = -1;
+
         public bool IsOpen => _isOpen;
         public bool IsPaused => _paused;
+        /// <summary>이번 프레임의 Esc를 메뉴가 열기·닫기에 썼는지. 카메라는 이때 커서를 따로 풀지 않는다.</summary>
+        public static bool HandledEscapeThisFrame => _escapeHandledFrame == Time.frameCount;
 
         private void Awake()
         {
@@ -85,11 +89,13 @@ namespace CK.SemesterProject.UI
             if (Keyboard.current == null || !Keyboard.current.escapeKey.wasPressedThisFrame) return;
             if (_isOpen)
             {
+                _escapeHandledFrame = Time.frameCount;
                 if (IsShown(_teamPanel) || IsShown(_settingsPanel)) ClosePanels();
                 else Resume();
             }
             else if (_closing || CanOpen())
             {
+                _escapeHandledFrame = Time.frameCount;
                 Open();
             }
         }
@@ -136,6 +142,8 @@ namespace CK.SemesterProject.UI
             ClosePanels();
             _black.Close();
             _menu.Close();
+            // 닫기 애니메이션을 기다리지 않고 필드 커서를 바로 숨긴다(메뉴가 사라졌는데 커서만 남지 않게).
+            if (_battle == null || !_battle.IsInBattle) GameCursor.Hide();
         }
 
         public void ShowTeamPanel()

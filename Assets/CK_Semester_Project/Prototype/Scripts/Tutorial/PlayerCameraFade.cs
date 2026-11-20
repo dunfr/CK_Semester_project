@@ -26,6 +26,7 @@ namespace CK.SemesterProject.Tutorial
         private MaterialPropertyBlock _block;
         private CharacterController _controller;
         private float _opacity = 1f;
+        private bool _isSuppressed;
 
         public float Opacity => _opacity;
 
@@ -47,6 +48,19 @@ namespace CK.SemesterProject.Tutorial
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
             _opacity = 1f;
             ApplyOpacity();
+        }
+
+        /// <summary>
+        /// 연출 중 카메라가 일부러 몸에 붙어 있을 때(1인칭 등) 반투명 처리를 끈다. 끄는 동안 항상 불투명하다.
+        /// </summary>
+        public void SetSuppressed(bool isSuppressed)
+        {
+            _isSuppressed = isSuppressed;
+            if (isSuppressed)
+            {
+                _opacity = 1f;
+                ApplyOpacity();
+            }
         }
 
         // 모델 교체 등으로 자식 렌더러가 바뀌었을 때 다시 모은다.
@@ -72,7 +86,15 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
 
-            float targetOpacity = CalculateTargetOpacity(renderingCamera.transform.position);            _opacity = Mathf.MoveTowards(_opacity, targetOpacity, _fadeSpeed * Time.unscaledDeltaTime);
+            if (_isSuppressed)
+            {
+                _opacity = 1f;
+            }
+            else
+            {
+                float targetOpacity = CalculateTargetOpacity(renderingCamera.transform.position);
+                _opacity = Mathf.MoveTowards(_opacity, targetOpacity, _fadeSpeed * Time.unscaledDeltaTime);
+            }
             // 전투 연출 등이 저장해 둔 PropertyBlock으로 되돌려도 값이 맞도록 매 프레임 다시 적용한다(렌더러 수십 개 이하).
             ApplyOpacity();
         }

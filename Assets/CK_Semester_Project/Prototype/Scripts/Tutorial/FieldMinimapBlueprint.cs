@@ -81,6 +81,10 @@ namespace CK.SemesterProject.Tutorial
         public bool HasFloorPlan => _baker.HasPlan;
         /// <summary>지금 안내선에 쓰는 점 개수(0이면 안내선 없음).</summary>
         public int RoutePointCount => _routeCount;
+        /// <summary>플레이어 발밑에서 목표까지 이어지는 안내 경로의 꺾임점(첫 점은 경로를 계산할 때의 플레이어 위치).</summary>
+        public IReadOnlyList<Vector3> RoutePoints => _routePoints;
+        /// <summary>안내 경로를 따라 목표까지 남은 거리(m). 경로가 없으면 0.</summary>
+        public float RemainingDistance => _routeCount >= 2 ? _route[0].z : 0f;
 
         private Transform CurrentTarget => _progress != null ? _progress.ObjectiveTarget : null;
 

@@ -63,6 +63,29 @@ namespace CK.SemesterProject.LevelDesign
             _routine = StartCoroutine(OpenRoutine());
         }
 
+        /// <summary>문 전체를 옮긴다(엘리베이터 카와 함께 내려가는 문 등). 열고 닫을 때 쓰는 기준 위치도 같이 옮긴다.</summary>
+        public void Translate(Vector3 delta)
+        {
+            transform.position += delta;
+            // 문짝·더미 메시가 문 오브젝트의 자식이 아니어도 함께 움직인다.
+            if (_panel != null)
+            {
+                if (!_panel.IsChildOf(transform))
+                {
+                    _panel.position += delta;
+                }
+                _panelClosedPosition += delta;
+            }
+            for (int i = 0; i < _sinkingParts.Length; i++)
+            {
+                if (_sinkingParts[i] != null && !_sinkingParts[i].IsChildOf(transform))
+                {
+                    _sinkingParts[i].position += delta;
+                }
+                _sinkingClosedPositions[i] += delta;
+            }
+        }
+
         /// <summary>엘리베이터 출발처럼 즉시 닫아야 할 때 사용한다.</summary>
         public void CloseImmediately()
         {

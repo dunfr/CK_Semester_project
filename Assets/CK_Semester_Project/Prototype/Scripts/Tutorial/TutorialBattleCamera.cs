@@ -99,6 +99,47 @@ namespace CK.SemesterProject.Tutorial
             return offset;
         }
 
+        /// <summary>
+        /// 플레이어 공격 시 타격 지점(플레이어+대상)으로 바짝 파고드는 클로즈업 카메라 포즈를 계산한다.
+        /// 장애물이 있으면 초점 쪽으로 안전하게 거리를 줄여 벽 뚫림을 방지한다.
+        /// </summary>
+        public static Pose GetAttackCloseupPose(Vector3 playerHome, Vector3 actorPos, Vector3 targetPos,
+            Vector3 closeupOffset, Transform player, Transform enemy)
+        {
+            Vector3 forward = Vector3.ProjectOnPlane(targetPos - playerHome, Vector3.up);
+            if (forward.sqrMagnitude < 0.001f)
+            {
+                forward = Vector3.ProjectOnPlane(targetPos - actorPos, Vector3.up);
+            }
+            forward = forward.sqrMagnitude > 0.001f ? forward.normalized : Vector3.forward;
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+            Vector3 focus = Vector3.Lerp(actorPos, targetPos, 0.62f) + Vector3.up * 1.05f;
+            Vector3 desired = focus + right * closeupOffset.x + Vector3.up * closeupOffset.y + forward * closeupOffset.z;
+            Vector3 resolved = ResolveClearPosition(focus, desired, player, enemy);
+            return new Pose(resolved, Quaternion.LookRotation(focus - resolved));
+        }
+
+        private static Vector3 ResolveClearPosition(Vector3 focus, Vector3 desired, Transform player, Transform enemy)
+        {
+            Vector3 delta = desired - focus;
+            float distance = delta.magnitude;
+            if (distance < 0.01f)
+            {
+                return desired;
+            }
+            Vector3 direction = delta / distance;
+            int count = Physics.SphereCastNonAlloc(focus, 0.2f, direction, _hits, distance, ~0, QueryTriggerInteraction.Ignore);
+            float nearest = distance;
+            for (int i = 0; i < count; i++)
+            {
+                if (!IsParticipant(_hits[i].transform, player, enemy) && _hits[i].distance < nearest)
+                {
+                    nearest = Mathf.Max(0.8f, _hits[i].distance - 0.15f);
+                }
+            }
+            return focus + direction * nearest;
+        }
+
         public static bool CanTravel(Vector3 start, Vector3 end, Transform player, Transform enemy)
         {
             if (!IsClear(end, player, enemy))
