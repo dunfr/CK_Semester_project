@@ -581576,6 +581576,7 @@ MonoBehaviour:
   - {fileID: 356646322}
   _skillCinematics: []
   _skillCutscene: {fileID: 1440850440}
+  _transitionPlayer: {fileID: 1690005065}
   _cinematicPullback: 1.5
   _cinematicFieldOfViewScale: 1.25
   _enableCheats: 1
@@ -689277,30 +689278,13 @@ GameObject:
   m_Component:
   - component: {fileID: 1690005066}
   - component: {fileID: 1690005065}
-  - component: {fileID: 1690005064}
   m_Layer: 0
-  m_Name: BattleTransitionTest
+  m_Name: BattleTransitionPlayer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1690005064
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1690005063}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 78cc7a9be5016c24987a205203a24e50, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CK.SemesterProject.Prototype.BattleTransitionTester
-  _player: {fileID: 0}
-  _swapTargets: []
-  _fallbackYaw: 120
-  _showHint: 1
 --- !u!114 &1690005065
 MonoBehaviour:
   m_ObjectHideFlags: 0

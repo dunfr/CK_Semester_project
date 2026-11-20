@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using CK.SemesterProject.Data;
+using CK.SemesterProject.Effects;
 using CK.SemesterProject.SkillSequence;
 using Semester.Enemies;
 using TMPro;
@@ -151,6 +152,12 @@ namespace CK.SemesterProject.Tutorial
         // 스킬 연출 스튜디오 시퀀스 재생기(선택). 연결된 스킬은 기존 임시 연출 대신 시퀀스를 재생한다.
         private TutorialSkillSequenceRunner _sequenceRunner;
         private long _sequenceActionId = -1;
+
+        [Header("Screen Transition")]
+        [SerializeField, Tooltip("전투 진입(깨짐·갈라짐)과 자동 전투 종료(겹 띠)의 화면 전환. 비워 두면 씬에서 찾고, 없으면 전환 없이 바로 바뀝니다")]
+        private BattleTransitionPlayer _transitionPlayer;
+        // 전투 종료 전환이 화면을 덮는 중이면 종료 처리를 다시 시작하지 않는다.
+        private bool _isEndTransitionPlaying;
 
         [Header("Cinematic Camera")]
         [SerializeField, Min(0f), Tooltip("스킬 연출 카메라(Ult_cam 등)를 시선 반대 방향으로 물리는 거리(m). 이펙트가 화면에 들어오도록 원본 카메라보다 멀리 잡습니다")]
@@ -398,6 +405,10 @@ namespace CK.SemesterProject.Tutorial
             {
                 _skillCutscene = GetComponent<TutorialSkillCutscene>();
             }
+            if (_transitionPlayer == null)
+            {
+                _transitionPlayer = FindFirstObjectByType<BattleTransitionPlayer>();
+            }
             _sequenceRunner = GetComponent<TutorialSkillSequenceRunner>();
             if (_sequenceRunner != null)
             {
@@ -519,6 +530,15 @@ namespace CK.SemesterProject.Tutorial
             BattleSnapshot snapshot = Snapshot;
             if (snapshot != null && snapshot.Phase == BattlePhase.Finished)
             {
+                if (_isEndTransitionPlaying)
+                {
+                    // 전환 오브젝트가 도중에 꺼져 덮임 콜백이 오지 않으면 그대로 필드로 돌아간다.
+                    if (_transitionPlayer == null || !_transitionPlayer.IsPlaying)
+                    {
+                        OnEndTransitionCovered();
+                    }
+                    return;
+                }
                 // 몬스터가 쓰러진 직후에는 HP 바 감소·잔상 연출이 끝날 때까지 잠시 기다린 뒤 전투를 종료한다.
                 if (_finishDelayRemaining < 0f)
                 {
@@ -529,7 +549,7 @@ namespace CK.SemesterProject.Tutorial
                 if (_finishDelayRemaining <= 0f)
                 {
                     _finishDelayRemaining = -1f;
-                    ReturnToExploration();
+                    ReturnToExplorationWithTransition();
                 }
                 return;
             }
@@ -1082,6 +1102,8 @@ namespace CK.SemesterProject.Tutorial
             };
             session.Start(participants, entry, entry == BattleEntryCondition.PlayerInitiated ? "player"
                 : entry == BattleEntryCondition.MonsterCollision ? GetMonsterId(0) : null);
+            // 전투 무대로 옮기기 전의 필드 화면을 찍어 두고, 진입이 확정되면 그 위에서 깨짐·갈라짐 전환을 재생한다.
+            bool hasTransitionCapture = _transitionPlayer != null && _transitionPlayer.CaptureCameraView(_camera);
             MoveToBattleArena();
             var formation = new TutorialBattleFormation(_characterController,
                 _encounterMembers.Select(member => member.GetComponent<NavMeshAgent>()).ToArray());
@@ -1089,6 +1111,10 @@ namespace CK.SemesterProject.Tutorial
             SetBackgroundEnemiesHidden(true);
             if (!TryPlaceFormation(formation, out Pose battlePose))
             {
+                if (hasTransitionCapture)
+                {
+                    _transitionPlayer.DiscardCapture();
+                }
                 ReturnFromBattleArena(false);
                 SetBackgroundEnemiesHidden(false);
                 _encounterMembers = Array.Empty<EnemyStateMachine>();
@@ -1175,6 +1201,10 @@ namespace CK.SemesterProject.Tutorial
             _notice.text = entry == BattleEntryCondition.PlayerInitiated ? "플레이어 선제 행동 +1"
                 : entry == BattleEntryCondition.MonsterCollision ? enemy.name + " 선제 행동 +1" : "전투 진입";
             RefreshUI();
+            if (hasTransitionCapture)
+            {
+                _transitionPlayer.PlayShatterFromCapture();
+            }
             return true;
         }
 
@@ -2096,8 +2126,29 @@ namespace CK.SemesterProject.Tutorial
             _notice.text = _enemies.All(enemy => enemy == null || !enemy.gameObject.activeSelf) ? "모든 몬스터를 처치했습니다." : "WASD 이동 · 좌클릭 선제 진입 · Q 소리";
         }
 
+        // 겹 띠 전환으로 화면을 덮은 뒤 필드로 돌아가고, 띠가 걷히며 필드가 드러난다.
+        // 전환이 없거나 재생할 수 없으면 바로 돌아간다. 직접 부르는 ReturnToExploration은 늘 즉시 처리된다.
+        private void ReturnToExplorationWithTransition()
+        {
+            bool isPlaying = _transitionPlayer != null
+                && _transitionPlayer.Play(BattleTransitionStyle.LayeredStripe, OnEndTransitionCovered);
+            if (!isPlaying)
+            {
+                ReturnToExploration();
+                return;
+            }
+            _isEndTransitionPlaying = true;
+        }
+
+        private void OnEndTransitionCovered()
+        {
+            _isEndTransitionPlaying = false;
+            ReturnToExploration();
+        }
+
         public void CancelBattle()
         {
+            _isEndTransitionPlaying = false;
             _debugBattleCamera = false;
             EndCameraPreview();
             if (IsInBattle)

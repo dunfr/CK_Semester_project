@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 namespace CK.SemesterProject.Effects
@@ -14,7 +15,7 @@ namespace CK.SemesterProject.Effects
     }
 
     // 전투 진입 화면 전환 연출. 화면이 가려진 시점(onCovered)에 호출한 쪽이 씬·카메라를 바꾸면 된다.
-    // TODO: 몬스터 접촉 → 전투 진입 흐름과 연결 (현재는 테스트 입력으로만 재생).
+    // 프로토타입 전투(TutorialBattleController)는 진입에 ShatterSplit, 자동 종료에 LayeredStripe를 쓴다.
     [DisallowMultipleComponent]
     public sealed class BattleTransitionPlayer : MonoBehaviour
     {
@@ -97,7 +98,8 @@ namespace CK.SemesterProject.Effects
         private RawImage _image;
         private Material _stripeMaterial;
         private Material _shatterMaterial;
-        private Texture2D _capturedScreen;
+        // 화면 캡처(Texture2D) 또는 카메라 렌더 결과(RenderTexture)
+        private Texture _capturedScreen;
         private bool _isPlaying;
 
         private static readonly int ProgressId = Shader.PropertyToID("_Progress");
@@ -199,13 +201,71 @@ namespace CK.SemesterProject.Effects
             onFinished?.Invoke();
         }
 
+        /// <summary>
+        /// 카메라 화면을 지금 바로 텍스처로 찍어 둔다. 같은 프레임에 씬·카메라를 바꿔야 할 때
+        /// 바꾸기 전에 부르고, 바꾼 뒤 PlayShatterFromCapture로 재생한다. 재생 중이면 false.
+        /// </summary>
+        public bool CaptureCameraView(Camera sourceCamera)
+        {
+            if (_isPlaying || sourceCamera == null || _shatterMaterial == null)
+            {
+                return false;
+            }
+
+            ReleaseCapture();
+            var texture = new RenderTexture(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height), 24);
+            var request = new RenderPipeline.StandardRequest { destination = texture };
+            if (RenderPipeline.SupportsRenderRequest(sourceCamera, request))
+            {
+                RenderPipeline.SubmitRenderRequest(sourceCamera, request);
+            }
+            else
+            {
+                RenderTexture previousTarget = sourceCamera.targetTexture;
+                sourceCamera.targetTexture = texture;
+                sourceCamera.Render();
+                sourceCamera.targetTexture = previousTarget;
+            }
+            _capturedScreen = texture;
+            return true;
+        }
+
+        /// <summary>찍어 둔 화면을 쓰지 않게 됐을 때(전환을 취소할 때) 정리한다.</summary>
+        public void DiscardCapture()
+        {
+            if (!_isPlaying)
+            {
+                ReleaseCapture();
+            }
+        }
+
+        /// <summary>
+        /// CaptureCameraView로 찍은 화면 위에서 깨짐·갈라짐을 바로 재생한다. 덮개는 이 호출 안에서 즉시 뜨므로
+        /// 같은 프레임에 바뀐 씬이 한 번도 그대로 보이지 않는다. 찍어 둔 화면이 없거나 재생 중이면 false.
+        /// </summary>
+        public bool PlayShatterFromCapture(Action onFinished = null)
+        {
+            if (_isPlaying || _capturedScreen == null || _shatterMaterial == null)
+            {
+                return false;
+            }
+
+            _isPlaying = true;
+            StartCoroutine(AnimateShatter(null, onFinished));
+            return true;
+        }
+
         private IEnumerator PlayShatterSplit(Action onCovered, Action onFinished)
         {
             // 연출 Canvas가 찍히지 않도록 띄우기 전에 이번 프레임을 그대로 저장한다.
             yield return new WaitForEndOfFrame();
             ReleaseCapture();
             _capturedScreen = ScreenCapture.CaptureScreenshotAsTexture();
+            yield return AnimateShatter(onCovered, onFinished);
+        }
 
+        private IEnumerator AnimateShatter(Action onCovered, Action onFinished)
+        {
             Material material = _shatterMaterial;
             material.SetFloat(AspectId, ScreenAspect());
             material.SetFloat(SeedId, UnityEngine.Random.Range(0f, 100f));
@@ -297,6 +357,10 @@ namespace CK.SemesterProject.Effects
             if (_capturedScreen == null)
             {
                 return;
+            }
+            if (_capturedScreen is RenderTexture renderTexture)
+            {
+                renderTexture.Release();
             }
             Destroy(_capturedScreen);
             _capturedScreen = null;
