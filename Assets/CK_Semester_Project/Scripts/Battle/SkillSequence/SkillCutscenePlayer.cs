@@ -42,6 +42,10 @@ namespace CK.SemesterProject.SkillSequence
             }
 
             BindTracks(director, cutscene, caster, target);
+            foreach (SkillCutsceneCasterCamera casterCamera in instance.GetComponentsInChildren<SkillCutsceneCasterCamera>(true))
+            {
+                casterCamera.Bind(caster);
+            }
             var player = instance.AddComponent<SkillCutscenePlayer>();
             player._director = director;
             player._destroyOnFinish = cutscene.DestroyOnFinish;

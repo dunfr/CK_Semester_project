@@ -60,6 +60,8 @@ namespace CK.SemesterProject.Tutorial
         /// <summary>재생 중인 시퀀스의 타격 지점에 닿았을 때(타격 번호, 전체 타격 수). 피해 표시를 타격에 맞추는 데 쓴다.</summary>
         public event Action<int, int> HitReached;
         public bool IsSlashCameraActive => _slashCamera != null && _slashCamera.IsActive;
+        /// <summary>지금 재생 중인 공격을 베기 타임라인이 연출하는지. 카메라를 넘겨받기 전·돌려준 뒤에도 참이다.</summary>
+        public bool IsSlashTimelineAttack => _slashCamera != null;
 
         public static double GetSlashCameraEnd(TimelineAsset timeline)
         {

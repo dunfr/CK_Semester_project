@@ -190,7 +190,8 @@ namespace CK.SemesterProject.Tutorial
         public static int BattleCount => _battleCount;
         public bool IsOpen => _isOpen;
         /// <summary>약점 스킬 분홍 테두리가 떠 있는지. 떠 있는 동안 스킬 선택 테두리는 겹치지 않게 숨긴다.</summary>
-        public bool IsWeaknessHintVisible => _highlight != null && _highlight.gameObject.activeInHierarchy;
+        public bool IsWeaknessHintVisible => (_highlight != null && _highlight.gameObject.activeInHierarchy)
+            || (_weaknessSpotlight != null && _weaknessSpotlight.gameObject.activeInHierarchy);
 
         /// <summary>새 게임을 시작할 때 튜토리얼 진행(해금·완료·전투 횟수)을 처음으로 되돌린다.</summary>
         public static void ResetForNewGame()
@@ -827,10 +828,11 @@ namespace CK.SemesterProject.Tutorial
 
         private void UpdateWeaknessHighlight(bool inBattle)
         {
-            if (!_guideWeakness || _isOpen || !inBattle || _highlight == null || !_battle.CanChooseAction
+            bool isMissingLegacyHighlight = _useLegacyWeaknessHighlight && _highlight == null;
+            if (!_guideWeakness || _isOpen || !inBattle || isMissingLegacyHighlight || !_battle.CanChooseAction
                 || !_battle.HasSelectedBattleTarget)
             {
-                SetHighlightVisible(false);
+                HideWeaknessGuide();
                 return;
             }
             BattleSnapshot state = _battle.Snapshot;
@@ -838,7 +840,7 @@ namespace CK.SemesterProject.Tutorial
                 : state.Combatants.FirstOrDefault(unit => unit.InstanceId == _battle.TargetId);
             if (target == null || target.IsDead || target.Data.WeaknessChain.Count == 0)
             {
-                SetHighlightVisible(false);
+                HideWeaknessGuide();
                 return;
             }
             int step = target.ChainStep < target.Data.WeaknessChain.Count ? target.ChainStep : 0;
@@ -857,7 +859,14 @@ namespace CK.SemesterProject.Tutorial
             }
             if (button == null)
             {
+                HideWeaknessGuide();
+                return;
+            }
+            // 첫 전투 단계 안내가 끝난 뒤에도 약점 스킬은 분홍 테두리 대신 스포트라이트로 안내한다.
+            if (!_useLegacyWeaknessHighlight)
+            {
                 SetHighlightVisible(false);
+                UpdateWeaknessSpotlight(button);
                 return;
             }
             // 기울어진 스킬 버튼을 그대로 감싸도록 버튼의 자식으로 붙인다(분홍 네온 테두리).

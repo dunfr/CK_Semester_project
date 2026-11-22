@@ -73,6 +73,7 @@ namespace CK.SemesterProject.Tutorial
         private readonly List<KeyValuePair<Volume, float>> _suppressedVolumes = new List<KeyValuePair<Volume, float>>();
         private readonly List<Renderer> _hiddenRenderers = new List<Renderer>();
         private TutorialBattleController _controller;
+        private PlayerCameraFade _playerFade;
         private SkillCutscenePlayer _cutscenePlayer;
         private Pose _returnCameraPose;
         private float _returnFieldOfView;
@@ -146,6 +147,8 @@ namespace CK.SemesterProject.Tutorial
             }
             SuppressSceneVolumes(_cutscenePlayer.transform);
             HideBackdrop();
+            // 컷신 카메라는 일부러 몸에 바짝 붙으므로(궁극기 얼굴·발 클로즈업 등) 근접 반투명 처리를 끈다.
+            SetPlayerFadeSuppressed(true);
             // 첫 프레임부터 컷신 카메라가 잡히도록 바로 한 번 평가한다(전투 시점이 한 프레임 비치지 않게).
             _cutscenePlayer.Director.Evaluate();
             IsPlaying = true;
@@ -179,6 +182,20 @@ namespace CK.SemesterProject.Tutorial
             RestoreEncounterPlacement();
             RestoreSceneVolumes();
             RestoreBackdrop();
+            SetPlayerFadeSuppressed(false);
+        }
+
+        private void SetPlayerFadeSuppressed(bool isSuppressed)
+        {
+            // 플레이어를 찾는 건 재생 시작 때만 한다. 끝낼 때(파괴 도중 포함)는 찾아 둔 것만 되돌린다.
+            if (isSuppressed && _playerFade == null)
+            {
+                _playerFade = _controller.PlayerRoot.GetComponent<PlayerCameraFade>();
+            }
+            if (_playerFade != null)
+            {
+                _playerFade.SetSuppressed(isSuppressed);
+            }
         }
 
         private void LateUpdate()
@@ -255,6 +272,7 @@ namespace CK.SemesterProject.Tutorial
             RestorePlayerPlacement();
             RestoreEncounterPlacement();
             RestoreSceneVolumes();
+            SetPlayerFadeSuppressed(false);
             // 전투 중에는 Brain을 꺼 두고 전투 카메라가 직접 움직인다. 컷신 직전의 전투 시점으로 되돌린다.
             _controller.BattleBrain.enabled = false;
             Camera camera = _controller.BattleCamera;

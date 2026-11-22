@@ -655,8 +655,11 @@ namespace CK.SemesterProject.Tutorial
             UpdateLockOnPoint();
             BattleActionResult result = _session.PendingResult;
             // 플레이어 피격 중에는 공격에 따른 카메라 이동·줌을 적용하지 않는다.
+            // 베기 타임라인이 맡은 공격은 타임라인 카메라만 쓰고, 넘겨받기 전·돌려준 뒤에도 기존 공격 카메라를 섞지 않는다.
+            bool isSlashTimelineAttack = _sequenceRunner != null && _sequenceRunner.IsSlashTimelineAttack;
             bool isAttack = result != null && !result.WasSkipped && !result.IsTurnStartEffect
-                && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == "player";
+                && result.Request.Kind == BattleActionKind.Skill && result.Request.ActorId == "player"
+                && !isSlashTimelineAttack;
             float progress = isAttack ? Mathf.Clamp01(_elapsed / PresentationSeconds) : 0f;
             float direction = isAttack && result.Request.ActorId != "player" ? -1f : 1f;
             float opening = 1f - Mathf.SmoothStep(0f, 1f, _cameraTime / _cameraEntrySeconds);
@@ -1813,6 +1816,11 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             ShowEnemyDamage(count > 0 ? (index + 1f) / count : 1f);
+            // 베기 타임라인은 자체 히트스톱·카메라 흔들림을 쓰므로 기존 히트스톱·FOV 펀치를 겹치지 않는다.
+            if (_sequenceRunner != null && _sequenceRunner.IsSlashTimelineAttack)
+            {
+                return;
+            }
             _hitStopActionId = _session.PendingResult.ActionId;
             _hitStopRemaining = _hitStopSeconds;
             _hitImpulse = 1f;
