@@ -123,51 +123,51 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _Metallic: 0.7
+    - _Metallic: 0.784
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _Smoothness: 0.62
+    - _Smoothness: 0.857
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
-    - _StyleAmbientLift: 0
-    - _StyleBakedShadow: 1
-    - _StyleBakedShadowEnd: 0.11
-    - _StyleBakedShadowStart: 0.05
+    - _StyleAmbientLift: 0.1178
+    - _StyleBakedShadow: 0.22
+    - _StyleBakedShadowEnd: 1.206
+    - _StyleBakedShadowStart: 0.18
     - _StyleBakedSpecular: 0
-    - _StyleBakedSpecularMinRoughness: 0.35
-    - _StyleBevel: 0
+    - _StyleBakedSpecularMinRoughness: 0.25
+    - _StyleBevel: 0.25
     - _StyleBevelSmoothness: 0.8
-    - _StyleCel: 0
-    - _StyleCelDirectional: 0
-    - _StyleCelLitFlatten: 0
-    - _StyleCelLitLevel: 0.4
-    - _StyleCelShadowFlatten: 0.8
-    - _StyleCelShadowLevel: 0.15
-    - _StyleCelSoftness: 0.02
-    - _StyleCelThreshold: 0.18
+    - _StyleCel: 0.201
+    - _StyleCelDirectional: 0.037
+    - _StyleCelLitFlatten: 0.25
+    - _StyleCelLitLevel: 0.72
+    - _StyleCelShadowFlatten: 0.64
+    - _StyleCelShadowLevel: 0.87
+    - _StyleCelSoftness: 0.2
+    - _StyleCelThreshold: 0
     - _StyleDebugView: 0
     - _StyleEdgeFinish: 0
     - _StyleGrit: 0
     - _StyleGritScale: 70
     - _StyleGritTone: 0
-    - _StyleHighlightStability: 0
+    - _StyleHighlightStability: 2
     - _StyleLitTintStrength: 0
     - _StyleMetallicScale: 1
-    - _StylePartVariation: 0
-    - _StylePartWearScale: 3
+    - _StylePartVariation: 0.082
+    - _StylePartWearScale: 3.1
     - _StyleRamp: 0
-    - _StyleRampSoftness: 0.15
-    - _StyleRampThreshold: 0.5
-    - _StyleSSAO: 1
+    - _StyleRampSoftness: 0.03
+    - _StyleRampThreshold: 0.47
+    - _StyleSSAO: 0.64
     - _StyleSaturation: 1
-    - _StyleShadowDarken: 0.5
-    - _StyleShadowLift: 0
-    - _StyleShadowSaturation: 1.15
-    - _StyleShadowTintStrength: 0.15
+    - _StyleShadowDarken: 0.654
+    - _StyleShadowLift: 0.363
+    - _StyleShadowSaturation: 0.139
+    - _StyleShadowTintStrength: 0.242
     - _StyleSmoothMapHigh: 1
     - _StyleSmoothMapLow: 0
     - _StyleSmoothOutHigh: 1
@@ -175,8 +175,8 @@ Material:
     - _StyleSpecular: 0
     - _StyleSpecularGloss: 24
     - _StyleSpecularSoftness: 0.06
-    - _StyleSpecularStep: 0.35
-    - _StyleWrap: 0
+    - _StyleSpecularStep: 0.55
+    - _StyleWrap: 0.72
     - _Surface: 0
     - _WorkflowMode: 1
     - _XRMotionVectorsPass: 1
@@ -185,7 +185,7 @@ Material:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
+    - _SpecColor: {r: 0.23899364, g: 0.23899364, b: 0.23899364, a: 1}
     - _StyleAmbientColor: {r: 0.85, g: 0.9, b: 1, a: 1}
     - _StyleLitTint: {r: 1, g: 0.96, b: 0.9, a: 1}
     - _StyleShadowTint: {r: 0.74, g: 0.8, b: 1, a: 1}
