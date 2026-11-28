@@ -147,8 +147,12 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Range(0f, 1f)] private float _enemyReticleGlow = 0.85f;
         [SerializeField, Min(1f)] private float _enemyReticleSize = 104f;
         [SerializeField, Min(0f)] private float _enemyReticleHeight = 1.05f;
+        [SerializeField, Tooltip("화면 좌우 보정(m). 음수면 화면 왼쪽으로 옮긴다. 전투 록온 조준점과 같은 값으로 맞춘다.")]
+        private float _enemyReticleSideOffset = -0.1f;
 
         private TutorialEnemyReticle _enemyReticle;
+        private Transform _enemyReticleTarget;
+        private Vector3 _enemyReticleBodyOffset;
         private float _enemyReticleStartedAt;
         private const float LegacyHighlightPadding = 10f;
         private RectTransform _legacyHighlightParent;
@@ -726,7 +730,14 @@ namespace CK.SemesterProject.Tutorial
 
             Camera camera = _battle.BattleCamera;
             RectTransform canvasRect = (RectTransform)transform;
-            Vector3 point = camera.WorldToScreenPoint(enemy.position + Vector3.up * _enemyReticleHeight);
+            if (enemy != _enemyReticleTarget)
+            {
+                _enemyReticleTarget = enemy;
+                _enemyReticleBodyOffset = TutorialEnemyReticle.MeasureBodyOffset(enemy);
+            }
+            Vector3 point = camera.WorldToScreenPoint(
+                TutorialEnemyReticle.GetAimPoint(enemy, _enemyReticleBodyOffset, _enemyReticleHeight)
+                + camera.transform.right * _enemyReticleSideOffset);
             if (point.z <= 0f || !camera.pixelRect.Contains(point)
                 || !RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, point, null, out Vector2 center))
             {
@@ -838,13 +849,12 @@ namespace CK.SemesterProject.Tutorial
             BattleSnapshot state = _battle.Snapshot;
             CombatantState target = state == null ? null
                 : state.Combatants.FirstOrDefault(unit => unit.InstanceId == _battle.TargetId);
-            if (target == null || target.IsDead || target.Data.WeaknessChain.Count == 0)
+            BattleElement weakness = target == null ? BattleElement.None : BattleMath.WeaknessOf(target.Data.Element);
+            if (target == null || target.IsDead || weakness == BattleElement.None)
             {
                 HideWeaknessGuide();
                 return;
             }
-            int step = target.ChainStep < target.Data.WeaknessChain.Count ? target.ChainStep : 0;
-            BattleElement weakness = target.Data.WeaknessChain[step];
             RectTransform button = null;
             int buttonIndex = -1;
             for (int index = 0; index < _skillButtons.Length && index < _battle.Skills.Count; index++)

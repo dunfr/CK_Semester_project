@@ -166,8 +166,12 @@ namespace CK.SemesterProject.Battle
             if (request.Kind == BattleActionKind.Defend)
             {
                 int reduction = Math.Min(actor.RageEnergy, defenseReduction);
+                // 회복 예약은 bool이라, 행동자의 잔상 스킬이 각성 스킬이면 각성 회복량을 쓴다.
+                bool isAwakenedAfterimage = actor.Data.Skills.Any(data => data.IsAwakened && data.Element == BattleElement.Afterimage);
+                int afterimageRecovery = isAwakenedAfterimage
+                    ? _rules.Mechanics.AwakenedAfterimageRecovery : _rules.Mechanics.AfterimageRecovery;
                 int defenseRecovery = actor.HasAfterimageRecovery && _rules.Mechanics.EnableElementEffects
-                    ? Math.Min(_rules.Mechanics.AfterimageRecovery, Math.Max(0, actor.Data.MaxMemory - (actor.Memory - investmentCost))) : 0;
+                    ? Math.Min(afterimageRecovery, Math.Max(0, actor.Data.MaxMemory - (actor.Memory - investmentCost))) : 0;
                 effects = new[] { new BattleEffect(actor.InstanceId, memoryDelta: -investmentCost + defenseRecovery,
                     isDefending: true, rageDelta: -reduction,
                     defenseDamageMultiplier: actor.Data.MonsterProfile?.Element == BattleElement.Afterimage
@@ -188,7 +192,9 @@ namespace CK.SemesterProject.Battle
             CombatantState target = snapshot.Combatants.First(state => state.InstanceId == request.TargetId);
             BattleCombatRules mechanics = _rules.Mechanics;
             bool hostile = actor.Data.Team != target.Data.Team;
-            bool elementEffects = isHit && hostile && mechanics.EnableElementEffects;
+            bool elementEffects = isHit && hostile && mechanics.EnableElementEffects && skill.HasElementEffect;
+            int oblivionSteal = skill.IsAwakened ? mechanics.AwakenedOblivionSteal : mechanics.OblivionSteal;
+            double imprintRatio = skill.IsAwakened ? mechanics.AwakenedImprintRatio : mechanics.ImprintRatio;
             int chain = 0;
             bool hasChain = hostile && target.Data.Team == BattleTeam.Monster && target.Data.WeaknessChain.Count == 4;
             if (isHit && hasChain)
@@ -218,7 +224,7 @@ namespace CK.SemesterProject.Battle
             long steal = isHit ? skill.MemorySteal : 0;
             if (elementEffects && skill.Element == BattleElement.Oblivion)
             {
-                steal += mechanics.OblivionSteal;
+                steal += oblivionSteal;
             }
             int stolen = actor.InstanceId == target.InstanceId ? 0
                 : (int)Math.Min(steal, Math.Min(target.Memory, Math.Max(0, actor.Data.MaxMemory - remaining)));
@@ -226,14 +232,14 @@ namespace CK.SemesterProject.Battle
             if (elementEffects && skill.Element == BattleElement.Oblivion
                 && actor.Data.Team == BattleTeam.Player && target.Data.Team == BattleTeam.Monster)
             {
-                // 10-23 확정: 적 메모리가 0~9여도 명중 시 최소 10 회복. 최대 메모리는 넘지 않는다.
-                received = Math.Max(stolen, Math.Min(mechanics.OblivionSteal,
+                // 10-23 확정: 적 메모리가 강탈량보다 적어도 명중 시 강탈량만큼 회복. 최대 메모리는 넘지 않는다.
+                received = Math.Max(stolen, Math.Min(oblivionSteal,
                     Math.Max(0, actor.Data.MaxMemory - remaining)));
             }
             int actorDelta = -(int)cost + recovered + received;
             int rageGain = mechanics.EnableRage && actor.Data.Team == BattleTeam.Player ? skill.RageGain - skill.RageCost : 0;
             int? imprint = elementEffects && skill.Element == BattleElement.Imprint
-                ? BattleMath.RoundDamage(roundedDamage * mechanics.ImprintRatio) : (int?)null;
+                ? BattleMath.RoundDamage(roundedDamage * imprintRatio) : (int?)null;
             int? skipped = isHit && skill.InflictedSkippedTurns > 0
                 ? Math.Max(target.SkippedTurns, skill.InflictedSkippedTurns) : (int?)null;
             int? nextChain = hasChain ? (chain == 4 ? 0 : chain) : (int?)null;

@@ -7,19 +7,19 @@ namespace CK.SemesterProject.Tutorial
         private static readonly Collider[] _overlaps = new Collider[64];
         private static readonly RaycastHit[] _hits = new RaycastHit[64];
 
-        public static Pose GetBasePose(Vector3 playerSlot, Vector3 enemySlot, Vector3 offset)
+        // 전투 카메라 구도 전달서(EnemyTeleportReturnTest) 기준: 전투 방향 대비 피치/요/롤(도).
+        public static readonly Vector3 DefaultAngles = new Vector3(7.91f, -27.14f, 0.1f);
+
+        // 오프셋은 전투 방향(+Z = 적) 기준 월드 단위(m)이고, 회전은 look-at 대신 전투 방향에 고정 각도를 더한다.
+        public static Pose GetBasePose(Vector3 playerSlot, Vector3 enemySlot, Vector3 offset, Vector3 angles)
         {
-            Vector3 forward = Vector3.ProjectOnPlane(enemySlot - playerSlot, Vector3.up).normalized;
-            Vector3 right = Vector3.Cross(Vector3.up, forward);
-            float scale = Mathf.Sqrt(Mathf.Max(1f, Vector3.Distance(playerSlot, enemySlot) / 4f));
-            Vector3 focus = Vector3.Lerp(playerSlot, enemySlot, 0.55f) + Vector3.up * 0.9f;
-            Vector3 position = playerSlot + (right * offset.x + forward * offset.z + Vector3.up * offset.y) * scale;
-            return new Pose(position, Quaternion.LookRotation(focus - position));
+            Quaternion battle = Quaternion.LookRotation(Vector3.ProjectOnPlane(enemySlot - playerSlot, Vector3.up).normalized);
+            return new Pose(playerSlot + battle * offset, battle * Quaternion.Euler(angles));
         }
 
         // Offset: 플레이어 기준 오른쪽/높이/전방. 양수 X와 음수 Z가 어깨 뒤 구도다.
         public static bool TryGetPose(Vector3 playerSlot, Vector3 enemySlot, Transform player, Transform enemy,
-            Vector3 offset, float fieldOfView, float aspect, out Pose pose)
+            Vector3 offset, Vector3 angles, float fieldOfView, float aspect, out Pose pose)
         {
             pose = default;
             Vector3 forward = Vector3.ProjectOnPlane(enemySlot - playerSlot, Vector3.up).normalized;
@@ -27,13 +27,12 @@ namespace CK.SemesterProject.Tutorial
             {
                 return false;
             }
-            Pose basePose = GetBasePose(playerSlot, enemySlot, offset);
-            Vector3 focus = Vector3.Lerp(playerSlot, enemySlot, 0.55f) + Vector3.up * 0.9f;
+            Pose basePose = GetBasePose(playerSlot, enemySlot, offset, angles);
             for (int heightStep = 0; heightStep < 3; heightStep++)
             {
                 float raise = heightStep * 0.4f;
                 Vector3 position = basePose.position + Vector3.up * raise;
-                Quaternion rotation = Quaternion.LookRotation(focus - position);
+                Quaternion rotation = basePose.rotation;
                 if (!IsClear(position, player, enemy)
                     || !CanSee(position, playerSlot + Vector3.up * 0.25f, player, enemy)
                     || !CanSee(position, playerSlot + Vector3.up * 1.7f, player, enemy)
@@ -55,28 +54,6 @@ namespace CK.SemesterProject.Tutorial
                 return true;
             }
             return false;
-        }
-
-        public static bool TryGetOrbitPose(Pose basePose, Transform player, Transform enemy,
-            float yaw, float pitch, float fieldOfView, float aspect, out Pose pose)
-        {
-            return TryGetOrbitPose(basePose, player.position, enemy.position, player, enemy,
-                yaw, pitch, fieldOfView, aspect, out pose);
-        }
-
-        public static bool TryGetOrbitPose(Pose basePose, Vector3 playerSlot, Vector3 enemySlot,
-            Transform player, Transform enemy, float yaw, float pitch, float fieldOfView, float aspect, out Pose pose)
-        {
-            Vector3 focus = Vector3.Lerp(playerSlot, enemySlot, 0.55f) + Vector3.up * 0.9f;
-            Vector3 radial = Quaternion.AngleAxis(yaw, Vector3.up) * (basePose.position - focus);
-            Vector3 right = Vector3.Cross(Vector3.up, -radial).normalized;
-            Vector3 position = focus + Quaternion.AngleAxis(pitch, right) * radial;
-            pose = new Pose(position, Quaternion.LookRotation(focus - position));
-            return IsClear(position, player, enemy)
-                && IsFramed(playerSlot + Vector3.up * 0.2f, pose, fieldOfView, aspect, player, enemy)
-                && IsFramed(playerSlot + Vector3.up * 1.7f, pose, fieldOfView, aspect, player, enemy)
-                && IsFramed(enemySlot + Vector3.up * 0.2f, pose, fieldOfView, aspect, player, enemy)
-                && IsFramed(enemySlot + Vector3.up * 1.5f, pose, fieldOfView, aspect, player, enemy);
         }
 
         public static bool IsFramed(Vector3 point, Pose pose, float fieldOfView, float aspect,

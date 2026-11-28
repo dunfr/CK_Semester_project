@@ -16,6 +16,10 @@ namespace CK.SemesterProject.Battle
         public int AfterimageRecovery { get; }
         public int OblivionSteal { get; }
         public double ImprintRatio { get; }
+        // 각성한 스킬(SkillData.IsAwakened)의 효과 값.
+        public int AwakenedAfterimageRecovery { get; }
+        public int AwakenedOblivionSteal { get; }
+        public double AwakenedImprintRatio { get; }
         public const int OverheatThreshold = 91;
 
         // 기존 코어 회귀 테스트와 최소 데모에서 명시적으로 사용하는 설정이다.
@@ -25,7 +29,8 @@ namespace CK.SemesterProject.Battle
         public BattleCombatRules(double criticalChance = 0.1, double criticalMultiplier = 1.2,
             double weaknessMultiplier = 1.25, double resistanceMultiplier = 0.75,
             IEnumerable<double> chainMultipliers = null, bool enableElementEffects = true,
-            bool enableRage = true, int afterimageRecovery = 10, int oblivionSteal = 10, double imprintRatio = 0.2)
+            bool enableRage = true, int afterimageRecovery = 10, int oblivionSteal = 10, double imprintRatio = 0.2,
+            int awakenedAfterimageRecovery = 30, int awakenedOblivionSteal = 20, double awakenedImprintRatio = 0.3)
         {
             double[] chain = (chainMultipliers ?? new[] { 1.0, 1.0, 1.2, 1.3, 1.0 }).ToArray();
             if (!IsFinite(criticalChance) || criticalChance < 0 || criticalChance > 1
@@ -34,7 +39,9 @@ namespace CK.SemesterProject.Battle
                 || !IsFinite(resistanceMultiplier) || resistanceMultiplier < 0
                 || chain.Length != 5 || chain.Any(value => !IsFinite(value) || value < 0)
                 || afterimageRecovery < 0 || oblivionSteal < 0
-                || !IsFinite(imprintRatio) || imprintRatio < 0 || imprintRatio > 1)
+                || !IsFinite(imprintRatio) || imprintRatio < 0 || imprintRatio > 1
+                || awakenedAfterimageRecovery < 0 || awakenedOblivionSteal < 0
+                || !IsFinite(awakenedImprintRatio) || awakenedImprintRatio < 0 || awakenedImprintRatio > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(criticalChance));
             }
@@ -48,6 +55,9 @@ namespace CK.SemesterProject.Battle
             AfterimageRecovery = afterimageRecovery;
             OblivionSteal = oblivionSteal;
             ImprintRatio = imprintRatio;
+            AwakenedAfterimageRecovery = awakenedAfterimageRecovery;
+            AwakenedOblivionSteal = awakenedOblivionSteal;
+            AwakenedImprintRatio = awakenedImprintRatio;
         }
 
         private static bool IsFinite(double value)

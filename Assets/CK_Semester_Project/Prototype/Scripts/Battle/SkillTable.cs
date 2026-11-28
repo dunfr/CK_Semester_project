@@ -10,30 +10,32 @@ namespace CK.SemesterProject.Battle
     {
         private const string Header = "skill_id,skill_name,english_name,skill_damage,skill_element,bonus_critical_chance,skill_overheat_gain,skill_memory_cost";
 
-        public static SkillData[] SelectStage(IReadOnlyList<SkillData> source,
-            IEnumerable<string[]> stageIds, int stage)
+        private const int BasicSkillCount = 3;
+        private const int AwakeningStageCount = 2;
+
+        // stageIds는 기본 스킬별 [각성 전, 각성 후] ID. awakenedIds는 각성한 스킬의 각성 전 ID다.
+        // 각성 전 스킬은 속성 효과 없이 반환한다.
+        public static SkillData[] SelectAwakening(IReadOnlyList<SkillData> source,
+            IEnumerable<string[]> stageIds, IReadOnlyCollection<string> awakenedIds)
         {
-            if (source == null || stageIds == null)
+            if (source == null || stageIds == null || awakenedIds == null)
             {
                 throw new ArgumentNullException(nameof(source));
             }
-            if (stage < 1 || stage > 3)
-            {
-                throw new ArgumentOutOfRangeException(nameof(stage));
-            }
             string[][] groups = stageIds.ToArray();
-            if (groups.Length != 3 || groups.Any(group => group == null || group.Length != 3
+            if (groups.Length != BasicSkillCount || groups.Any(group => group == null || group.Length != AwakeningStageCount
                 || group.Any(string.IsNullOrWhiteSpace)))
             {
-                throw new ArgumentException("기본 스킬 3종에 각 3단계 ID가 필요합니다.");
+                throw new ArgumentException("기본 스킬 3종에 각성 전·후 ID 2개가 필요합니다.");
             }
+            const int rowCount = BasicSkillCount * AwakeningStageCount;
             string[] ids = groups.SelectMany(group => group).ToArray();
-            if (ids.Distinct(StringComparer.Ordinal).Count() != 9 || source.Count != 9
+            if (ids.Distinct(StringComparer.Ordinal).Count() != rowCount || source.Count != rowCount
                 || source.Any(skill => skill == null)
-                || source.Select(skill => skill.Id).Distinct(StringComparer.Ordinal).Count() != 9
+                || source.Select(skill => skill.Id).Distinct(StringComparer.Ordinal).Count() != rowCount
                 || ids.Any(id => !source.Any(skill => skill.Id == id)))
             {
-                throw new ArgumentException("Skill_DT: 단계별 ID는 기본 스킬 9개와 정확히 일치해야 합니다.");
+                throw new ArgumentException("Skill_DT: 각성 전·후 ID는 기본 스킬 6개와 정확히 일치해야 합니다.");
             }
             foreach (string[] group in groups)
             {
@@ -43,7 +45,9 @@ namespace CK.SemesterProject.Battle
                     throw new ArgumentException("Skill_DT: 같은 기본 스킬의 단계별 속성이 다릅니다.");
                 }
             }
-            return groups.Select(group => source.First(skill => skill.Id == group[stage - 1])).ToArray();
+            return groups.Select(group => awakenedIds.Contains(group[0])
+                ? source.First(skill => skill.Id == group[1]).AsAwakened()
+                : source.First(skill => skill.Id == group[0]).WithoutElementEffect()).ToArray();
         }
 
         // 현재 제공된 표의 쉼표·줄바꿈 없는 셀만 지원한다. 복잡한 CSV는 조용히 오독하지 않고 거절한다.

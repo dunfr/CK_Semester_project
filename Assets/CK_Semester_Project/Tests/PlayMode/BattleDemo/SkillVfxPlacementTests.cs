@@ -191,7 +191,7 @@ namespace CK.SemesterProject.Battle.Tests
                 settings = AssetDatabase.LoadAssetAtPath<ScriptableObject>(path);
                 Assert.That(type.GetMethod("GetPlacement").Invoke(settings, new object[] { "SK00", 1, false }), Is.EqualTo(placement));
                 Assert.That(type.GetMethod("GetPlacement").Invoke(settings, new object[] { "SK03", 2, false }), Is.EqualTo(stageTwoBefore));
-                Assert.That(type.GetMethod("GetPlacement").Invoke(settings, new object[] { "SK06", 3, true }), Is.EqualTo(placement));
+                Assert.That(type.GetMethod("GetPlacement").Invoke(settings, new object[] { "SK03", 2, true }), Is.EqualTo(placement));
                 Assert.That(type.GetMethod("GetActionSpeed").Invoke(settings, new object[] { "SK00", 1 }), Is.EqualTo(.5f));
                 Assert.That(type.GetMethod("GetImpactFraction").Invoke(settings, new object[] { "SK00", 1 }), Is.EqualTo(.6f));
                 Assert.That(type.GetMethod("GetActionSpeed").Invoke(settings, new object[] { "SK03", 2 }), Is.EqualTo(1f));

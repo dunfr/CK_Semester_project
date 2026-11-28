@@ -2,18 +2,15 @@ using System;
 using System.Linq;
 using CK.SemesterProject.Battle;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace CK.SemesterProject.Tutorial
 {
     /// <summary>
-    /// 전투 중 몬스터를 클릭/타겟팅했을 때 발밑 타겟 링·충격파 연출과 렌더러 하이라이트를 표시한다.
+    /// 전투 중 몬스터를 클릭/타겟팅했을 때 렌더러 하이라이트(림·아웃라인·클릭 플래시)를 표시한다.
+    /// 조준 표시는 몸통의 BattleLockOnReticle 하나만 쓴다(발밑 링 제거, AD 협의).
     /// </summary>
     public sealed class TutorialBattleTargetHighlight : IDisposable
     {
-        private const int CircleSegments = 48;
-        private const int ArcSegments = 14;
-        private const int ArcCount = 4;
         private const float PulseDuration = 0.35f;
 
         private readonly int _baseColorId = Shader.PropertyToID("_BaseColor");
@@ -27,12 +24,6 @@ namespace CK.SemesterProject.Tutorial
         private readonly int _outlineWidthId = Shader.PropertyToID("_OutlineWidth");
         private readonly int _litBrightnessId = Shader.PropertyToID("_LitBrightness");
 
-        private GameObject _root;
-        private LineRenderer _innerRing;
-        private LineRenderer _shockwaveRing;
-        private readonly LineRenderer[] _outerArcs = new LineRenderer[ArcCount];
-        private Material _lineMaterial;
-
         private Transform _currentTarget;
         private Renderer[] _targetRenderers = Array.Empty<Renderer>();
         private MaterialPropertyBlock[] _originalBlocks = Array.Empty<MaterialPropertyBlock>();
@@ -42,7 +33,6 @@ namespace CK.SemesterProject.Tutorial
         private float[] _outlineWidths = Array.Empty<float>();
         private float[] _litBrightnesses = Array.Empty<float>();
         private bool _hasAppliedBlocks;
-        private float _baseRadius = 0.65f;
         private float _pulseStartTime = -10f;
 
         public void TriggerSelectPulse(Transform target)
@@ -59,10 +49,6 @@ namespace CK.SemesterProject.Tutorial
             if (!isVisible || target == null || !target.gameObject.activeInHierarchy)
             {
                 RestoreRenderers();
-                if (_root != null && _root.activeSelf)
-                {
-                    _root.SetActive(false);
-                }
                 return;
             }
 
@@ -72,12 +58,6 @@ namespace CK.SemesterProject.Tutorial
                 _pulseStartTime = Time.unscaledTime;
             }
 
-            EnsureRingObjects();
-            if (!_root.activeSelf)
-            {
-                _root.SetActive(true);
-            }
-
             Color primaryColor = GetElementHighlightColor(element);
             float elapsed = Time.unscaledTime;
             float pulseAge = Mathf.Max(0f, elapsed - _pulseStartTime);
@@ -85,45 +65,7 @@ namespace CK.SemesterProject.Tutorial
             float clickFlash = 1f - Mathf.SmoothStep(0f, 1f, pulseNormalized);
             float breathe = 0.5f + 0.5f * Mathf.Sin(elapsed * 5.2f);
 
-            // 1. 발밑 타겟 링 & 클릭 충격파 링 갱신
-            Vector3 center = target.position + Vector3.up * 0.04f;
-            _root.transform.position = center;
-
-            float popScale = pulseNormalized < 1f
-                ? Mathf.Lerp(0.72f, 1f, 1f - Mathf.Pow(1f - pulseNormalized, 3f)) + Mathf.Sin(pulseNormalized * Mathf.PI) * 0.14f
-                : 1f + 0.04f * Mathf.Sin(elapsed * 4f);
-            float innerRadius = _baseRadius * popScale;
-
-            Color innerColor = Color.Lerp(primaryColor, Color.white, 0.25f + clickFlash * 0.55f);
-            innerColor.a = Mathf.Lerp(0.72f, 0.95f, breathe) + clickFlash * 0.2f;
-            DrawCircle(_innerRing, innerRadius, 0.042f + clickFlash * 0.025f, innerColor);
-
-            float outerRadius = _baseRadius * (1.22f + 0.05f * Mathf.Sin(elapsed * 3.5f)) * popScale;
-            float baseAngle = elapsed * 48f;
-            Color arcColor = Color.Lerp(primaryColor, Color.white, 0.4f + clickFlash * 0.45f);
-            arcColor.a = 0.92f;
-            for (int i = 0; i < ArcCount; i++)
-            {
-                float startDeg = baseAngle + i * 90f - 26f;
-                float endDeg = baseAngle + i * 90f + 26f;
-                DrawArc(_outerArcs[i], outerRadius, startDeg, endDeg, 0.055f + clickFlash * 0.02f, arcColor);
-            }
-
-            if (pulseNormalized < 1f)
-            {
-                _shockwaveRing.enabled = true;
-                float waveRadius = _baseRadius * Mathf.Lerp(0.55f, 1.85f, 1f - Mathf.Pow(1f - pulseNormalized, 2.2f));
-                Color waveColor = Color.Lerp(primaryColor, Color.white, 0.65f);
-                waveColor.a = (1f - pulseNormalized) * 0.85f;
-                float waveWidth = Mathf.Lerp(0.08f, 0.01f, pulseNormalized);
-                DrawCircle(_shockwaveRing, waveRadius, waveWidth, waveColor);
-            }
-            else if (_shockwaveRing.enabled)
-            {
-                _shockwaveRing.enabled = false;
-            }
-
-            // 2. 몬스터 렌더러 림/아웃라인/클릭 플래시 하이라이트 갱신
+            // 몬스터 렌더러 림/아웃라인/클릭 플래시 하이라이트 갱신
             if (!applyRendererHighlight)
             {
                 RestoreRenderers();
@@ -138,25 +80,11 @@ namespace CK.SemesterProject.Tutorial
             RestoreRenderers();
             _currentTarget = null;
             _targetRenderers = Array.Empty<Renderer>();
-            if (_root != null)
-            {
-                _root.SetActive(false);
-            }
         }
 
         public void Dispose()
         {
             Clear();
-            if (_root != null)
-            {
-                UnityEngine.Object.Destroy(_root);
-                _root = null;
-            }
-            if (_lineMaterial != null)
-            {
-                UnityEngine.Object.Destroy(_lineMaterial);
-                _lineMaterial = null;
-            }
         }
 
         private void BindTarget(Transform target)
@@ -181,8 +109,6 @@ namespace CK.SemesterProject.Tutorial
             _outlineWidths = new float[_targetRenderers.Length];
             _litBrightnesses = new float[_targetRenderers.Length];
 
-            Bounds combined = default;
-            bool hasBounds = false;
             for (int i = 0; i < _targetRenderers.Length; i++)
             {
                 Renderer r = _targetRenderers[i];
@@ -197,23 +123,7 @@ namespace CK.SemesterProject.Tutorial
                 _outlineColors[i] = mat != null && mat.HasProperty(_outlineColorId) ? mat.GetColor(_outlineColorId) : new Color(0.35f, 0.3f, 0.4f, 1f);
                 _outlineWidths[i] = mat != null && mat.HasProperty(_outlineWidthId) ? mat.GetFloat(_outlineWidthId) : 1.25f;
                 _litBrightnesses[i] = mat != null && mat.HasProperty(_litBrightnessId) ? mat.GetFloat(_litBrightnessId) : 1f;
-
-                if (r.enabled && r.gameObject.activeInHierarchy)
-                {
-                    if (hasBounds)
-                    {
-                        combined.Encapsulate(r.bounds);
-                    }
-                    else
-                    {
-                        combined = r.bounds;
-                        hasBounds = true;
-                    }
-                }
             }
-
-            float horizontalExtent = hasBounds ? Mathf.Max(combined.extents.x, combined.extents.z) : 0.55f;
-            _baseRadius = Mathf.Clamp(horizontalExtent * 1.05f, 0.52f, 1.15f);
         }
 
         private void ApplyRendererHighlight(Color elementColor, float breathe, float clickFlash)
@@ -265,86 +175,6 @@ namespace CK.SemesterProject.Tutorial
                 }
             }
             _hasAppliedBlocks = false;
-        }
-
-        private void EnsureRingObjects()
-        {
-            if (_root != null)
-            {
-                return;
-            }
-            Shader shader = Shader.Find("Sprites/Default");
-            if (shader == null)
-            {
-                shader = Shader.Find("Universal Render Pipeline/Unlit");
-            }
-            _lineMaterial = new Material(shader)
-            {
-                hideFlags = HideFlags.DontSave
-            };
-
-            _root = new GameObject("BattleTargetHighlight")
-            {
-                hideFlags = HideFlags.DontSave
-            };
-            _innerRing = CreateLine(_root.transform, "InnerRing", CircleSegments, true);
-            _shockwaveRing = CreateLine(_root.transform, "ShockwaveRing", CircleSegments, true);
-            for (int i = 0; i < ArcCount; i++)
-            {
-                _outerArcs[i] = CreateLine(_root.transform, "OuterArc_" + i, ArcSegments, false);
-            }
-        }
-
-        private LineRenderer CreateLine(Transform parent, string name, int positionCount, bool loop)
-        {
-            var go = new GameObject(name)
-            {
-                hideFlags = HideFlags.DontSave
-            };
-            go.transform.SetParent(parent, false);
-            var line = go.AddComponent<LineRenderer>();
-            line.useWorldSpace = false;
-            line.loop = loop;
-            line.positionCount = positionCount;
-            line.sharedMaterial = _lineMaterial;
-            line.shadowCastingMode = ShadowCastingMode.Off;
-            line.receiveShadows = false;
-            line.lightProbeUsage = LightProbeUsage.Off;
-            line.reflectionProbeUsage = ReflectionProbeUsage.Off;
-            line.alignment = LineAlignment.View;
-            line.numCapVertices = 4;
-            line.numCornerVertices = 2;
-            return line;
-        }
-
-        private static void DrawCircle(LineRenderer line, float radius, float width, Color color)
-        {
-            line.startWidth = width;
-            line.endWidth = width;
-            line.startColor = color;
-            line.endColor = color;
-            int count = line.positionCount;
-            float step = Mathf.PI * 2f / count;
-            for (int i = 0; i < count; i++)
-            {
-                float angle = i * step;
-                line.SetPosition(i, new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
-            }
-        }
-
-        private static void DrawArc(LineRenderer line, float radius, float startDeg, float endDeg, float width, Color color)
-        {
-            line.startWidth = width;
-            line.endWidth = width;
-            line.startColor = color;
-            line.endColor = color;
-            int count = line.positionCount;
-            for (int i = 0; i < count; i++)
-            {
-                float t = count <= 1 ? 0f : (float)i / (count - 1);
-                float rad = Mathf.Lerp(startDeg, endDeg, t) * Mathf.Deg2Rad;
-                line.SetPosition(i, new Vector3(Mathf.Cos(rad) * radius, 0.01f, Mathf.Sin(rad) * radius));
-            }
         }
 
         private static Color GetElementHighlightColor(BattleElement element)

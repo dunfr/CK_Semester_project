@@ -30,7 +30,7 @@ namespace CK.SemesterProject.Tutorial
         private readonly string _actorId;
         private readonly Quaternion _actorRotation;
         private readonly BasicSkillEnhancementAsset _enhancement;
-        private readonly int _skillStage;
+        private int _skillStage = 1;
         private readonly Animator _animator;
         private long _actionId;
         private AnimationClip _animation;
@@ -65,10 +65,9 @@ namespace CK.SemesterProject.Tutorial
 
         public TutorialBattleActionPresentation(Transform actor, Transform target, float stopDistance,
             string targetId = "monster", string actorId = "player",
-            BasicSkillEnhancementAsset enhancement = null, int skillStage = 1)
+            BasicSkillEnhancementAsset enhancement = null)
         {
             _enhancement = enhancement;
-            _skillStage = skillStage;
             _animator = actor.GetComponent<Animator>();
             if (_animator == null)
             {
@@ -137,6 +136,8 @@ namespace CK.SemesterProject.Tutorial
                     _hasApplied = true;
                 }
                 _actionId = result.ActionId;
+                // 스킬마다 각성 여부가 달라 행동 시점의 스킬 ID로 단계를 정한다.
+                _skillStage = _enhancement != null ? _enhancement.GetStage(result.Request.SkillId) : 1;
                 _animation = _enhancement != null ? _enhancement.GetAnimation(result.Request.SkillId, _skillStage) : null;
                 // SK00 대체 모션은 플레이어 전용이다. 몬스터에 씌우면 몬스터 자신의 공격 모션이 가려진다.
                 if (_animation == null && _enhancement != null && _actorId == "player")

@@ -88,7 +88,7 @@ namespace CK.SemesterProject.Battle.Tests
         public void LatestTableIncludesSpecialUltimateAndPreservesMetadataWhenCloning()
         {
             var skills = SkillTable.LoadCsv(File.ReadAllText("Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv"));
-            Assert.That(skills.Count, Is.EqualTo(11));
+            Assert.That(skills.Count, Is.EqualTo(8));
             SkillData special = skills.Single(skill => skill.Id == "SK09");
             Assert.That(special.IsAreaOfEffect, Is.True);
             Assert.That(special.RageCost, Is.EqualTo(50));
@@ -106,9 +106,9 @@ namespace CK.SemesterProject.Battle.Tests
         {
             return new[]
             {
-                new[] { "SK00", "SK03", "SK06" },
-                new[] { "SK01", "SK04", "SK07" },
-                new[] { "SK02", "SK05", "SK08" }
+                new[] { "SK00", "SK03" },
+                new[] { "SK01", "SK04" },
+                new[] { "SK02", "SK05" }
             };
         }
 
@@ -137,42 +137,127 @@ namespace CK.SemesterProject.Battle.Tests
             Assert.That(before.Combatants.Single(unit => unit.InstanceId == "p").RageEnergy, Is.EqualTo(80));
         }
 
-        [TestCase(0, 100, "SK00")]
-        [TestCase(4, 100, "SK00")]
-        [TestCase(5, 120, "SK03")]
-        [TestCase(9, 120, "SK03")]
-        [TestCase(10, 150, "SK06")]
-        public void TableStagesSelectThreeCommandsByIdAfterVictoryBoundaries(int victories, int power, string firstId)
+        private static SkillData[] BasicRows()
         {
-            SkillData[] source = SkillTable.LoadCsv(File.ReadAllText(
-                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).Take(9).Reverse().ToArray();
-            SkillData[] selected = SkillTable.SelectStage(source, StageIds(), new SkillEnhancementRules().GetStage(victories));
-            Assert.That(selected.Length, Is.EqualTo(3));
-            Assert.That(selected[0].Id, Is.EqualTo(firstId));
-            Assert.That(selected.All(skill => skill.Power == power), Is.True);
-            CollectionAssert.AreEqual(new[] { BattleElement.Afterimage, BattleElement.Imprint, BattleElement.Oblivion },
-                selected.Select(skill => skill.Element));
-            CollectionAssert.AreEqual(new[] { 10, 10, 20 }, selected.Select(skill => skill.MemoryCost));
-            CollectionAssert.AreEqual(new[] { 20, 25, 15 }, selected.Select(skill => skill.RageGain));
-            Assert.That(selected.All(skill => source.Contains(skill)), Is.True);
+            return SkillTable.LoadCsv(File.ReadAllText(
+                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).Take(6).Reverse().ToArray();
         }
 
         [Test]
-        public void StageTableRejectsMissingDuplicateUnmappedAndMixedElementRows()
+        public void AwakeningSelectsEachSkillIndependentlyWithDocumentedStats()
         {
-            SkillData[] source = SkillTable.LoadCsv(File.ReadAllText(
-                "Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv")).Take(9).ToArray();
-            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source.Take(8).ToArray(), StageIds(), 1));
+            SkillData[] source = BasicRows();
+            SkillData[] before = SkillTable.SelectAwakening(source, StageIds(), Array.Empty<string>());
+            CollectionAssert.AreEqual(new[] { "SK00", "SK01", "SK02" }, before.Select(skill => skill.Id));
+            CollectionAssert.AreEqual(new[] { 100, 100, 100 }, before.Select(skill => skill.Power));
+            CollectionAssert.AreEqual(new[] { 0.1, 0.1, 0.1 }, before.Select(skill => skill.BonusCriticalChance));
+            CollectionAssert.AreEqual(new[] { 20, 25, 15 }, before.Select(skill => skill.RageGain));
+            CollectionAssert.AreEqual(new[] { 10, 10, 20 }, before.Select(skill => skill.MemoryCost));
+            Assert.That(before.Any(skill => skill.HasElementEffect), Is.False);
+
+            SkillData[] after = SkillTable.SelectAwakening(source, StageIds(), new[] { "SK00", "SK01", "SK02" });
+            CollectionAssert.AreEqual(new[] { "SK03", "SK04", "SK05" }, after.Select(skill => skill.Id));
+            CollectionAssert.AreEqual(new[] { 150, 150, 120 }, after.Select(skill => skill.Power));
+            CollectionAssert.AreEqual(new[] { 0.15, 0.15, 0.1 }, after.Select(skill => skill.BonusCriticalChance));
+            CollectionAssert.AreEqual(new[] { 15, 20, 15 }, after.Select(skill => skill.RageGain));
+            CollectionAssert.AreEqual(new[] { 10, 10, 10 }, after.Select(skill => skill.MemoryCost));
+            Assert.That(after.All(skill => skill.HasElementEffect && skill.IsAwakened), Is.True);
+
+            SkillData[] mixed = SkillTable.SelectAwakening(source, StageIds(), new[] { "SK01" });
+            CollectionAssert.AreEqual(new[] { "SK00", "SK04", "SK02" }, mixed.Select(skill => skill.Id));
+        }
+
+        [Test]
+        public void AwakeningTableRejectsMissingDuplicateUnmappedAndMixedElementRows()
+        {
+            SkillData[] source = BasicRows();
+            string[] none = Array.Empty<string>();
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectAwakening(source.Take(5).ToArray(), StageIds(), none));
             string[][] duplicate = StageIds();
-            duplicate[2][2] = "SK00";
-            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source, duplicate, 1));
+            duplicate[2][1] = "SK00";
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectAwakening(source, duplicate, none));
             string[][] missing = StageIds();
-            missing[2][2] = "SK99";
-            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source, missing, 1));
-            source[8] = new SkillData("SK08", "잘못된 속성", 150, BattleElement.Afterimage);
-            Assert.Throws<ArgumentException>(() => SkillTable.SelectStage(source, StageIds(), 1));
-            Assert.Throws<ArgumentOutOfRangeException>(() => SkillTable.SelectStage(source, StageIds(), 0));
-            Assert.Throws<ArgumentOutOfRangeException>(() => SkillTable.SelectStage(source, StageIds(), 4));
+            missing[2][1] = "SK99";
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectAwakening(source, missing, none));
+            Assert.Throws<ArgumentNullException>(() => SkillTable.SelectAwakening(source, StageIds(), null));
+            source[0] = new SkillData("SK05", "잘못된 속성", 120, BattleElement.Afterimage);
+            Assert.Throws<ArgumentException>(() => SkillTable.SelectAwakening(source, StageIds(), none));
+        }
+
+        // 플레이어 50 > 몬스터 40 메모리라 플레이어가 먼저 행동한다.
+        private static BattleSession StartPlayerFirst(SkillData skill, out BattleSnapshot snapshot)
+        {
+            var player = new CombatantData("player", "플레이어", BattleTeam.Player, 1000, 100, 50, new[] { skill });
+            var monster = new CombatantData("monster", "적", BattleTeam.Monster, 1000, 100, 40, Array.Empty<SkillData>());
+            var session = new BattleSession();
+            snapshot = session.Start(new[] { new BattleParticipant("p", player), new BattleParticipant("m", monster) });
+            Assert.That(snapshot.CurrentActorId, Is.EqualTo("p"));
+            return session;
+        }
+
+        private static CombatantState Unit(BattleSession session, string id)
+        {
+            return session.GetSnapshot().Combatants.Single(unit => unit.InstanceId == id);
+        }
+
+        [TestCase(true, 20, 36)]
+        [TestCase(false, 0, 0)]
+        public void PlayerOblivionAndImprintNeedAwakeningAndUseAwakenedValues(bool awakened, int steal, int imprint)
+        {
+            foreach (BattleElement element in new[] { BattleElement.Oblivion, BattleElement.Imprint })
+            {
+                var skill = new SkillData("hit", "공격", 120, element, criticalChance: 0);
+                BattleSession session = StartPlayerFirst(awakened ? skill.AsAwakened() : skill.WithoutElementEffect(), out BattleSnapshot snapshot);
+                Assert.That(session.TrySubmit(new BattleActionRequest(snapshot.TurnId, "p", BattleActionKind.Skill,
+                    "hit", "m"), out _, out _), Is.True);
+                CombatantState target = Unit(session, "m");
+                Assert.That(element == BattleElement.Oblivion ? 40 - target.Memory : target.ImprintDamage,
+                    Is.EqualTo(element == BattleElement.Oblivion ? steal : imprint));
+            }
+        }
+
+        [TestCase(true, 30)]
+        [TestCase(false, 0)]
+        public void PlayerAfterimageNeedsAwakeningAndRecoversThirtyOnNextDefense(bool awakened, int recovery)
+        {
+            var skill = new SkillData("hit", "공격", 120, BattleElement.Afterimage, criticalChance: 0);
+            BattleSession session = StartPlayerFirst(awakened ? skill.AsAwakened() : skill.WithoutElementEffect(), out BattleSnapshot snapshot);
+            Assert.That(session.TrySubmit(new BattleActionRequest(snapshot.TurnId, "p", BattleActionKind.Skill,
+                "hit", "m"), out BattleActionResult attack, out _), Is.True);
+            Assert.That(Unit(session, "p").HasAfterimageRecovery, Is.EqualTo(awakened));
+            Assert.That(session.CompletePresentation(attack.ActionId), Is.True);
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "m", BattleActionKind.Wait),
+                out BattleActionResult wait, out _), Is.True);
+            Assert.That(session.CompletePresentation(wait.ActionId), Is.True);
+            int before = Unit(session, "p").Memory;
+            Assert.That(session.TrySubmit(new BattleActionRequest(session.GetSnapshot().TurnId, "p", BattleActionKind.Defend),
+                out _, out _), Is.True);
+            Assert.That(Unit(session, "p").Memory - before, Is.EqualTo(recovery));
+        }
+
+        [Test]
+        public void UnawakenedPlayerSkillKeepsPowerButHasNoElementEffect()
+        {
+            var skill = new SkillData("hit", "공격", 100, BattleElement.Imprint, criticalChance: 0);
+            BattleSession session = StartPlayerFirst(skill.WithoutElementEffect(), out BattleSnapshot snapshot);
+            Assert.That(session.TrySubmit(new BattleActionRequest(snapshot.TurnId, "p", BattleActionKind.Skill,
+                "hit", "m"), out BattleActionResult result, out _), Is.True);
+            Assert.That(result.Hit.Damage, Is.EqualTo(100));
+            Assert.That(Unit(session, "m").ImprintDamage, Is.Zero);
+        }
+
+        [Test]
+        public void MonsterElementEffectsKeepBaseValuesWithoutAwakening()
+        {
+            var skill = new SkillData("bite", "공격", 100, BattleElement.Oblivion, criticalChance: 0);
+            var monster = new CombatantData("monster", "적", BattleTeam.Monster, 1000, 100, 50, new[] { skill });
+            var player = new CombatantData("player", "플레이어", BattleTeam.Player, 1000, 100, 40, Array.Empty<SkillData>());
+            var session = new BattleSession();
+            BattleSnapshot snapshot = session.Start(new[] { new BattleParticipant("p", player), new BattleParticipant("m", monster) });
+            Assert.That(snapshot.CurrentActorId, Is.EqualTo("m"));
+            Assert.That(session.TrySubmit(new BattleActionRequest(snapshot.TurnId, "m", BattleActionKind.Skill,
+                "bite", "p"), out _, out _), Is.True);
+            Assert.That(Unit(session, "p").Memory, Is.EqualTo(30));
         }
 
         private static CombatantData Player(string id = "player", SkillData skill = null)
@@ -181,42 +266,29 @@ namespace CK.SemesterProject.Battle.Tests
                 new[] { skill ?? new SkillData("hit", "공격", 100) });
         }
 
-        [TestCase(0, 1, 5)]
-        [TestCase(4, 1, 1)]
-        [TestCase(5, 2, 5)]
-        [TestCase(9, 2, 1)]
-        [TestCase(10, 3, 0)]
-        [TestCase(11, 3, 0)]
-        [TestCase(int.MaxValue, 3, 0)]
-        public void VictoryBoundariesAdvanceAtFiveAndTenAndStopAtThree(int victories, int stage, int remaining)
-        {
-            var rules = new SkillEnhancementRules();
-            Assert.That(rules.VictoriesPerStage, Is.EqualTo(5));
-            Assert.That(rules.GetStage(victories), Is.EqualTo(stage));
-            Assert.That(rules.GetRemainingVictories(victories), Is.EqualTo(remaining));
-        }
-
         [Test]
-        public void CustomPeriodAndLargeValuesDoNotOverflow()
+        public void AwakeningSpendsBattlePointsOncePerSkillAndResetsForNewCharacter()
         {
-            var everyVictory = new SkillEnhancementRules(1);
-            Assert.That(everyVictory.GetStage(int.MaxValue), Is.EqualTo(3));
-            Assert.That(everyVictory.GetRemainingVictories(int.MaxValue), Is.Zero);
-            var longPeriod = new SkillEnhancementRules(int.MaxValue);
-            Assert.That(longPeriod.GetStage(int.MaxValue - 1), Is.EqualTo(1));
-            Assert.That(longPeriod.GetRemainingVictories(int.MaxValue - 1), Is.EqualTo(1));
-            Assert.That(longPeriod.GetStage(int.MaxValue), Is.EqualTo(2));
-            Assert.That(longPeriod.GetRemainingVictories(int.MaxValue), Is.EqualTo(int.MaxValue));
-        }
-
-        [Test]
-        public void InvalidPeriodAndVictoryCountAreRejected()
-        {
-            Assert.Throws<ArgumentOutOfRangeException>(() => new SkillEnhancementRules(0));
-            Assert.Throws<ArgumentOutOfRangeException>(() => new SkillEnhancementRules(-1));
-            var rules = new SkillEnhancementRules();
-            Assert.Throws<ArgumentOutOfRangeException>(() => rules.GetStage(-1));
-            Assert.Throws<ArgumentOutOfRangeException>(() => rules.GetRemainingVictories(-1));
+            var state = new PlayerRuntimeState();
+            state.Initialize(Player());
+            for (int victory = 0; victory < 5; victory++)
+            {
+                state.RecordBattleOutcome(BattleOutcome.Victory);
+            }
+            Assert.That(state.BattlePoints, Is.EqualTo(5));
+            Assert.That(state.TryAwaken("SK00", 3), Is.True);
+            Assert.That(state.BattlePoints, Is.EqualTo(2));
+            Assert.That(state.TryAwaken("SK00", 0), Is.False);
+            Assert.That(state.TryAwaken("SK01", 3), Is.False);
+            Assert.That(state.BattlePoints, Is.EqualTo(2));
+            CollectionAssert.AreEquivalent(new[] { "SK00" }, state.AwakenedSkillIds);
+            state.Initialize(Player());
+            Assert.That(state.BattlePoints, Is.EqualTo(2));
+            state.Initialize(Player("other_player"));
+            Assert.That(state.BattlePoints, Is.Zero);
+            Assert.That(state.AwakenedSkillIds, Is.Empty);
+            Assert.Throws<ArgumentException>(() => state.TryAwaken("", 3));
+            Assert.Throws<ArgumentException>(() => state.TryAwaken("SK00", -1));
         }
 
         [Test]
@@ -302,7 +374,7 @@ namespace CK.SemesterProject.Battle.Tests
                 Assert.That(state.RecordBattleOutcome(BattleOutcome.Victory), Is.True);
             }
             Assert.That(observedVictories, Is.EqualTo(5));
-            Assert.That(new SkillEnhancementRules().GetStage(state.VictoryCount), Is.EqualTo(2));
+            Assert.That(state.BattlePoints, Is.EqualTo(5));
             state.SetVitals(430, 20);
             state.Initialize(Player());
             Assert.That(state.Hp, Is.EqualTo(430));
@@ -337,7 +409,6 @@ namespace CK.SemesterProject.Battle.Tests
                 .GetSetMethod(true).Invoke(state, new object[] { int.MaxValue });
             Assert.That(state.RecordBattleOutcome(BattleOutcome.Victory), Is.True);
             Assert.That(state.VictoryCount, Is.EqualTo(int.MaxValue));
-            Assert.That(new SkillEnhancementRules().GetStage(state.VictoryCount), Is.EqualTo(3));
         }
     }
 }

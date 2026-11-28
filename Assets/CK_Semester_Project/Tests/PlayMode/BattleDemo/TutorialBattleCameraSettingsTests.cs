@@ -99,25 +99,27 @@ namespace CK.SemesterProject.Battle.Tests
             Set("_debugCameraTarget", _target.transform);
             Set("_battleCameraOffsetXY", new Vector2(1.5f, 2.25f));
             Set("_battleCameraDistance", 3.5f);
+            Set("_battleCameraAngles", new Vector3(10f, -20f, 0f));
             Set("_battleFieldOfView", 51f);
             Set("_debugBattleCamera", true);
             TickCamera();
-            // 16m 대치의 거리 보정은 2배다. 양수 Distance는 대상 반대편으로 이동한다.
-            AssertPosition(_camera.transform.position, player + new Vector3(3f, 4.5f, -7f));
+            // 오프셋은 거리 보정 없는 월드 단위(m)다. 양수 Distance는 대상 반대편으로 이동한다.
+            AssertPosition(_camera.transform.position, player + new Vector3(1.5f, 2.25f, -3.5f));
+            AssertRotation(Quaternion.Euler(10f, -20f, 0f));
             Assert.That(_camera.fieldOfView, Is.EqualTo(51f).Within(.001f));
 
             Set("_battleCameraOffsetXY", new Vector2(-1f, 3f));
             Set("_battleCameraDistance", 5f);
             Set("_battleFieldOfView", 61f);
             TickCamera();
-            AssertPosition(_camera.transform.position, player + new Vector3(-2f, 6f, -10f));
+            AssertPosition(_camera.transform.position, player + new Vector3(-1f, 3f, -5f));
             Assert.That(_camera.fieldOfView, Is.EqualTo(61f).Within(.001f));
 
+            // 대상이 +X에 있으면 전투 방향 회전이 오프셋과 고정 각도에 함께 적용된다.
             _target.transform.position = player + Vector3.right * 16f;
             TickCamera();
-            AssertPosition(_camera.transform.position, player + new Vector3(-10f, 6f, 2f));
-            Vector3 focus = player + Vector3.right * 8.8f + Vector3.up * .9f;
-            Assert.That(Vector3.Angle(_camera.transform.forward, focus - _camera.transform.position), Is.LessThan(.01f));
+            AssertPosition(_camera.transform.position, player + new Vector3(-5f, 3f, 1f));
+            AssertRotation(Quaternion.LookRotation(Vector3.right) * Quaternion.Euler(10f, -20f, 0f));
             Pose unchanged = new Pose(_camera.transform.position, _camera.transform.rotation);
             TickCamera();
             AssertPosition(_camera.transform.position, unchanged.position);
@@ -288,6 +290,11 @@ namespace CK.SemesterProject.Battle.Tests
             {
                 Assert.That(_movement.enabled, Is.EqualTo(state.MovementEnabled));
             }
+        }
+
+        private void AssertRotation(Quaternion expected)
+        {
+            Assert.That(Quaternion.Angle(_camera.transform.rotation, expected), Is.LessThan(.01f));
         }
 
         private static void AssertPosition(Vector3 actual, Vector3 expected)

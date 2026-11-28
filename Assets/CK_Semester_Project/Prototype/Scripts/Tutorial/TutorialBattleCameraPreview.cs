@@ -1,4 +1,4 @@
-using Unity.Cinemachine;
+﻿using Unity.Cinemachine;
 using UnityEngine;
 
 namespace CK.SemesterProject.Tutorial
@@ -44,7 +44,7 @@ namespace CK.SemesterProject.Tutorial
             Cursor.visible = true;
         }
 
-        public void Show(Transform target, float spacing, Vector3 offset, float fieldOfView)
+        public void Show(Transform target, float spacing, Vector3 offset, Vector3 angles, float fieldOfView)
         {
             Vector3 player = _movement.transform.position;
             Vector3 enemy = target != null ? target.position : player + _forward * spacing;
@@ -53,7 +53,7 @@ namespace CK.SemesterProject.Tutorial
                 enemy = player + _forward * Mathf.Max(2f, spacing);
             }
             // 조정 중에는 흔들림/장애물 보정 없이 지정한 기본 구도를 그대로 표시한다.
-            Pose pose = TutorialBattleCamera.GetBasePose(player, enemy, offset);
+            Pose pose = TutorialBattleCamera.GetBasePose(player, enemy, offset, angles);
             _camera.orthographic = false;
             _camera.fieldOfView = fieldOfView;
             _camera.transform.SetPositionAndRotation(pose.position, pose.rotation);

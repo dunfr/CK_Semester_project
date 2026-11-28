@@ -26,7 +26,7 @@ namespace CK.SemesterProject.Tutorial
         private Button[] _entryButtons;
         [SerializeField, Tooltip("HP·메모리·적을 초기화하는 버튼. 누적 승리는 유지합니다")]
         private Button _reset;
-        [SerializeField, Tooltip("기본 스킬 테스트 단계: 1→2→3→1. 실제 승리 횟수는 변경하지 않습니다")]
+        [SerializeField, Tooltip("기본 스킬 3종 테스트 전체 각성 전환. 실제 BP·각성 기록은 변경하지 않습니다")]
         private Button _enhanceSkill;
         [SerializeField, Tooltip("필드에서 표시하는 테스트 선택 패널")]
         private GameObject _selection;
@@ -48,7 +48,7 @@ namespace CK.SemesterProject.Tutorial
         private UnityAction[] _entryActions;
         private BattleEntryCondition _entry;
         private TMP_Text _enhanceSkillLabel;
-        private int _displayedSkillStage;
+        private bool? _displayedTestAwakening;
         private MonsterBattleDefinition[] _definitions;
         private TutorialMonster[] _monsterViews;
         private readonly int[] _levels = { 1, 1, 1 };
@@ -299,7 +299,7 @@ namespace CK.SemesterProject.Tutorial
             bool inBattle = _controller.IsInBattle;
             _selection.SetActive(!inBattle);
             _enhanceSkill.interactable = !inBattle && _controller.enabled;
-            if (_displayedSkillStage != _controller.TestSkillStage)
+            if (_displayedTestAwakening != _controller.IsTestAwakeningAll)
             {
                 RefreshEnhanceButton();
             }
@@ -319,17 +319,16 @@ namespace CK.SemesterProject.Tutorial
 
         private void EnhanceTestSkill()
         {
-            _controller.CycleTestSkillStage();
+            _controller.ToggleTestAwakening();
             RefreshEnhanceButton();
         }
 
         private void RefreshEnhanceButton()
         {
-            _displayedSkillStage = _controller.TestSkillStage;
+            _displayedTestAwakening = _controller.IsTestAwakeningAll;
             if (_enhanceSkillLabel != null)
             {
-                _enhanceSkillLabel.text = _displayedSkillStage == 3 ? "강화 초기화 (3 → 1단계)"
-                    : "스킬 강화 (" + _displayedSkillStage + " → " + (_displayedSkillStage + 1) + "단계)";
+                _enhanceSkillLabel.text = _controller.IsTestAwakeningAll ? "테스트 각성 해제" : "테스트 전체 각성";
             }
         }
 

@@ -1029,8 +1029,7 @@ namespace CK.SemesterProject.Tutorial
             if (_enemyDetails != null)
             {
                 _enemyDetails.text = element + " · HP " + _battle.GetDisplayedHp(target) + "/" + target.Data.MaxHp + "\n메모리 " + target.Memory
-                    + "  연쇄 " + target.ChainStep + "/4\n약점 순서: "
-                    + string.Join(" → ", target.Data.WeaknessChain.Select(TutorialMonster.GetElementName));
+                    + "\n약점: " + TutorialMonster.GetElementName(BattleMath.WeaknessOf(target.Data.Element));
             }
             _round.text = "ROUND " + state.Round.ToString("00") + "   TURN " + state.TurnId.ToString("00");
             SkillData selected = _battle.Skills[_selectedSkill];
@@ -1293,8 +1292,8 @@ namespace CK.SemesterProject.Tutorial
             {
                 _skillIcons[index].sprite = icon;
             }
-            int stage = _battle.SkillStage;
-            int starsOn = Mathf.Clamp(stage, 0, 3);
+            // 별 1개는 각성 전, 별 3개는 각성 후. 특수·궁극기는 각성이 없어 1개.
+            int starsOn = _battle.IsAwakened(skill) ? 3 : 1;
             bool selected = index == _selectedSkill;
             for (int star = 0; star < _skillStars[index].Length; star++)
             {
@@ -1310,7 +1309,7 @@ namespace CK.SemesterProject.Tutorial
             }
             if (_skillLevels[index] != null)
             {
-                _skillLevels[index].text = "Lv." + stage;
+                _skillLevels[index].text = _battle.IsAwakened(skill) ? "Lv.2" : "Lv.1";
             }
         }
 

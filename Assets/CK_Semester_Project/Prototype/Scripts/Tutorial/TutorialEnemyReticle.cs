@@ -16,6 +16,36 @@ namespace CK.SemesterProject.Tutorial
 
         public event Action Clicked;
 
+        // 몬스터 모델은 루트와 몸통 위치가 어긋날 수 있어 실제 몸통 메시 경계 중심을 몬스터 기준 오프셋(XZ)으로 잰다.
+        // 정점이 가장 많은 스킨 메시를 몸통으로 본다. 무기·머리카락 메시가 중심을 치우치지 않게 한다.
+        // 타겟을 고를 때 한 번만 재고 이후에는 고정해서, 애니메이션에 조준점이 흔들리지 않게 한다.
+        public static Vector3 MeasureBodyOffset(Transform target)
+        {
+            SkinnedMeshRenderer body = null;
+            int bestVertexCount = 0;
+            foreach (SkinnedMeshRenderer skin in target.GetComponentsInChildren<SkinnedMeshRenderer>())
+            {
+                if (skin.enabled && skin.sharedMesh != null && skin.sharedMesh.vertexCount > bestVertexCount)
+                {
+                    body = skin;
+                    bestVertexCount = skin.sharedMesh.vertexCount;
+                }
+            }
+            if (body == null)
+            {
+                return Vector3.zero;
+            }
+            Vector3 local = target.InverseTransformPoint(body.bounds.center);
+            return new Vector3(local.x, 0f, local.z);
+        }
+
+        // 높이는 몬스터 기준점(발밑)에서 잰다.
+        public static Vector3 GetAimPoint(Transform target, Vector3 bodyOffset, float height)
+        {
+            Vector3 center = target.TransformPoint(bodyOffset);
+            return new Vector3(center.x, target.position.y + height, center.z);
+        }
+
         public void SetFrame(float diameter, Color tint, float glow, float elapsed)
         {
             rectTransform.sizeDelta = Vector2.one * diameter;

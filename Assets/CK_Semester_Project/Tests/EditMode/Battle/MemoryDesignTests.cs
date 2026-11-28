@@ -159,17 +159,14 @@ namespace CK.SemesterProject.Battle.Tests
         public void SuppliedSkillCsvLoadsExactIdsCostsRageAndPercentPoints()
         {
             string csv = File.ReadAllText("Assets/CK_Semester_Project/Prototype/Data/Battle/Skill_DT.csv");
-            IReadOnlyList<SkillData> skills = SkillTable.LoadCsv(csv).Take(9).ToArray();
-            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => "SK" + index.ToString("00")),
+            // 각성 전 SK00~02, 각성 후 SK03~05 (잔상·각인·망각 순). 11-24 전투 시스템 개편안 수치.
+            IReadOnlyList<SkillData> skills = SkillTable.LoadCsv(csv).Take(6).ToArray();
+            CollectionAssert.AreEqual(Enumerable.Range(0, 6).Select(index => "SK" + index.ToString("00")),
                 skills.Select(skill => skill.Id));
-            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 10, 10, 20 }[index % 3]),
-                skills.Select(skill => skill.MemoryCost));
-            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 20, 25, 15 }[index % 3]),
-                skills.Select(skill => skill.RageGain));
-            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 0.1, 0.1, 0.1 }[index % 3]),
-                skills.Select(skill => skill.BonusCriticalChance));
-            CollectionAssert.AreEqual(Enumerable.Range(0, 9).Select(index => new[] { 100, 120, 150 }[index / 3]),
-                skills.Select(skill => skill.Power));
+            CollectionAssert.AreEqual(new[] { 10, 10, 20, 10, 10, 10 }, skills.Select(skill => skill.MemoryCost));
+            CollectionAssert.AreEqual(new[] { 20, 25, 15, 15, 20, 15 }, skills.Select(skill => skill.RageGain));
+            CollectionAssert.AreEqual(new[] { 0.1, 0.1, 0.1, 0.15, 0.15, 0.1 }, skills.Select(skill => skill.BonusCriticalChance));
+            CollectionAssert.AreEqual(new[] { 100, 100, 100, 150, 150, 120 }, skills.Select(skill => skill.Power));
             Assert.That(skills.All(skill => skill.CriticalChance == null), Is.True);
             Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv + csv.Split('\n')[1]));
             Assert.Throws<FormatException>(() => SkillTable.LoadCsv(csv.Replace(",10,20,10", ",150,20,10")));

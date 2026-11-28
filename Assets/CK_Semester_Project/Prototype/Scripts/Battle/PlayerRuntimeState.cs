@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace CK.SemesterProject.Battle
 {
@@ -13,6 +14,10 @@ namespace CK.SemesterProject.Battle
         public int MaxMemory { get; private set; }
         public int InitialMemory { get; private set; }
         public int VictoryCount { get; private set; }
+        // 승리 1회당 1 BP. 스킬 각성에 소모한다.
+        public int BattlePoints { get; private set; }
+        private readonly HashSet<string> _awakenedSkillIds = new HashSet<string>(StringComparer.Ordinal);
+        public IReadOnlyCollection<string> AwakenedSkillIds => _awakenedSkillIds;
 
         public void Initialize(CombatantData data)
         {
@@ -28,6 +33,8 @@ namespace CK.SemesterProject.Battle
             if (isNewCharacter)
             {
                 VictoryCount = 0;
+                BattlePoints = 0;
+                _awakenedSkillIds.Clear();
             }
             SetVitals(isNewCharacter ? MaxHp : Hp, isNewCharacter ? InitialMemory : Memory);
         }
@@ -47,6 +54,27 @@ namespace CK.SemesterProject.Battle
                 return false;
             }
             VictoryCount = (int)Math.Min(int.MaxValue, (long)VictoryCount + 1);
+            BattlePoints = (int)Math.Min(int.MaxValue, (long)BattlePoints + 1);
+            Changed?.Invoke();
+            return true;
+        }
+
+        public bool TryAwaken(string skillId, int cost)
+        {
+            if (string.IsNullOrWhiteSpace(skillId) || cost < 0)
+            {
+                throw new ArgumentException("각성할 스킬 ID와 0 이상의 비용이 필요합니다.");
+            }
+            if (CharacterId == null)
+            {
+                throw new InvalidOperationException("플레이어 상태를 먼저 초기화해야 합니다.");
+            }
+            if (BattlePoints < cost || _awakenedSkillIds.Contains(skillId))
+            {
+                return false;
+            }
+            BattlePoints -= cost;
+            _awakenedSkillIds.Add(skillId);
             Changed?.Invoke();
             return true;
         }

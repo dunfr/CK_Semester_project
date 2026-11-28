@@ -11,6 +11,14 @@ namespace CK.SemesterProject.Battle
                 || (attack == BattleElement.Oblivion && target == BattleElement.Afterimage);
         }
 
+        // 대상 속성에 약점 배율을 주는 공격 속성. 무속성 대상은 None.
+        public static BattleElement WeaknessOf(BattleElement target)
+        {
+            return target == BattleElement.Imprint ? BattleElement.Afterimage
+                : target == BattleElement.Oblivion ? BattleElement.Imprint
+                : target == BattleElement.Afterimage ? BattleElement.Oblivion : BattleElement.None;
+        }
+
         public static double ElementMultiplier(BattleElement attack, BattleElement target, BattleCombatRules rules)
         {
             if (attack == BattleElement.None || target == BattleElement.None || attack == target)

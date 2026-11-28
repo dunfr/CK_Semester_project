@@ -105,8 +105,6 @@ namespace CK.SemesterProject.Tutorial
         private int _bossSkillTwoCost = 20;
         [SerializeField, Tooltip("문서의 보스 스킬 선택표. 빈 배열이면 기본 28행. 미기재 조합은 가장 가까운 행, 동률은 앞 행")]
         private BossSkillRule[] _bossSkillRules;
-        [SerializeField, Tooltip("4개 원소로 구성한 약점 연쇄")]
-        private BattleElement[] _weaknessChain;
         [SerializeField, Tooltip("0단계부터 기본 메모리 대비 비용 백분율")]
         private int[] _costPercent;
         [SerializeField, Tooltip("0단계부터 공격 배율")]
@@ -159,10 +157,6 @@ namespace CK.SemesterProject.Tutorial
             _withImprint = new Tactics(profile.WithImprint);
             _withAfterimage = new Tactics(profile.WithAfterimage);
             _withOblivion = new Tactics(profile.WithOblivion);
-            BattleElement first = element == BattleElement.Imprint ? BattleElement.Afterimage
-                : element == BattleElement.Afterimage ? BattleElement.Oblivion : BattleElement.Imprint;
-            _weaknessChain = new[] { first, element, element == BattleElement.Imprint ? BattleElement.Oblivion
-                : element == BattleElement.Afterimage ? BattleElement.Imprint : BattleElement.Afterimage, first };
         }
 
         public CombatantData CreateData()
@@ -183,11 +177,11 @@ namespace CK.SemesterProject.Tutorial
                 var boss = new BossBehaviorProfile(first.Id, second.Id,
                     _bossSkillRules != null && _bossSkillRules.Length > 0 ? _bossSkillRules.Select(rule => rule.Create()) : null);
                 return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
-                    new[] { first, second }, _element, evasion: _evasion, weaknessChain: _weaknessChain,
+                    new[] { first, second }, _element, evasion: _evasion,
                     monsterProfile: profile, bossProfile: boss);
             }
             return new CombatantData(_id, _displayName, BattleTeam.Monster, _maxHp, _memory, _memory,
-                new[] { attack }, _element, evasion: _evasion, weaknessChain: _weaknessChain, monsterProfile: profile);
+                new[] { attack }, _element, evasion: _evasion, monsterProfile: profile);
         }
     }
 }

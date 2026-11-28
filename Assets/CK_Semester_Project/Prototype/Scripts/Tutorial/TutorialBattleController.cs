@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using CK.SemesterProject.Battle;
@@ -34,6 +34,8 @@ namespace CK.SemesterProject.Tutorial
         private Vector2 _battleCameraOffsetXY = new Vector2(2.5f, 1.25f);
         [SerializeField, Min(0.1f), Tooltip("플레이어 뒤쪽으로 떨어지는 기본 거리(m). 양수일수록 멀어집니다.")]
         private float _battleCameraDistance = 1.75f;
+        [SerializeField, Tooltip("전투 방향 기준 카메라 회전(도). X: 내려다보는 각, Y: 좌우(음수 = 적 쪽으로 왼쪽), Z: 롤")]
+        private Vector3 _battleCameraAngles = TutorialBattleCamera.DefaultAngles;
         [SerializeField, Tooltip("Play 모드 디버그: true = 전투 구도, false = 탐색 구도. 비전투에서는 카메라만 미리 봅니다. 실제 전투 진입/종료 시 자동 전환됩니다.")]
         private bool _debugBattleCamera;
         [SerializeField, Tooltip("비전투 카메라 미리보기의 대상(선택). 비어 있으면 플레이어 전방 Battle Spacing 지점을 바라봅니다.")]
@@ -51,10 +53,6 @@ namespace CK.SemesterProject.Tutorial
         private float _lockOnWeight = 0.65f;
         [SerializeField, Min(0.1f), Tooltip("타깃을 바꿨을 때 록온 시선이 따라가는 속도(1/초)")]
         private float _lockOnFollowSpeed = 5f;
-        [SerializeField, Range(0f, 90f), Tooltip("우클릭 드래그로 돌릴 수 있는 최대 좌우 각도(도). 적 뒤쪽이 보이지 않게 제한한다.")]
-        private float _maxBattleYaw = 30f;
-        [SerializeField, Min(0f), Tooltip("드래그를 놓으면 기본 구도로 돌아오는 속도(1/초). 0이면 돌아오지 않는다.")]
-        private float _battleCameraRecenterSpeed = 1.5f;
         [Header("Hit Feel")]
         [SerializeField, Range(1f, 2f), Tooltip("플레이어 공격 연출 속도 배율. 클수록 빠르다(궁극기 모션·스킬 시퀀스는 제외).")]
         private float _attackTempo = 1.25f;
@@ -104,8 +102,10 @@ namespace CK.SemesterProject.Tutorial
         private string _characterId = "CH00";
         [SerializeField, Tooltip("기존 Skill_DT CSV")]
         private TextAsset _skillTable;
-        [SerializeField, Tooltip("기본 스킬의 승리 횟수별 강화 공격력과 단계별 연출")]
+        [SerializeField, Tooltip("기본 스킬의 각성 전·후 데이터와 연출, 각성 BP 비용")]
         private BasicSkillEnhancementAsset _basicSkillEnhancement;
+        [SerializeField, Tooltip("필드: 스킬 각성 창을 열고 닫습니다. 창이 열린 동안 1·2·3으로 기본 스킬을 각성합니다")]
+        private Key _awakeningKey = Key.K;
         [SerializeField, Tooltip("원본 필드 UI. 전투 중 표시만 잠시 숨깁니다.")]
         private GameObject _fieldUI;
         [SerializeField, Tooltip("필드 UI와 별개인 전투 조작 패널")]
@@ -187,9 +187,6 @@ namespace CK.SemesterProject.Tutorial
         [SerializeField, Tooltip("필드: 다음 중간 체크포인트로 순간이동합니다. Shift와 함께 누르면 이전 체크포인트로 갑니다")]
         private Key _checkpointCheatKey = Key.F7;
 
-        [SerializeField, Min(0.01f), Tooltip("전투 중 우클릭 드래그 회전 감도(도/픽셀)")]
-        private float _battleMouseSensitivity = 0.15f;
-
         [SerializeField, Min(0f), Tooltip("걷기 발소리 반경(m)")]
         private float _walkNoiseRadius = 3f;
         [SerializeField, Min(0f), Tooltip("달리기 발소리 반경(m)")]
@@ -198,9 +195,6 @@ namespace CK.SemesterProject.Tutorial
         private const float HitImpulseDecay = 14f;
         private const float HitShakeFrequency = 55f;
 
-        private float _battleYaw;
-        private float _battlePitch;
-        private bool _isCameraDragging;
         private Vector3 _lockOnPoint;
         private bool _hasLockOnPoint;
         private float _hitStopRemaining;
@@ -217,10 +211,10 @@ namespace CK.SemesterProject.Tutorial
         private SkillData[] _baseSkills;
         private SkillData[] _skills;
         private TMP_Text[] _skillLabels;
-        private SkillEnhancementRules _enhancementRules;
-        private int _battleSkillStage;
         private BattleActionResolver _damagePredictor;
-        private int _testSkillStage;
+        private bool _isTestAwakeningAll;
+        private bool _isAwakeningPanelOpen;
+        private GUIStyle _awakeningStyle;
         private bool _hasRecordedBattleResult;
         private EnemyStateMachine _encounter;
         private TutorialBattleFormation _formation;
@@ -320,7 +314,7 @@ namespace CK.SemesterProject.Tutorial
                     && !pending.IsTurnStartEffect && _basicSkillEnhancement != null;
                 _timedPresentation = pending;
                 _presentationSeconds = isPlayerSkill ? _basicSkillEnhancement.GetPresentationSeconds(pending.Request.SkillId,
-                    TestSkillStage, _actionSeconds) : _actionSeconds;
+                    _basicSkillEnhancement.GetStage(pending.Request.SkillId), _actionSeconds) : _actionSeconds;
                 // 스킬 시퀀스는 자체 타임라인 길이를 따르므로 빠르게 돌리지 않는다.
                 if (isPlayerSkill && pending.ActionId != _sequenceActionId)
                 {
@@ -362,18 +356,21 @@ namespace CK.SemesterProject.Tutorial
         }
 
         private bool IsSkillCutscenePlaying => _skillCutscene != null && _skillCutscene.IsPlaying;
-        public int SkillStage => _battleSkillStage > 0 ? _battleSkillStage : TestSkillStage;
-        public int TestSkillStage => _testSkillStage > 0 ? _testSkillStage
-            : _enhancementRules?.GetStage(_playerState?.VictoryCount ?? 0) ?? 1;
+        public bool IsTestAwakeningAll => _isTestAwakeningAll;
 
-        public void CycleTestSkillStage()
+        public bool IsAwakened(SkillData skill)
+        {
+            return skill != null && skill.IsAwakened;
+        }
+
+        public void ToggleTestAwakening()
         {
             if (IsInBattle || _playerData == null || !enabled)
             {
                 return;
             }
-            // 테스트 편의를 위한 단계 선택이다. 실제 승리 횟수는 변경하지 않는다.
-            _testSkillStage = TestSkillStage % 3 + 1;
+            // 테스트 편의를 위한 전체 각성 전환이다. 실제 BP·각성 기록은 변경하지 않는다.
+            _isTestAwakeningAll = !_isTestAwakeningAll;
             RefreshPlayerData();
         }
         private IReadOnlyList<BattleHistoryEntry> _lastHistory = Array.Empty<BattleHistoryEntry>();
@@ -500,6 +497,7 @@ namespace CK.SemesterProject.Tutorial
             }
             if (!IsInBattle)
             {
+                UpdateAwakeningInput();
                 UpdateCameraPreview();
                 if (_cameraPreview != null)
                 {
@@ -649,9 +647,6 @@ namespace CK.SemesterProject.Tutorial
             {
                 return;
             }
-            float previousYaw = _battleYaw;
-            float previousPitch = _battlePitch;
-            ReadBattleCameraInput();
             UpdateLockOnPoint();
             BattleActionResult result = _session.PendingResult;
             // 플레이어 피격 중에는 공격에 따른 카메라 이동·줌을 적용하지 않는다.
@@ -669,11 +664,9 @@ namespace CK.SemesterProject.Tutorial
             float fieldOfView;
             Pose target;
             // 선택한 적 쪽으로 옮긴 시선이 막히거나 다른 적이 화면 밖으로 나가면 적 무리 중심 구도로 돌아간다.
-            if (!TryGetBattleOrbitPose(_lockOnPoint, offset, actionFieldOfView, out target, out fieldOfView)
-                && !TryGetBattleOrbitPose(_enemyCenter, offset, actionFieldOfView, out target, out fieldOfView))
+            if (!TryGetBattleFramePose(_lockOnPoint, offset, actionFieldOfView, out target, out fieldOfView)
+                && !TryGetBattleFramePose(_enemyCenter, offset, actionFieldOfView, out target, out fieldOfView))
             {
-                _battleYaw = previousYaw;
-                _battlePitch = previousPitch;
                 return;
             }
             float desiredAttackWeight = isAttack ? EvaluateAttackCameraWeight(result, progress) : 0f;
@@ -767,19 +760,17 @@ namespace CK.SemesterProject.Tutorial
             return 1f - Mathf.SmoothStep(0f, 1f, back);
         }
 
-        private bool TryGetBattleOrbitPose(Vector3 enemyFocus, Vector3 offset, float actionFieldOfView,
+        // 고정 구도: 플레이어가 록온 초점을 바라보는 방향 기준으로 오프셋/각도를 적용한다. 수동 회전은 없다.
+        private bool TryGetBattleFramePose(Vector3 enemyFocus, Vector3 offset, float actionFieldOfView,
             out Pose pose, out float fieldOfView)
         {
             fieldOfView = actionFieldOfView;
-            if (!TryGetGroupPose(_playerHome, enemyFocus, _formation.EnemySlots, offset, fieldOfView, out Pose basePose))
+            if (!TryGetGroupPose(_playerHome, enemyFocus, _formation.EnemySlots, offset, fieldOfView, out pose))
             {
-                basePose = _battleCameraPose;
+                pose = _battleCameraPose;
                 fieldOfView = _battleFieldOfView;
             }
-            return TutorialBattleCamera.TryGetOrbitPose(basePose, _playerHome, enemyFocus,
-                    _movement.transform, _encounter.transform,
-                    _battleYaw, _battlePitch, fieldOfView, _camera.aspect, out pose)
-                && IsGroupFramed(pose, _formation.EnemySlots, fieldOfView)
+            return IsGroupFramed(pose, _formation.EnemySlots, fieldOfView)
                 && TutorialBattleCamera.CanTravel(_camera.transform.position, pose.position,
                     _movement.transform, _encounter.transform);
         }
@@ -899,7 +890,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 _cameraPreview = new TutorialBattleCameraPreview(_camera, _brain, _orbit, _movement);
             }
-            _cameraPreview.Show(_debugCameraTarget, _battleSpacing, ConfiguredCameraOffset, _battleFieldOfView);
+            _cameraPreview.Show(_debugCameraTarget, _battleSpacing, ConfiguredCameraOffset, _battleCameraAngles, _battleFieldOfView);
         }
 
         private void EndCameraPreview()
@@ -915,7 +906,6 @@ namespace CK.SemesterProject.Tutorial
                 return;
             }
             _isBattleCameraActive = active;
-            _isCameraDragging = false;
             _isCinematicCameraActive = false;
             if (active)
             {
@@ -943,10 +933,9 @@ namespace CK.SemesterProject.Tutorial
             {
                 throw new InvalidOperationException("Character_DT: 캐릭터 ID " + _characterId + "를 찾을 수 없습니다.");
             }
-            int victories = _playerState.CharacterId == character.Id ? _playerState.VictoryCount : 0;
-            _enhancementRules = _basicSkillEnhancement.CreateRules();
-            _battleSkillStage = _testSkillStage > 0 ? _testSkillStage : _enhancementRules.GetStage(victories);
-            _skills = _basicSkillEnhancement.CreateSkillsForStage(_baseSkills, _battleSkillStage);
+            IReadOnlyCollection<string> awakened = _isTestAwakeningAll ? _basicSkillEnhancement.BasicSkillIds.ToArray()
+                : _playerState.CharacterId == character.Id ? _playerState.AwakenedSkillIds : Array.Empty<string>();
+            _skills = _basicSkillEnhancement.CreateSkills(_baseSkills, awakened);
             if (_skills.Length != _skillButtons.Length)
             {
                 throw new InvalidOperationException("Skill_DT: 현재 단계 스킬 수와 버튼 수가 다릅니다.");
@@ -955,37 +944,6 @@ namespace CK.SemesterProject.Tutorial
                 checked((int)character.Hp), checked((int)character.BaseMemory), checked((int)character.BaseMemory),
                 _skills, evasion: character.EvasionRate, baseCriticalChance: character.BaseCriticalChance,
                 criticalDamageMultiplier: character.CriticalDamage);
-        }
-
-        private void ReadBattleCameraInput()
-        {
-            Mouse mouse = Mouse.current;
-            bool canDrag = Application.isFocused && mouse != null && mouse.rightButton.isPressed
-                && _cameraTime >= _cameraEntrySeconds;
-            if (!canDrag)
-            {
-                if (_isCameraDragging)
-                {
-                    Cursor.lockState = CursorLockMode.None;
-                    Cursor.visible = true;
-                }
-                _isCameraDragging = false;
-                // 손을 떼면 타깃을 정면으로 보는 기본 구도로 천천히 돌아온다.
-                float recenter = 1f - Mathf.Exp(-_battleCameraRecenterSpeed * Time.deltaTime);
-                _battleYaw = Mathf.Lerp(_battleYaw, 0f, recenter);
-                _battlePitch = Mathf.Lerp(_battlePitch, 0f, recenter);
-                return;
-            }
-            if (!_isCameraDragging)
-            {
-                _isCameraDragging = true;
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
-                return;
-            }
-            Vector2 delta = mouse.delta.ReadValue();
-            _battleYaw = Mathf.Clamp(_battleYaw + delta.x * _battleMouseSensitivity, -_maxBattleYaw, _maxBattleYaw);
-            _battlePitch = Mathf.Clamp(_battlePitch - delta.y * _battleMouseSensitivity, -10f, 30f);
         }
 
         private void UpdateExploration()
@@ -1142,22 +1100,19 @@ namespace CK.SemesterProject.Tutorial
             _damagePredictor = new BattleActionResolver(session.Rules);
             _hasRecordedBattleResult = false;
             _cachedSnapshot = null;
-            _battleYaw = 0f;
             _hasLockOnPoint = false;
             _hitStopRemaining = 0f;
             _hitStopActionId = -1;
             _attackCameraWeight = 0f;
             _finishDelayRemaining = -1f;
             _lastEnemyDamageTime = float.NegativeInfinity;
-            _battlePitch = 0f;
-            _isCameraDragging = false;
             _formation = formation;
             _presentations = _encounterMembers.Select((member, index) =>
                 new TutorialBattleActionPresentation(_movement.transform, member.transform, 1.6f, GetMonsterId(index),
-                    enhancement: _basicSkillEnhancement, skillStage: _battleSkillStage)).ToArray();
+                    enhancement: _basicSkillEnhancement)).ToArray();
             _monsterPresentations = _encounterMembers.Select((member, index) =>
                 new TutorialBattleActionPresentation(member.transform, _movement.transform, 1.6f, "player", GetMonsterId(index),
-                    enhancement: _basicSkillEnhancement, skillStage: _battleSkillStage)).ToArray();
+                    enhancement: _basicSkillEnhancement)).ToArray();
             _playerHome = _movement.transform.position;
             _enemyCenter = Vector3.zero;
             foreach (Vector3 slot in formation.EnemySlots)
@@ -1256,8 +1211,7 @@ namespace CK.SemesterProject.Tutorial
             }
             var skill = new SkillData("monster_attack", "공격", 90);
             return new CombatantData("tutorial_box", enemy.name, BattleTeam.Monster,
-                _monsterHp, _monsterMemory, _monsterMemory, new[] { skill }, BattleElement.Imprint,
-                weaknessChain: new[] { BattleElement.Afterimage, BattleElement.Imprint, BattleElement.Oblivion, BattleElement.Afterimage });
+                _monsterHp, _monsterMemory, _monsterMemory, new[] { skill }, BattleElement.Imprint);
         }
 
         public bool TrySelectBattleTargetAtScreenPoint(Vector2 screenPoint)
@@ -1266,19 +1220,19 @@ namespace CK.SemesterProject.Tutorial
             {
                 return false;
             }
-            RaycastHit hit;
-            if (!Physics.Raycast(_camera.ScreenPointToRay(screenPoint), out hit, _camera.farClipPlane,
-                ~0, QueryTriggerInteraction.Ignore))
+            // 씬 적 다수는 콜라이더가 트리거뿐이고 앞을 가리는 콜라이더도 있으므로, 트리거를 포함한 모든 충돌 중 가장 가까운 살아 있는 전투 적을 고른다.
+            RaycastHit[] hits = Physics.RaycastAll(_camera.ScreenPointToRay(screenPoint), _camera.farClipPlane,
+                ~0, QueryTriggerInteraction.Collide);
+            foreach (RaycastHit hit in hits.OrderBy(item => item.distance))
             {
-                return false;
-            }
-            for (int index = 0; index < _encounterMembers.Length; index++)
-            {
-                if (hit.transform.IsChildOf(_encounterMembers[index].transform)
-                    && Snapshot.Combatants.Any(unit => unit.InstanceId == GetMonsterId(index) && unit.Hp > 0))
+                for (int index = 0; index < _encounterMembers.Length; index++)
                 {
-                    SelectTarget(index);
-                    return true;
+                    if (hit.transform.IsChildOf(_encounterMembers[index].transform)
+                        && Snapshot.Combatants.Any(unit => unit.InstanceId == GetMonsterId(index) && unit.Hp > 0))
+                    {
+                        SelectTarget(index);
+                        return true;
+                    }
                 }
             }
             return false;
@@ -1577,7 +1531,7 @@ namespace CK.SemesterProject.Tutorial
             {
                 Vector3 adjusted = offset + new Vector3(step * 0.3f, step * 0.15f, -step * 0.65f);
                 if (TutorialBattleCamera.TryGetPose(playerSlot, enemyCenter, _movement.transform,
-                    _encounter.transform, adjusted, fieldOfView, _camera.aspect, out pose)
+                    _encounter.transform, adjusted, _battleCameraAngles, fieldOfView, _camera.aspect, out pose)
                     && IsGroupFramed(pose, slots, fieldOfView))
                 {
                     return true;
@@ -2040,7 +1994,7 @@ namespace CK.SemesterProject.Tutorial
             _enemyStatus.text = string.Join("\n", monsters.Select((monster, index) =>
                 (monster.InstanceId == _targetId ? "▶ " : "") + (index + 1) + ". " + monster.Data.DisplayName
                 + " [" + TutorialMonster.GetElementName(monster.Data.Element) + "]  HP " + monster.Hp + "/" + monster.Data.MaxHp
-                + "  메모리 " + monster.Memory + "  연쇄 " + monster.ChainStep + "/4"
+                + "  메모리 " + monster.Memory
                 + (monster.ImprintDamage > 0 ? "  각인 " + monster.ImprintDamage : "")
                 + (monster.HasAfterimageRecovery ? "  다음 방어 회복" : "")))
                 + "\n순서: " + string.Join(" → ", state.TurnOrder.Select(id =>
@@ -2053,7 +2007,7 @@ namespace CK.SemesterProject.Tutorial
                 if (_skillLabels[i] != null)
                 {
                     _skillLabels[i].text = (i < 3 ? TutorialMonster.GetElementName(_skills[i].Element)
-                        + " " + _battleSkillStage + "단계" : _skills[i].DisplayName + (_skills[i].IsAreaOfEffect ? " (광역)" : ""))
+                        + (IsAwakened(_skills[i]) ? " 각성" : "") : _skills[i].DisplayName + (_skills[i].IsAreaOfEffect ? " (광역)" : ""))
                         + "\n위력 " + _skills[i].Power + " · M" + _skills[i].MemoryCost
                         + (_skills[i].RageCost > 0 ? " · 폭주-" + _skills[i].RageCost : " · 폭주+" + _skills[i].RageGain)
                         + "\n" + GetDamagePreview(state, _skills[i]);
@@ -2070,22 +2024,17 @@ namespace CK.SemesterProject.Tutorial
                     _playerState.RecordBattleOutcome(state.Outcome);
                 }
                 _notice.text = state.Outcome == BattleOutcome.Victory ? "승리" : state.Outcome == BattleOutcome.Defeat ? "패배 · 시작 위치로 돌아갑니다" : "무승부";
-                if (_testSkillStage > 0)
+                if (state.Outcome == BattleOutcome.Victory)
                 {
-                    _notice.text += " · 테스트 스킬 " + _testSkillStage + "단계 / 누적 " + _playerState.VictoryCount + "승";
-                    return;
+                    _notice.text += " · BP +1 (보유 " + _playerState.BattlePoints + ")";
                 }
-                int nextStage = _enhancementRules.GetStage(_playerState.VictoryCount);
-                int remaining = _enhancementRules.GetRemainingVictories(_playerState.VictoryCount);
-                _notice.text += nextStage > _battleSkillStage ? " · 기본 스킬 " + nextStage + "단계 강화 (다음 전투부터)"
-                    : remaining > 0 ? " · 누적 " + _playerState.VictoryCount + "승 / 다음 강화까지 " + remaining + "승"
-                    : " · 기본 스킬 최대 단계";
             }
         }
 
         private void CreateAdditionalSkillButtons()
         {
-            if (_baseSkills.Length == 11)
+            // 기본 스킬 각성 전·후 6행 + 특수·궁극기 2행
+            if (_baseSkills.Length == 8)
             {
                 var buttons = _skillButtons.ToList();
                 for (int i = 0; i < 2; i++)
@@ -2310,12 +2259,6 @@ namespace CK.SemesterProject.Tutorial
             CK.SemesterProject.SkillSequence.SkillCameraShake.Clear();
             // 필드에서는 HP를 보존하고 메모리만 최초값으로 회복한다.
             _playerState.RestoreFieldMemory();
-            if (_isCameraDragging)
-            {
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-                _isCameraDragging = false;
-            }
             _cachedSnapshot = null;
             foreach (TutorialBattleActionPresentation presentation in _presentations)
             {
@@ -2420,6 +2363,60 @@ namespace CK.SemesterProject.Tutorial
                 {
                     // 아직 꺼져 있는 구역의 몬스터도 되돌려야 나중에 구역이 켜졌을 때 필드 AI가 움직인다.
                     enemy.enabled = _enemyEnabled[i];
+                }
+            }
+        }
+
+        // 필드 우측 상단 BP 표시와 스킬 각성 창. 마우스가 잠긴 필드에서도 쓰도록 키보드로만 조작한다.
+        private void OnGUI()
+        {
+            if (IsInBattle || _playerState?.CharacterId == null || _baseSkills == null)
+            {
+                return;
+            }
+            if (_awakeningStyle == null)
+            {
+                _awakeningStyle = new GUIStyle(GUI.skin.box) { fontSize = 18, alignment = TextAnchor.UpperLeft };
+            }
+            string text = "BP " + _playerState.BattlePoints + "    [" + _awakeningKey + "] 스킬 각성";
+            if (_isAwakeningPanelOpen)
+            {
+                string[] ids = _basicSkillEnhancement.BasicSkillIds.ToArray();
+                for (int i = 0; i < ids.Length; i++)
+                {
+                    SkillData skill = _baseSkills.First(data => data.Id == ids[i]);
+                    bool isAwakened = _playerState.AwakenedSkillIds.Contains(ids[i]);
+                    text += "\n[" + (i + 1) + "] " + TutorialMonster.GetElementName(skill.Element) + " · "
+                        + (isAwakened ? "각성 완료" : "BP " + _basicSkillEnhancement.AwakeningCost + " 소모");
+                }
+            }
+            Vector2 size = _awakeningStyle.CalcSize(new GUIContent(text)) + new Vector2(16f, 8f);
+            // 우측 상단 설정 버튼을 가리지 않도록 왼쪽으로 비켜 둔다.
+            GUI.Box(new Rect(Screen.width - size.x - 80f, 16f, size.x, size.y), text, _awakeningStyle);
+        }
+
+        private void UpdateAwakeningInput()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || !Application.isFocused)
+            {
+                return;
+            }
+            if (keyboard[_awakeningKey].wasPressedThisFrame)
+            {
+                _isAwakeningPanelOpen = !_isAwakeningPanelOpen;
+            }
+            if (!_isAwakeningPanelOpen)
+            {
+                return;
+            }
+            string[] ids = _basicSkillEnhancement.BasicSkillIds.ToArray();
+            for (int i = 0; i < ids.Length; i++)
+            {
+                bool isPressed = keyboard[(Key)((int)Key.Digit1 + i)].wasPressedThisFrame;
+                if (isPressed && _playerState.TryAwaken(ids[i], _basicSkillEnhancement.AwakeningCost))
+                {
+                    RefreshPlayerData();
                 }
             }
         }

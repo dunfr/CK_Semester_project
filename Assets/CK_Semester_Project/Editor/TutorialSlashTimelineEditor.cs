@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using CK.SemesterProject.SkillSequence;
 using CK.SemesterProject.Tutorial;
 using Unity.Cinemachine;
@@ -73,7 +73,8 @@ namespace CK.SemesterProject.Editor
             _target = arena.position + _forward * (spacing * 0.5f);
             Vector2 offset = battleSettings.FindProperty("_battleCameraOffsetXY").vector2Value;
             float distance = battleSettings.FindProperty("_battleCameraDistance").floatValue;
-            _openingPose = TutorialBattleCamera.GetBasePose(_home, _target, new Vector3(offset.x, offset.y, -distance));
+            _openingPose = TutorialBattleCamera.GetBasePose(_home, _target, new Vector3(offset.x, offset.y, -distance),
+                battleSettings.FindProperty("_battleCameraAngles").vector3Value);
             _lens = LensSettings.FromCamera(battle.BattleCamera);
             _lens.FieldOfView = battleSettings.FindProperty("_battleFieldOfView").floatValue;
 
